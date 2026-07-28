@@ -3,6 +3,8 @@ import { DndProvider, useDrag, useDrop } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { Plus, Edit2, Trash2, User, Calendar as CalendarIcon, AlertCircle } from "lucide-react";
 import { useApp, type Task } from "./AppContext";
+import { useAuth } from "./AuthContext";
+import { canEditTask } from "../src/features/tasks/permissions";
 import { Badge } from "./ui/badge";
 import TaskDialog from "./TaskDialog";
 import { toast } from "sonner";
@@ -22,19 +24,22 @@ interface DraggableTaskCardProps {
   task: Task;
   onEdit: (task: Task) => void;
   onDelete: (taskId: number) => void;
+  canEdit: boolean;
+  canDelete: boolean;
 }
 
-function DraggableTaskCard({ task, onEdit, onDelete }: DraggableTaskCardProps) {
+function DraggableTaskCard({ task, onEdit, onDelete, canEdit, canDelete }: DraggableTaskCardProps) {
   const { getTeamMember } = useApp();
   const assignee = getTeamMember(task.assignee);
 
   const [{ isDragging }, drag] = useDrag(() => ({
     type: "task",
     item: { id: task.id, currentStatus: task.status },
+    canDrag: canEdit,
     collect: (monitor) => ({
       isDragging: monitor.isDragging(),
     }),
-  }));
+  }), [canEdit, task.id, task.status]);
 
   const getPriorityColor = (priority: Task["priority"]) => {
     switch (priority) {
@@ -51,34 +56,41 @@ function DraggableTaskCard({ task, onEdit, onDelete }: DraggableTaskCardProps) {
 
   return (
     <div
-      ref={drag}
+      ref={canEdit ? drag : undefined}
       style={{ opacity: isDragging ? 0.5 : 1 }}
-      className="bg-card border border-border rounded-[8px] p-[12px] cursor-move hover:shadow-md transition-all group"
+      title={canEdit ? undefined : "You can only update tasks assigned to you"}
+      className={`bg-card border border-border rounded-[8px] p-[12px] hover:shadow-md transition-all group ${canEdit ? "cursor-move" : "cursor-not-allowed opacity-80"}`}
     >
       <div className="flex items-start justify-between gap-[8px] mb-[8px]">
         <h4 className="font-['Roboto_Mono'] font-bold text-[11px] text-foreground flex-1 line-clamp-2">
           {task.title}
         </h4>
-        <div className="flex items-center gap-[4px] opacity-0 group-hover:opacity-100 transition-opacity">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit(task);
-            }}
-            className="p-[4px] hover:bg-accent/10 rounded-[4px] transition-colors"
-          >
-            <Edit2 className="w-3 h-3 text-muted-foreground hover:text-accent" />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(task.id);
-            }}
-            className="p-[4px] hover:bg-destructive/10 rounded-[4px] transition-colors"
-          >
-            <Trash2 className="w-3 h-3 text-muted-foreground hover:text-destructive" />
-          </button>
-        </div>
+        {(canEdit || canDelete) && (
+          <div className="flex items-center gap-[4px] opacity-0 group-hover:opacity-100 transition-opacity">
+            {canEdit && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(task);
+                }}
+                className="p-[4px] hover:bg-accent/10 rounded-[4px] transition-colors"
+              >
+                <Edit2 className="w-3 h-3 text-muted-foreground hover:text-accent" />
+              </button>
+            )}
+            {canDelete && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(task.id);
+                }}
+                className="p-[4px] hover:bg-destructive/10 rounded-[4px] transition-colors"
+              >
+                <Trash2 className="w-3 h-3 text-muted-foreground hover:text-destructive" />
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {task.description && (
@@ -142,6 +154,9 @@ interface StatusColumnProps {
   onEdit: (task: Task) => void;
   onDelete: (taskId: number) => void;
   onAddTask: (status: Task["status"]) => void;
+  canEditTask: (task: Task) => boolean;
+  canDeleteTasks: boolean;
+  canAddTasks: boolean;
 }
 
 function StatusColumn({
@@ -153,6 +168,9 @@ function StatusColumn({
   onEdit,
   onDelete,
   onAddTask,
+  canEditTask,
+  canDeleteTasks,
+  canAddTasks,
 }: StatusColumnProps) {
   const [{ isOver }, drop] = useDrop(() => ({
     accept: "task",
@@ -187,13 +205,15 @@ function StatusColumn({
           >
             {tasks.length}
           </Badge>
-          <button
-            onClick={() => onAddTask(status)}
-            className="p-[4px] hover:bg-accent/10 rounded-[4px] transition-colors"
-            title="Add task"
-          >
-            <Plus className="w-3 h-3 text-muted-foreground hover:text-accent" />
-          </button>
+          {canAddTasks && (
+            <button
+              onClick={() => onAddTask(status)}
+              className="p-[4px] hover:bg-accent/10 rounded-[4px] transition-colors"
+              title="Add task"
+            >
+              <Plus className="w-3 h-3 text-muted-foreground hover:text-accent" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -204,6 +224,8 @@ function StatusColumn({
             task={task}
             onEdit={onEdit}
             onDelete={onDelete}
+            canEdit={canEditTask(task)}
+            canDelete={canDeleteTasks}
           />
         ))}
         {tasks.length === 0 && (
@@ -219,15 +241,25 @@ function StatusColumn({
 }
 
 export default function TaskKanban({ projectId }: TaskKanbanProps) {
-  const { getTasksByProject, updateTask, deleteTask } = useApp();
+  const { getTasksByProject, updateTask, deleteTask, teamMembers } = useApp();
+  const { currentUser, hasPermission } = useAuth();
   const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | undefined>(undefined);
   const [taskDialogMode, setTaskDialogMode] = useState<"add" | "edit">("add");
   const [presetStatus, setPresetStatus] = useState<Task["status"]>("To Do");
 
   const tasks = getTasksByProject(projectId);
+  const isManagerOrAdmin = hasPermission("canEditProjects");
+
+  const canEditThisTask = (task: Task) =>
+    canEditTask({ task, currentUserId: currentUser?.id, isManagerOrAdmin, teamMembers });
 
   const handleDrop = async (taskId: number, newStatus: Task["status"]) => {
+    const task = tasks.find((t) => t.id === taskId);
+    if (!canEditThisTask(task as Task)) {
+      toast.error("You can only update tasks assigned to you");
+      return;
+    }
     const updates: Partial<Task> = { status: newStatus };
     if (newStatus === "Completed") {
       updates.progress = 100;
@@ -291,6 +323,9 @@ export default function TaskKanban({ projectId }: TaskKanbanProps) {
                 onEdit={handleEditTask}
                 onDelete={handleDeleteTask}
                 onAddTask={handleAddTask}
+                canEditTask={canEditThisTask}
+                canDeleteTasks={isManagerOrAdmin}
+                canAddTasks={isManagerOrAdmin}
               />
             ))}
           </div>

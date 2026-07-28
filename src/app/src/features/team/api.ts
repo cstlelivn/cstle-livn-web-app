@@ -33,6 +33,10 @@ export interface TeamMemberUpdate {
   efficiency?: number;
   specialties?: string[];
   active?: boolean;
+  // Links this roster entry to a real login account, so RLS can tell "this
+  // logged-in person = this assigned task." Only set for people who log in
+  // (not subcontractors etc.) — null means no link.
+  auth_user_id?: string | null;
 }
 
 async function getAuthToken() {

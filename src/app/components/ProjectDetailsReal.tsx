@@ -45,9 +45,11 @@ import EditProjectPhasesDialog from "./EditProjectPhasesDialog";
 import EmailUpdateModal from "./EmailUpdateModal";
 import PhaseView from "./PhaseView";
 import ProjectHealthSummary from "./ProjectHealthSummary";
+import ForceCompleteProjectDialog from "./ForceCompleteProjectDialog";
 import { toast } from "sonner";
 import { getClient } from "../src/features/clients/api";
 import { useProjectPhases } from "../src/features/projectPhases/useProjectPhases";
+import { markProjectComplete } from "../src/features/projects/api";
 
 // Task type definition
 interface AppTask {
@@ -113,7 +115,9 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
     projects,
   } = useApp();
 
-  const { currentUser } = useAuth();
+  const { currentUser, hasPermission } = useAuth();
+  const [forceCompleteOpen, setForceCompleteOpen] = useState(false);
+  const [markingComplete, setMarkingComplete] = useState(false);
 
   // Use useMemo to memoize the project lookup and prevent re-execution on every render
   const project = useMemo(() => {
@@ -152,6 +156,23 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
     ? project.phases
     : getProjectPhases();
   const projectTasks = getTasksByProject(projectId);
+
+  const incompletePhaseCount = normalizedPhases.filter((p: any) => p.status !== "Completed").length;
+  const allPhasesComplete = normalizedPhases.length > 0 && incompletePhaseCount === 0;
+  const canForceComplete = hasPermission("canForceCompleteProjects");
+
+  const handleMarkComplete = async () => {
+    if (!currentUser) return;
+    setMarkingComplete(true);
+    try {
+      await markProjectComplete(String(projectId), String(currentUser.id));
+      toast.success("Project marked complete");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to mark project complete");
+    } finally {
+      setMarkingComplete(false);
+    }
+  };
 
   if (!project) {
     return (
@@ -514,6 +535,24 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
           >
             {project.status}
           </div>
+          {project.status !== "Completed" && (
+            <button
+              onClick={handleMarkComplete}
+              disabled={!allPhasesComplete || markingComplete}
+              title={allPhasesComplete ? undefined : `${incompletePhaseCount} phase(s) not completed yet`}
+              className="px-[14px] py-[8px] rounded-[6px] text-[11px] font-['Roboto_Mono'] font-medium bg-success/10 text-success border border-success/20 hover:bg-success/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {markingComplete ? "Completing…" : "Mark Complete"}
+            </button>
+          )}
+          {project.status !== "Completed" && canForceComplete && (
+            <button
+              onClick={() => setForceCompleteOpen(true)}
+              className="px-[14px] py-[8px] rounded-[6px] text-[11px] font-['Roboto_Mono'] font-medium bg-warning/10 text-warning border border-warning/20 hover:bg-warning/20 transition-colors"
+            >
+              Force Complete
+            </button>
+          )}
           <button
             onClick={handleDeleteProject}
             className="p-[8px] rounded-[6px] bg-background border border-border hover:bg-destructive hover:border-destructive hover:text-white transition-colors"
@@ -522,6 +561,14 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
           </button>
         </div>
       </div>
+
+      <ForceCompleteProjectDialog
+        open={forceCompleteOpen}
+        onOpenChange={setForceCompleteOpen}
+        projectId={String(projectId)}
+        incompletePhaseCount={incompletePhaseCount}
+        onComplete={() => {}}
+      />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-[16px]">

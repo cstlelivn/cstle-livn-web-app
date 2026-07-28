@@ -239,6 +239,96 @@ export async function deleteProject(id: string) {
     .from('projects')
     .delete()
     .eq('id', id);
-  
+
   failIf(error, 'Failed to delete project');
+}
+
+/** Check whether every phase in a project is complete (the normal gate for
+ *  marking a project complete). Mirrors the database trigger in
+ *  supabase/migrations/20240004_role_source_and_rls.sql, which is what
+ *  actually enforces this — this is a client-side pre-check for UX only. */
+export async function checkProjectCompletionReadiness(projectId: string): Promise<{
+  ready: boolean;
+  incompleteCount: number;
+  totalPhases: number;
+}> {
+  const { data: phases, error } = await supabase
+    .from('project_phases')
+    .select('id, status')
+    .eq('project_id', projectId);
+  failIf(error, 'Failed to check project completion readiness');
+
+  const all = phases ?? [];
+  const incomplete = all.filter((p: any) => p.status !== 'Completed');
+  return { ready: incomplete.length === 0, incompleteCount: incomplete.length, totalPhases: all.length };
+}
+
+/** Mark a project complete the normal way — blocked unless every phase is
+ *  already complete (enforced both here and, more importantly, by the
+ *  database trigger). */
+export async function markProjectComplete(projectId: string, userId: string) {
+  const readiness = await checkProjectCompletionReadiness(projectId);
+  if (!readiness.ready) {
+    throw new Error(`${readiness.incompleteCount} phase(s) are not completed yet`);
+  }
+
+  const { data, error } = await supabase
+    .from('projects')
+    .update({ status: 'Completed', updated_at: now() })
+    .eq('id', projectId)
+    .select()
+    .single();
+  failIf(error, 'Failed to mark project complete');
+
+  await supabase.from('project_activity_log').insert({
+    project_id: projectId,
+    user_id: userId,
+    action: 'project_completed',
+    created_at: now(),
+  });
+
+  return data ? transformProject(data) : null;
+}
+
+/** Super Admin-only override: force a project to Completed even if phases
+ *  aren't done. Requires a reason, which is permanently logged. The database
+ *  trigger independently re-checks both the Super Admin requirement and the
+ *  reason, so this can't be bypassed by calling the table API directly. */
+export async function forceCompleteProject(projectId: string, userId: string, reason: string) {
+  if (!reason?.trim()) {
+    throw new Error('A reason is required to force-complete a project');
+  }
+
+  const { data: prev } = await supabase
+    .from('projects')
+    .select('status')
+    .eq('id', projectId)
+    .single();
+
+  const { data, error } = await supabase
+    .from('projects')
+    .update({
+      status: 'Completed',
+      force_completed: true,
+      force_completed_reason: reason,
+      force_completed_by: userId,
+      force_completed_at: now(),
+      updated_at: now(),
+    })
+    .eq('id', projectId)
+    .select()
+    .single();
+  failIf(error, 'Failed to force-complete project');
+
+  await supabase.from('project_activity_log').insert({
+    project_id: projectId,
+    user_id: userId,
+    action: 'project_force_completed',
+    prev_value: { status: prev?.status },
+    new_value: { status: 'Completed' },
+    reason,
+    created_at: now(),
+  });
+
+  return data ? transformProject(data) : null;
 }

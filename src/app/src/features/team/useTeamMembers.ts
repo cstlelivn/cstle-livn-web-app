@@ -8,6 +8,7 @@ function transformTeamMemberRow(dbMember: any) {
     ...dbMember,
     // Map snake_case to camelCase for frontend compatibility
     auraRating: dbMember.aura_rating ?? dbMember.auraRating ?? 0,
+    authUserId: dbMember.auth_user_id ?? dbMember.authUserId ?? null,
     tasksCompleted: dbMember.tasks_completed ?? dbMember.tasksCompleted ?? 0,
     tasksOnTime: dbMember.tasks_on_time ?? dbMember.tasksOnTime ?? 0,
     createdAt: dbMember.created_at ?? dbMember.createdAt,

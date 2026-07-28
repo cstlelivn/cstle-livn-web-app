@@ -5,6 +5,7 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { useApp } from "./AppContext";
+import { useAuth } from "./AuthContext";
 import { toast } from "sonner";
 
 interface TeamMember {
@@ -17,6 +18,7 @@ interface TeamMember {
   active: boolean;
   auraRating?: number;
   tasksCompleted?: number;
+  authUserId?: string | null;
 }
 
 interface EditTeamMemberDialogProps {
@@ -27,8 +29,10 @@ interface EditTeamMemberDialogProps {
 
 export default function EditTeamMemberDialog({ isOpen, onClose, member }: EditTeamMemberDialogProps) {
   const { updateTeamMember } = useApp();
+  const { users, hasPermission, refreshUsers } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
-  
+  const canLinkAccount = hasPermission("canManageTeam");
+
   const [formData, setFormData] = useState({
     name: member.name,
     email: member.email,
@@ -36,7 +40,12 @@ export default function EditTeamMemberDialog({ isOpen, onClose, member }: EditTe
     role: member.role,
     specialties: member.specialties.join(", "),
     active: member.active,
+    authUserId: member.authUserId || "none",
   });
+
+  useEffect(() => {
+    if (canLinkAccount) refreshUsers();
+  }, [canLinkAccount]);
 
   // Update form data when member changes
   useEffect(() => {
@@ -47,6 +56,7 @@ export default function EditTeamMemberDialog({ isOpen, onClose, member }: EditTe
       role: member.role,
       specialties: member.specialties.join(", "),
       active: member.active,
+      authUserId: member.authUserId || "none",
     });
   }, [member]);
 
@@ -62,7 +72,8 @@ export default function EditTeamMemberDialog({ isOpen, onClose, member }: EditTe
         role: formData.role,
         specialties: formData.specialties.split(",").map(s => s.trim()).filter(Boolean),
         active: formData.active,
-      });
+        auth_user_id: formData.authUserId === "none" ? null : formData.authUserId,
+      } as any);
 
       toast.success("Team member updated successfully");
       onClose();
@@ -174,7 +185,34 @@ export default function EditTeamMemberDialog({ isOpen, onClose, member }: EditTe
               </SelectContent>
             </Select>
           </div>
-          
+
+          {canLinkAccount && (
+            <div>
+              <Label style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-label)', fontWeight: 'var(--font-weight-bold)' }}>
+                Linked Login Account
+              </Label>
+              <Select
+                value={formData.authUserId}
+                onValueChange={(value) => setFormData({ ...formData, authUserId: value })}
+              >
+                <SelectTrigger style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-base)', fontWeight: 'var(--font-weight-normal)' }}>
+                  <SelectValue placeholder="No linked account" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No linked account</SelectItem>
+                  {users.map((u) => (
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.name} ({u.email})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground mt-[4px]">
+                Only needed for team members who log into this app — this is what lets them update tasks assigned to them.
+              </p>
+            </div>
+          )}
+
           <div className="flex gap-3 justify-end pt-4">
             <Button 
               type="button" 

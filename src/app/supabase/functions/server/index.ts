@@ -62,7 +62,10 @@ async function authMiddleware(c: any, next: any) {
         id: user.id,
         name: user.user_metadata?.name || user.email?.split('@')[0] || "User",
         email: user.email,
-        role: user.user_metadata?.role || "Associate",
+        // Role is authoritative from app_metadata (server-writable only); fall
+        // back to the legacy user_metadata location for accounts created
+        // before this fix.
+        role: user.app_metadata?.role || user.user_metadata?.role || "Associate",
         active: true,
         createdAt: user.created_at || new Date().toISOString(),
       };
@@ -261,7 +264,7 @@ app.post("/make-server-bcab437c/auth/signup", async (c) => {
           id: existingAuthUser.id,
           name: name || existingAuthUser.user_metadata?.name || email.split('@')[0],
           email: existingAuthUser.email,
-          role: role || existingAuthUser.user_metadata?.role || "Associate",
+          role: role || existingAuthUser.app_metadata?.role || existingAuthUser.user_metadata?.role || "Associate",
           active: true,
           createdAt: existingAuthUser.created_at || new Date().toISOString(),
         };
@@ -282,7 +285,10 @@ app.post("/make-server-bcab437c/auth/signup", async (c) => {
     const { data: createData, error: createError } = await supabase.auth.admin.createUser({
       email,
       password,
-      user_metadata: { name, role: role || "Associate" },
+      user_metadata: { name },
+      // Role lives in app_metadata: server-writable only, so a signed-in user
+      // can never grant themselves a higher role via supabase.auth.updateUser().
+      app_metadata: { role: role || "Associate" },
       // Automatically confirm email since email server hasn't been configured
       email_confirm: true,
     });
@@ -381,8 +387,17 @@ app.put("/make-server-bcab437c/users/:id", authMiddleware, async (c) => {
   }
 
   const updates = await c.req.json();
+
+  // Changing a role — even your own — requires Super Admin or Manager.
+  // Without this check, any user could PUT their own id with {role: "Super Admin"}
+  // and grant themselves admin, since the check above only restricts editing
+  // OTHER people's records, not which fields you can change on your own.
+  if (updates.role !== undefined && userRole !== "Super Admin" && userRole !== "Manager") {
+    return c.json({ error: "Only a Super Admin or Manager can change roles" }, 403);
+  }
+
   const existingUser = await kv.get(`user:${targetUserId}`);
-  
+
   if (!existingUser) {
     return c.json({ error: "User not found" }, 404);
   }
@@ -401,7 +416,9 @@ app.put("/make-server-bcab437c/users/:id", authMiddleware, async (c) => {
     console.log(`✓ Set force_logout flag for user ${targetUserId} (role changed from ${existingUser.role} to ${updates.role})`);
   }
 
-  // If role or name changed, also update Supabase Auth user_metadata so it's in sync
+  // If role or name changed, also update Supabase Auth metadata so it's in sync.
+  // Role goes in app_metadata (server-writable only — this is what RLS policies
+  // trust); name stays in user_metadata since it's not security-sensitive.
   if (updates.role || updates.name) {
     try {
       const { error: updateAuthError } = await supabase.auth.admin.updateUserById(
@@ -409,24 +426,50 @@ app.put("/make-server-bcab437c/users/:id", authMiddleware, async (c) => {
         {
           user_metadata: {
             name: updatedUser.name,
+          },
+          app_metadata: {
             role: updatedUser.role,
-          }
+          },
         }
       );
-      
+
       if (updateAuthError) {
-        console.error("Failed to update auth user_metadata:", updateAuthError);
+        console.error("Failed to update auth metadata:", updateAuthError);
         // Don't fail the request - KV is source of truth
       } else {
-        console.log(`✓ Updated auth user_metadata for user ${targetUserId}`);
+        console.log(`✓ Updated auth metadata for user ${targetUserId}`);
       }
     } catch (error) {
-      console.error("Error updating auth user_metadata:", error);
+      console.error("Error updating auth metadata:", error);
       // Don't fail the request - KV is source of truth
     }
   }
 
   return c.json({ user: updatedUser, roleChanged });
+});
+
+// One-time backfill: copy each KV-stored user's role into their Supabase Auth
+// app_metadata, so RLS policies (which read role from app_metadata, not the
+// user-editable user_metadata) work correctly for accounts created before
+// this endpoint existed. Safe to call repeatedly — it's idempotent.
+app.post("/make-server-bcab437c/auth/sync-app-metadata-roles", async (c) => {
+  try {
+    const allUsers = await kv.getByPrefix("user:");
+    const results = [];
+    for (const u of allUsers) {
+      try {
+        const { error } = await supabase.auth.admin.updateUserById(u.id, {
+          app_metadata: { role: u.role || "Associate" },
+        });
+        results.push({ email: u.email, success: !error, error: error?.message });
+      } catch (err: any) {
+        results.push({ email: u.email, success: false, error: err.message });
+      }
+    }
+    return c.json({ synced: results.filter(r => r.success).length, total: results.length, results });
+  } catch (error: any) {
+    return c.json({ error: `Sync failed: ${error.message}` }, 500);
+  }
 });
 
 // ============= PROJECT ROUTES =============

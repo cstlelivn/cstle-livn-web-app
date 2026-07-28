@@ -26,7 +26,10 @@ export type Permission =
   | "canEditSettings"
   | "canViewQCReviewQueue"
   | "canViewPhaseQCReviewQueue"
-  | "canViewAllProjects";
+  | "canViewAllProjects"
+  | "canEditPhases"
+  | "canForceCompleteProjects"
+  | "canManageTemplates";
 
 export interface User {
   id: string;
@@ -80,6 +83,9 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "canViewQCReviewQueue",
     "canViewPhaseQCReviewQueue",
     "canViewAllProjects",
+    "canEditPhases",
+    "canForceCompleteProjects",
+    "canManageTemplates",
   ],
   Manager: [
     "canViewDashboard",
@@ -101,6 +107,8 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "canViewQCReviewQueue",
     "canViewPhaseQCReviewQueue",
     "canViewAllProjects",
+    "canEditPhases",
+    "canManageTemplates",
   ],
   Contractor: [
     "canViewDashboard",
@@ -167,6 +175,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       "canViewQCReviewQueue",
       "canViewPhaseQCReviewQueue",
       "canViewAllProjects",
+      "canEditPhases",
+      "canForceCompleteProjects",
+      "canManageTemplates",
     ];
     
     const permissionMap: Record<string, boolean> = {};
@@ -204,26 +215,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 console.log('✅ Session refreshed successfully');
                 setAccessToken(refreshData.session.access_token);
                 
-                if (refreshData.session.user?.user_metadata?.name && refreshData.session.user?.user_metadata?.role) {
+                const refreshedRole = refreshData.session.user?.app_metadata?.role;
+                if (refreshData.session.user?.user_metadata?.name && refreshedRole) {
                   setUser({
                     id: refreshData.session.user.id,
                     email: refreshData.session.user.email || "",
                     name: refreshData.session.user.user_metadata.name,
-                    role: refreshData.session.user.user_metadata.role as UserRole,
+                    role: refreshedRole as UserRole,
                   });
                 }
               }
             } else {
               // Session is valid
               setAccessToken(session.access_token);
-              
-              // Get user details from session
-              if (session.user && session.user.user_metadata?.name && session.user.user_metadata?.role) {
+
+              // Get user details from session (role is authoritative from
+              // app_metadata — server-writable only, never client-writable)
+              const sessionRole = session.user?.app_metadata?.role;
+              if (session.user && session.user.user_metadata?.name && sessionRole) {
                 setUser({
                   id: session.user.id,
                   email: session.user.email || "",
                   name: session.user.user_metadata.name,
-                  role: session.user.user_metadata.role as UserRole,
+                  role: sessionRole as UserRole,
                 });
               }
             }
@@ -231,7 +245,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             // Session validation failed - try refresh before giving up
             console.log('🔄 Session validation error - attempting refresh...');
             const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-            
+
             if (refreshError || !refreshData?.session) {
               console.log('❌ Refresh failed - clearing session');
               await authAPI.signOut();
@@ -240,13 +254,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             } else {
               console.log('✅ Session refreshed after validation error');
               setAccessToken(refreshData.session.access_token);
-              
-              if (refreshData.session.user?.user_metadata?.name && refreshData.session.user?.user_metadata?.role) {
+
+              const refreshedRole2 = refreshData.session.user?.app_metadata?.role;
+              if (refreshData.session.user?.user_metadata?.name && refreshedRole2) {
                 setUser({
                   id: refreshData.session.user.id,
                   email: refreshData.session.user.email || "",
                   name: refreshData.session.user.user_metadata.name,
-                  role: refreshData.session.user.user_metadata.role as UserRole,
+                  role: refreshedRole2 as UserRole,
                 });
               }
             }
@@ -269,14 +284,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (data.session) {
         setAccessToken(data.session.access_token);
         
-        // Get user details from session
+        // Get user details from session (role is authoritative from
+        // app_metadata — server-writable only, never client-writable)
         if (data.session.user) {
-          if (data.session.user.user_metadata?.name && data.session.user.user_metadata?.role) {
+          const signInRole = data.session.user.app_metadata?.role;
+          if (data.session.user.user_metadata?.name && signInRole) {
             setUser({
               id: data.session.user.id,
               email: data.session.user.email || "",
               name: data.session.user.user_metadata.name,
-              role: data.session.user.user_metadata.role as UserRole,
+              role: signInRole as UserRole,
             });
           } else {
             throw new Error("User account is missing required information. Please contact support.");
@@ -357,12 +374,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Fallback to session data if backend call fails
       try {
         const session = await authAPI.getSession();
-        if (session?.user && session.user.user_metadata?.name && session.user.user_metadata?.role) {
+        const fallbackRole = session?.user?.app_metadata?.role;
+        if (session?.user && session.user.user_metadata?.name && fallbackRole) {
           setUser({
             id: session.user.id,
             email: session.user.email || "",
             name: session.user.user_metadata.name,
-            role: session.user.user_metadata.role as UserRole,
+            role: fallbackRole as UserRole,
           });
         }
       } catch (sessionError) {

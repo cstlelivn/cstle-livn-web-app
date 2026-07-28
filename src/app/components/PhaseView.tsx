@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import {
-  ChevronDown, ChevronRight, Plus, Edit2, Trash2, CheckCircle2,
+  ChevronDown, ChevronRight, Plus, Trash2, CheckCircle2,
   AlertCircle, Clock, Circle, Package, ClipboardCheck, Search,
   MoreHorizontal, ArrowUpDown, Calendar, User,
 } from "lucide-react";
@@ -79,7 +79,6 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
 
   // Dialogs
   const [addPhaseOpen, setAddPhaseOpen] = useState(false);
-  const [editPhaseId, setEditPhaseId] = useState<string | null>(null);
   const [deletePhaseId, setDeletePhaseId] = useState<string | null>(null);
   const [qcSubmitPhaseId, setQcSubmitPhaseId] = useState<string | null>(null);
   const [qcReviewPhaseId, setQcReviewPhaseId] = useState<string | null>(null);
@@ -212,7 +211,8 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
     }
   };
 
-  const canReviewQC = hasPermission("canManageUsers") || hasPermission("canEditFinance");
+  const canReviewQC = hasPermission("canEditPhases");
+  const canEditPhases = hasPermission("canEditPhases");
 
   if (loading) {
     return (
@@ -231,13 +231,15 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
         <p className="font-['Roboto_Mono'] text-[11px] text-muted-foreground">
           {phases.length} phase{phases.length !== 1 ? "s" : ""} · Tasks complete phases · Phases complete the project
         </p>
-        <button
-          onClick={() => setAddPhaseOpen(true)}
-          className="flex items-center gap-[6px] px-[12px] py-[6px] bg-accent text-accent-foreground rounded-[6px] hover:bg-accent/90 transition-colors font-['Roboto_Mono'] text-[11px]"
-        >
-          <Plus className="w-3 h-3" />
-          Add Phase
-        </button>
+        {canEditPhases && (
+          <button
+            onClick={() => setAddPhaseOpen(true)}
+            className="flex items-center gap-[6px] px-[12px] py-[6px] bg-accent text-accent-foreground rounded-[6px] hover:bg-accent/90 transition-colors font-['Roboto_Mono'] text-[11px]"
+          >
+            <Plus className="w-3 h-3" />
+            Add Phase
+          </button>
+        )}
       </div>
 
       {/* Empty state */}
@@ -329,14 +331,8 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
                   </div>
                 </div>
 
+                {canEditPhases && (
                 <div className="flex items-center gap-[4px]" onClick={e => e.stopPropagation()}>
-                  <button
-                    onClick={() => setEditPhaseId(phase.id)}
-                    className="p-[6px] hover:bg-accent/10 rounded-[4px] transition-colors"
-                    title="Edit phase"
-                  >
-                    <Edit2 className="w-3 h-3 text-muted-foreground" />
-                  </button>
                   <button
                     onClick={() => setDeletePhaseId(phase.id)}
                     className="p-[6px] hover:bg-destructive/10 rounded-[4px] transition-colors"
@@ -345,6 +341,7 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
                     <Trash2 className="w-3 h-3 text-muted-foreground hover:text-destructive" />
                   </button>
                 </div>
+                )}
               </div>
             </div>
 

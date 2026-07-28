@@ -7,6 +7,7 @@ import { Textarea } from "./ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { useApp, type Task } from "./AppContext";
 import { useAuth } from "./AuthContext";
+import { canEditTask } from "../src/features/tasks/permissions";
 import { toast } from "sonner";
 
 interface TaskDialogProps {
@@ -29,11 +30,17 @@ export default function TaskDialog({
   defaultStatus,
 }: TaskDialogProps) {
   const { teamMembers, addTask, updateTask, taskTemplates, saveTaskTemplate, getProject } = useApp();
-  const { hasPermission } = useAuth();
-  
+  const { hasPermission, currentUser } = useAuth();
+
   // Check if user is Manager/Admin
-  const isManagerOrAdmin = hasPermission("canEditFinance") || hasPermission("canManageUsers");
-  
+  const isManagerOrAdmin = hasPermission("canEditProjects");
+
+  // Editing an existing task the current user doesn't own (and isn't a
+  // manager/admin) should be view-only — mirrors the tasks_update RLS policy.
+  const isReadOnly =
+    mode === "edit" &&
+    !canEditTask({ task, currentUserId: currentUser?.id, isManagerOrAdmin, teamMembers });
+
   // Get project to access phases
   const project = getProject(projectId);
 
@@ -100,6 +107,10 @@ export default function TaskDialog({
   };
 
   const handleSave = async () => {
+    if (isReadOnly) {
+      toast.error("You can only update tasks assigned to you");
+      return;
+    }
     if (!formData.title.trim()) {
       toast.error("Task title is required");
       return;
@@ -226,6 +237,15 @@ export default function TaskDialog({
         </DialogHeader>
 
         <div className="space-y-[16px] mt-[16px]">
+          {isReadOnly && (
+            <div className="p-[10px] bg-warning/10 border border-warning/20 rounded-[8px] flex items-center gap-[8px]">
+              <AlertCircle className="w-3.5 h-3.5 text-warning shrink-0" />
+              <p className="font-['Roboto_Mono'] text-[10px] text-warning">
+                This task is assigned to someone else — you can view it but not make changes.
+              </p>
+            </div>
+          )}
+          <fieldset disabled={isReadOnly} className="contents">
           {/* Template Selection */}
           {mode === "add" && taskTemplates.length > 0 && (
             <div className="p-[12px] bg-accent/5 rounded-[8px] border border-accent/20">
@@ -566,6 +586,7 @@ export default function TaskDialog({
               )}
             </div>
           )}
+          </fieldset>
 
           {/* Actions */}
           <div className="flex gap-[12px] pt-[16px] border-t border-border">
@@ -576,15 +597,17 @@ export default function TaskDialog({
               }}
               className="flex-1 px-[16px] py-[10px] bg-secondary text-secondary-foreground rounded-[6px] hover:opacity-90 transition-opacity font-['Roboto_Mono'] font-medium text-[11px]"
             >
-              Cancel
+              {isReadOnly ? "Close" : "Cancel"}
             </button>
-            <button
-              onClick={handleSave}
-              className="flex-1 px-[16px] py-[10px] bg-accent text-accent-foreground rounded-[6px] hover:opacity-90 transition-opacity font-['Roboto_Mono'] font-medium text-[11px] flex items-center justify-center gap-[8px]"
-            >
-              <Save className="w-4 h-4" />
-              {mode === "edit" ? "Update Task" : "Create Task"}
-            </button>
+            {!isReadOnly && (
+              <button
+                onClick={handleSave}
+                className="flex-1 px-[16px] py-[10px] bg-accent text-accent-foreground rounded-[6px] hover:opacity-90 transition-opacity font-['Roboto_Mono'] font-medium text-[11px] flex items-center justify-center gap-[8px]"
+              >
+                <Save className="w-4 h-4" />
+                {mode === "edit" ? "Update Task" : "Create Task"}
+              </button>
+            )}
           </div>
         </div>
       </DialogContent>
