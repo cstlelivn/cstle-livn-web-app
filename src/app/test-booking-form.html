@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cstle Livn - Book Consultation</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+    
+    .container {
+      max-width: 700px;
+      margin: 0 auto;
+    }
+    
+    .header {
+      text-align: center;
+      margin-bottom: 30px;
+      padding: 20px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    }
+    
+    .header h1 {
+      color: #848580;
+      font-size: 32px;
+      margin-bottom: 10px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+    
+    .header p {
+      color: #666;
+      font-size: 16px;
+    }
+    
+    .form-container {
+      background: white;
+      padding: 40px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+    
+    .form-group {
+      margin-bottom: 24px;
+    }
+    
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #333;
+      font-size: 14px;
+    }
+    
+    label span.required {
+      color: #e74c3c;
+    }
+    
+    input, select, textarea {
+      width: 100%;
+      padding: 12px 16px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 15px;
+      font-family: inherit;
+      transition: all 0.3s ease;
+      background: #fafafa;
+    }
+    
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: #748B7B;
+      background: white;
+      box-shadow: 0 0 0 3px rgba(116, 139, 123, 0.1);
+    }
+    
+    textarea {
+      resize: vertical;
+      min-height: 100px;
+    }
+    
+    select {
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 16px center;
+      padding-right: 40px;
+    }
+    
+    button {
+      background: linear-gradient(135deg, #748B7B 0%, #5f7463 100%);
+      color: white;
+      padding: 16px 32px;
+      border: none;
+      border-radius: 8px;
+      font-size: 17px;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(116, 139, 123, 0.3);
+    }
+    
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(116, 139, 123, 0.4);
+    }
+    
+    button:active {
+      transform: translateY(0);
+    }
+    
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+    
+    .success-message {
+      background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+      color: #155724;
+      padding: 20px;
+      border-radius: 8px;
+      margin-top: 20px;
+      display: none;
+      border: 2px solid #b7d8c0;
+      box-shadow: 0 4px 15px rgba(21, 87, 36, 0.1);
+    }
+    
+    .success-message h3 {
+      margin-bottom: 8px;
+      font-size: 18px;
+    }
+    
+    .error-message {
+      background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+      color: #721c24;
+      padding: 20px;
+      border-radius: 8px;
+      margin-top: 20px;
+      display: none;
+      border: 2px solid #f1b0b7;
+      box-shadow: 0 4px 15px rgba(114, 28, 36, 0.1);
+    }
+    
+    .error-message h3 {
+      margin-bottom: 8px;
+      font-size: 18px;
+    }
+    
+    .loading {
+      opacity: 0.6;
+      pointer-events: none;
+    }
+    
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 3px solid rgba(255,255,255,.3);
+      border-radius: 50%;
+      border-top-color: #fff;
+      animation: spin 1s ease-in-out infinite;
+      margin-right: 8px;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    
+    @media (max-width: 600px) {
+      .form-container {
+        padding: 24px;
+      }
+      
+      .grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .header h1 {
+        font-size: 24px;
+      }
+    }
+    
+    .info-box {
+      background: #fff9e6;
+      border: 2px solid #ffd966;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 24px;
+    }
+    
+    .info-box strong {
+      color: #d68910;
+      display: block;
+      margin-bottom: 8px;
+    }
+    
+    .info-box code {
+      background: #fff;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      color: #d63384;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Cstle Livn</h1>
+      <p>Request a Free Consultation</p>
+    </div>
+    
+    <div class="form-container">
+      <div class="info-box">
+        <strong>⚠️ Setup Required:</strong>
+        Before using this form, open the HTML file in a text editor and replace <code>YOUR_SUPABASE_PROJECT_ID</code> with your actual Supabase project ID (found in your Supabase dashboard under Project Settings → API).
+      </div>
+      
+      <form id="bookingForm">
+        <div class="grid">
+          <div class="form-group">
+            <label for="first_name">First Name <span class="required">*</span></label>
+            <input type="text" id="first_name" name="first_name" required placeholder="John">
+          </div>
+          
+          <div class="form-group">
+            <label for="last_name">Last Name <span class="required">*</span></label>
+            <input type="text" id="last_name" name="last_name" required placeholder="Doe">
+          </div>
+        </div>
+        
+        <div class="grid">
+          <div class="form-group">
+            <label for="email">Email <span class="required">*</span></label>
+            <input type="email" id="email" name="email" required placeholder="john@example.com">
+          </div>
+          
+          <div class="form-group">
+            <label for="phone_number">Phone Number <span class="required">*</span></label>
+            <input type="tel" id="phone_number" name="phone_number" required placeholder="(306) 555-0123">
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label for="project_address">Project Address <span class="required">*</span></label>
+          <input type="text" id="project_address" name="project_address" required placeholder="123 Main St, Regina, SK">
+        </div>
+        
+        <div class="grid">
+          <div class="form-group">
+            <label for="service_type">Service Type <span class="required">*</span></label>
+            <select id="service_type" name="service_type" required>
+              <option value="">Select a service...</option>
+              <option value="Finishing Installation">Finishing Installation</option>
+              <option value="Interior Painting">Interior Painting</option>
+              <option value="Trim & Molding">Trim & Molding</option>
+              <option value="Cabinet Installation">Cabinet Installation</option>
+              <option value="Drywall Finishing">Drywall Finishing</option>
+              <option value="Custom Woodwork">Custom Woodwork</option>
+              <option value="Full Room Renovation">Full Room Renovation</option>
+              <option value="Kitchen Renovation">Kitchen Renovation</option>
+              <option value="Bathroom Remodel">Bathroom Remodel</option>
+              <option value="Basement Build">Basement Build</option>
+              <option value="ADU Construction">ADU Construction</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <label for="preferred_consultation_date">Preferred Consultation Date</label>
+            <input type="date" id="preferred_consultation_date" name="preferred_consultation_date">
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label for="project_description">Project Description <span class="required">*</span></label>
+          <textarea id="project_description" name="project_description" required placeholder="Tell us about your project..."></textarea>
+        </div>
+        
+        <button type="submit" id="submitBtn">
+          Submit Booking Request
+        </button>
+      </form>
+      
+      <div id="successMessage" class="success-message">
+        <h3>✓ Success!</h3>
+        <p>Thank you! Your booking request has been received. Our team will contact you within 24 hours.</p>
+      </div>
+      
+      <div id="errorMessage" class="error-message"></div>
+    </div>
+  </div>
+
+  <script>
+    // **IMPORTANT**: Replace with your actual Supabase project ID
+    // Find this in: Supabase Dashboard → Project Settings → API → Project URL
+    // Example: If your URL is https://abcdefgh.supabase.co, your project ID is "abcdefgh"
+    const SUPABASE_PROJECT_ID = 'YOUR_SUPABASE_PROJECT_ID';
+    const API_ENDPOINT = `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/make-server-bcab437c/leads`;
+
+    const form = document.getElementById('bookingForm');
+    const submitBtn = document.getElementById('submitBtn');
+    const successMsg = document.getElementById('successMessage');
+    const errorMsg = document.getElementById('errorMessage');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      // Validate project ID is set
+      if (SUPABASE_PROJECT_ID === 'YOUR_SUPABASE_PROJECT_ID') {
+        errorMsg.innerHTML = '<h3>⚠️ Configuration Required</h3><p>Please update the Supabase project ID in this HTML file before using the form. See the yellow info box above for instructions.</p>';
+        errorMsg.style.display = 'block';
+        successMsg.style.display = 'none';
+        return;
+      }
+      
+      const formData = new FormData(e.target);
+      const data = Object.fromEntries(formData.entries());
+      
+      // Hide previous messages
+      successMsg.style.display = 'none';
+      errorMsg.style.display = 'none';
+      
+      // Show loading state
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span class="spinner"></span>Submitting...';
+      form.classList.add('loading');
+      
+      try {
+        const response = await fetch(API_ENDPOINT, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+          // Success!
+          successMsg.style.display = 'block';
+          form.reset();
+          successMsg.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          
+          console.log('✓ Lead created successfully:', result.lead);
+        } else {
+          // Error from server
+          let errorText = result.error || 'Something went wrong. Please try again.';
+          
+          if (response.status === 409) {
+            errorText = `A lead with this email or phone number already exists. If you've already submitted a request, our team will contact you soon.`;
+          }
+          
+          errorMsg.innerHTML = `<h3>⚠️ Submission Error</h3><p>${errorText}</p>`;
+          errorMsg.style.display = 'block';
+          errorMsg.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          
+          console.error('Server error:', result);
+        }
+      } catch (error) {
+        console.error('Network error:', error);
+        
+        errorMsg.innerHTML = `<h3>⚠️ Connection Error</h3><p>Unable to submit form. Please check your internet connection and try again. If the problem persists, contact us at <a href="tel:+13065550123" style="color: inherit; font-weight: bold;">(306) 555-0123</a>.</p>`;
+        errorMsg.style.display = 'block';
+        errorMsg.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      } finally {
+        // Reset loading state
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = 'Submit Booking Request';
+        form.classList.remove('loading');
+      }
+    });
+    
+    // Set minimum date to today
+    const dateInput = document.getElementById('preferred_consultation_date');
+    const today = new Date().toISOString().split('T')[0];
+    dateInput.setAttribute('min', today);
+  </script>
+</body>
+</html>
