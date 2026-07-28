@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
 import { Badge } from "./ui/badge";
+import { formatDate } from "../src/lib/dates";
 
 interface TaskRatingDialogProps {
   isOpen: boolean;
@@ -137,7 +138,7 @@ export default function TaskRatingDialog({
               <div className="flex items-center gap-[8px] mt-[12px]">
                 <Clock className="w-[12px] h-[12px] text-muted-foreground" />
                 <p className="text-muted-foreground" style={{ fontSize: 'var(--text-small)' }}>
-                  Due: {new Date(task.dueDate).toLocaleDateString()}
+                  Due: {formatDate(task.dueDate)}
                 </p>
               </div>
               <div className="flex items-center gap-[8px] mt-[4px]">

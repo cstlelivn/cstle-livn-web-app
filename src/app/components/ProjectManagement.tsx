@@ -31,6 +31,7 @@ import ProjectKanban from "./ProjectKanban";
 import ProjectGanttChart from "./ProjectGanttChart";
 import { getPhaseTemplates, type PhaseTemplate } from "./PhaseTemplateManager";
 import CreateProjectDialog from "./CreateProjectDialog";
+import { formatDate } from "../src/lib/dates";
 
 // Default phases for Cstle Livn
 const DEFAULT_PHASES = [
@@ -233,7 +234,7 @@ export default function ProjectManagement({ onViewProject, openCreateDialog = fa
             <div className="flex items-center gap-[6px]">
               <Clock className="w-3 h-3 text-muted-foreground" />
               <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground">
-                {project.endDate}
+                {project.endDate ? formatDate(project.endDate) : "—"}
               </p>
             </div>
           </div>
@@ -346,7 +347,7 @@ export default function ProjectManagement({ onViewProject, openCreateDialog = fa
           <div className="flex items-center gap-[6px]">
             <Clock className="w-3 h-3 text-muted-foreground" />
             <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground">
-              {project.startDate} → {project.endDate}
+              {project.startDate ? formatDate(project.startDate) : "—"} → {project.endDate ? formatDate(project.endDate) : "—"}
             </p>
           </div>
           {teamNames.length > 0 && (
@@ -510,8 +511,16 @@ export default function ProjectManagement({ onViewProject, openCreateDialog = fa
       <CreateProjectDialog
         isOpen={isCreateDialogOpen}
         onClose={() => setIsCreateDialogOpen(false)}
-        onCreateProject={(projectData) => {
-          addProject(projectData);
+        onCreateProject={(projectData: any) => {
+          // When creating from a template, CreateProjectDialog already calls
+          // createProject() itself (it needs the real id back to attach
+          // phases), so projectData here is already a saved DB row (has an
+          // id). Calling addProject on it again would insert a duplicate --
+          // only create it here for the legacy manual-phases path, which
+          // passes a plain payload with no id yet.
+          if (!projectData?.id) {
+            addProject(projectData);
+          }
           setIsCreateDialogOpen(false);
         }}
         canViewFinance={canViewFinance}
@@ -989,7 +998,7 @@ function ProjectKanbanView({ projects, onViewProject }: { projects: typeof useAp
                       <div className="flex items-center gap-[6px]">
                         <Clock className="w-3 h-3 text-muted-foreground" />
                         <p className="font-['Roboto_Mono'] font-normal text-[10px] text-muted-foreground">
-                          {project.startDate} → {project.endDate}
+                          {project.startDate ? formatDate(project.startDate) : "—"} → {project.endDate ? formatDate(project.endDate) : "—"}
                         </p>
                       </div>
                       {canViewFinance && (

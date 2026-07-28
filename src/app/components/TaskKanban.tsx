@@ -8,6 +8,7 @@ import { canEditTask } from "../src/features/tasks/permissions";
 import { Badge } from "./ui/badge";
 import TaskDialog from "./TaskDialog";
 import { toast } from "sonner";
+import { formatDate } from "../src/lib/dates";
 
 interface TaskKanbanProps {
   projectId: number;
@@ -119,7 +120,7 @@ function DraggableTaskCard({ task, onEdit, onDelete, canEdit, canDelete }: Dragg
         {task.dueDate && (
           <div className="flex items-center gap-[4px] text-muted-foreground">
             <CalendarIcon className="w-3 h-3" />
-            <span className="font-['Roboto_Mono']">{task.dueDate}</span>
+            <span className="font-['Roboto_Mono']">{formatDate(task.dueDate)}</span>
           </div>
         )}
       </div>

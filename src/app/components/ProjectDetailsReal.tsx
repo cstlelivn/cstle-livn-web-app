@@ -48,6 +48,7 @@ import { toast } from "sonner";
 import { getClient } from "../src/features/clients/api";
 import { useProjectPhases } from "../src/features/projectPhases/useProjectPhases";
 import { markProjectComplete } from "../src/features/projects/api";
+import { formatDate } from "../src/lib/dates";
 
 // Task type definition
 interface AppTask {
@@ -111,6 +112,7 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
     updateProject,
     activities,
     projects,
+    isLoadingProjects,
   } = useApp();
 
   const { currentUser, hasPermission } = useAuth();
@@ -173,6 +175,19 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
   };
 
   if (!project) {
+    // Don't show "not found" while the project list is still loading -- that
+    // was the cause of a real bug where opening a project right after
+    // navigating in showed a false "not found" until you went back and
+    // clicked again (the list just hadn't finished loading yet).
+    if (isLoadingProjects) {
+      return (
+        <div className="p-[32px] text-center">
+          <p className="font-['Roboto_Mono'] font-normal text-[14px] text-muted-foreground">
+            Loading project…
+          </p>
+        </div>
+      );
+    }
     return (
       <div className="p-[32px] text-center">
         <p className="font-['Roboto_Mono'] font-normal text-[14px] text-muted-foreground">
@@ -343,7 +358,7 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
           <div className="flex items-center gap-[6px] min-w-[90px]">
             <CalendarIcon className="w-3 h-3 text-muted-foreground" />
             <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground">
-              {task.dueDate}
+              {task.dueDate ? formatDate(task.dueDate) : "No due date"}
             </p>
           </div>
 
@@ -426,7 +441,7 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
           <div className="flex items-center gap-[6px]">
             <CalendarIcon className="w-3 h-3 text-muted-foreground" />
             <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground">
-              Due: {task.dueDate}
+              Due: {task.dueDate ? formatDate(task.dueDate) : "No due date"}
             </p>
           </div>
           <div className="flex items-center gap-[6px]">
@@ -615,7 +630,7 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
             </div>
           </div>
           <p className="font-['Roboto_Mono'] font-normal text-[10px] text-muted-foreground">
-            {project.startDate} → {project.endDate}
+            {project.startDate ? formatDate(project.startDate) : "—"} → {project.endDate ? formatDate(project.endDate) : "—"}
           </p>
         </div>
 

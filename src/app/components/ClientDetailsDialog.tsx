@@ -33,6 +33,7 @@ import {
 import { toast } from "sonner";
 import { useApp } from "./AppContext";
 import GoogleDriveIntegration, { GoogleDriveFile } from "./GoogleDriveIntegration";
+import { formatDate } from "../src/lib/dates";
 
 // Helper function to clean phone numbers
 function encodeTel(raw: string) {
@@ -586,7 +587,7 @@ export default function ClientDetailsDialog({
                               className="text-muted-foreground" 
                               style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-label)' }}
                             >
-                              {project.startDate} - {project.endDate}
+                              {project.startDate ? formatDate(project.startDate) : "—"} - {project.endDate ? formatDate(project.endDate) : "—"}
                             </span>
                           </div>
                         </div>

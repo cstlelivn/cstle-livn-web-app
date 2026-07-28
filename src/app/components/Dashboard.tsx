@@ -1,5 +1,6 @@
 import { useApp } from "./AppContext";
 import { useAuth } from "./AuthContext";
+import { formatDate } from "../src/lib/dates";
 import { FolderKanban, ExternalLink, Clock } from "lucide-react";
 import svgPaths from "../imports/svg-kds79s2oqf";
 import RecentTasksWidget from "./RecentTasksWidget";
@@ -302,9 +303,10 @@ export default function Dashboard({ onNavigate, onNewProject }: DashboardProps) 
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  // Ensure project.id is explicitly a number
-                  const projectId = typeof project.id === 'number' ? project.id : parseInt(String(project.id), 10);
-                  onNavigate("project-details", projectId);
+                  // Project ids are UUID strings, not numbers -- passing them
+                  // through parseInt() (as this used to) mangled them into a
+                  // garbage number that never matched any real project.
+                  onNavigate("project-details", project.id as any);
                 }}
                 className="w-full p-[16px] rounded-[8px] bg-background border border-border hover:shadow-sm transition-all text-left cursor-pointer relative hover:border-accent active:scale-[0.98]"
               >
@@ -348,7 +350,7 @@ export default function Dashboard({ onNavigate, onNewProject }: DashboardProps) 
                     <div className="flex items-center gap-[4px] text-muted-foreground">
                       <Clock className="w-3 h-3" />
                       <p className="font-['Roboto_Mono'] font-normal">
-                        Due: {project.endDate}
+                        Due: {project.endDate ? formatDate(project.endDate) : "—"}
                       </p>
                     </div>
                     {canViewFinance && (

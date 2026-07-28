@@ -2,6 +2,7 @@ import { useState } from "react";
 import { CheckCircle2, Clock, AlertCircle, Edit2, Plus, ArrowRight } from "lucide-react";
 import { useApp, type Task } from "./AppContext";
 import TaskDialog from "./TaskDialog";
+import { formatDate } from "../src/lib/dates";
 
 interface RecentTasksWidgetProps {
   onNavigateToProjects?: () => void;
@@ -129,7 +130,7 @@ export default function RecentTasksWidget({ onNavigateToProjects }: RecentTasksW
                         overdue ? "text-destructive" : "text-muted-foreground"
                       }`}
                     >
-                      {overdue ? "Overdue" : task.dueDate}
+                      {overdue ? "Overdue" : formatDate(task.dueDate)}
                     </span>
                   </div>
                 </div>
