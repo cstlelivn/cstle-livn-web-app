@@ -201,82 +201,47 @@ export default function Dashboard({ onNavigate, onNewProject }: DashboardProps) 
       </div>
 
       {/* Stats Grid */}
-      <div className="content-stretch flex gap-[16px] items-center">
+      <div className="content-stretch flex gap-[16px] items-stretch">
         {stats.map((stat, index) => {
+          const iconPath =
+            stat?.iconType === "folder" ? svgPaths?.p281b8900 :
+            stat?.iconType === "roller-brush" ? svgPaths?.p1e07ff00 :
+            stat?.iconType === "line-chart-up" ? svgPaths?.p38ae7280 :
+            stat?.iconType === "coins-hand" ? svgPaths?.p3c298b00 :
+            undefined;
+          const iconD = iconPath || (stat?.iconType === "activity" ? "M22 12H18L15 21L9 3L6 12H2" : "");
+
           return (
             <button
               key={index}
               onClick={stat.onClick}
-              className="basis-0 grow min-h-px min-w-px relative rounded-[20px] shrink-0 cursor-pointer"
-              style={{ backgroundImage: "linear-gradient(90deg, rgb(247, 247, 247) 0%, rgb(247, 247, 247) 100%), linear-gradient(90deg, rgb(255, 255, 255) 0%, rgb(255, 255, 255) 100%)" }}
+              className="basis-0 grow min-h-px min-w-px rounded-[20px] shrink-0 cursor-pointer bg-card border border-border hover:border-accent/40 hover:shadow-sm transition-all text-left"
             >
-              <div className="overflow-clip rounded-[inherit] size-full">
-                <div className="box-border content-stretch flex flex-col gap-[12px] items-start p-[16px] relative w-full">
-                  <div className="content-stretch flex items-center justify-between relative shrink-0 w-full">
-                    <p className="[white-space-collapse:collapse] basis-0 font-['Roboto_Mono'] font-normal grow leading-[1.2] min-h-px min-w-px overflow-ellipsis overflow-hidden relative shrink-0 text-[#999999] text-[10px] text-nowrap uppercase">
-                      {stat?.label || "Loading..."}
-                    </p>
-                    {stat?.iconType === "folder" && (
-                      <div className="relative shrink-0 size-[24px]">
-                        <svg className="block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 24 24">
-                          <g>
-                            <path d={svgPaths?.p281b8900 || ""} stroke="black" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-                          </g>
-                        </svg>
-                      </div>
-                    )}
-                    {stat?.iconType === "roller-brush" && (
-                      <div className="relative shrink-0 size-[24px]">
-                        <svg className="block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 24 24">
-                          <g>
-                            <path d={svgPaths?.p1e07ff00 || ""} stroke="black" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-                          </g>
-                        </svg>
-                      </div>
-                    )}
-                    {stat?.iconType === "line-chart-up" && (
-                      <div className="relative shrink-0 size-[24px]">
-                        <svg className="block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 24 24">
-                          <g>
-                            <path d={svgPaths?.p38ae7280 || ""} stroke="black" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-                          </g>
-                        </svg>
-                      </div>
-                    )}
-                    {stat?.iconType === "coins-hand" && (
-                      <div className="relative shrink-0 size-[24px]">
-                        <svg className="block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 24 24">
-                          <g>
-                            <path d={svgPaths?.p3c298b00 || ""} stroke="black" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-                          </g>
-                        </svg>
-                      </div>
-                    )}
-                    {stat?.iconType === "activity" && (
-                      <div className="relative shrink-0 size-[24px]">
-                        <svg className="block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 24 24">
-                          <g>
-                            <path d="M22 12H18L15 21L9 3L6 12H2" stroke="black" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-                          </g>
-                        </svg>
-                      </div>
-                    )}
-                  </div>
-                  <div className="content-stretch flex flex-col gap-[4px] items-start relative shrink-0 w-full">
-                    <h1 className="relative shrink-0 text-nowrap whitespace-pre text-[22px]"
-  style={{ fontFamily: 'Anybody', fontVariationSettings: "'wdth' 135", fontWeight: 700 }}
->
-  {stat?.value ?? "—"}
-</h1>
-                    <div className="content-stretch flex font-['Roboto_Mono'] font-normal gap-[4px] items-start leading-[1.2] relative shrink-0 text-[10px] w-full">
-                      <p className="basis-0 grow min-h-px min-w-px relative shrink-0 text-[#999999] text-[9px]">
-                        {stat?.subtitle || "No data available"}
-                      </p>
+              <div className="box-border content-stretch flex flex-col gap-[14px] items-start p-[18px] relative w-full h-full">
+                <div className="content-stretch flex items-center justify-between relative shrink-0 w-full">
+                  <p className="font-['Roboto_Mono'] font-medium leading-[1.2] text-muted-foreground text-[10px] text-nowrap uppercase tracking-wide">
+                    {stat?.label || "Loading..."}
+                  </p>
+                  {iconD && (
+                    <div className="relative shrink-0 size-[32px] rounded-[9px] bg-accent/10 text-accent flex items-center justify-center">
+                      <svg className="block" width="17" height="17" fill="none" viewBox="0 0 24 24">
+                        <path d={iconD} stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+                      </svg>
                     </div>
-                  </div>
+                  )}
+                </div>
+                <div className="content-stretch flex flex-col gap-[4px] items-start relative shrink-0 w-full mt-auto">
+                  <h1
+                    className="relative shrink-0 text-nowrap whitespace-pre text-[24px] text-foreground"
+                    style={{ fontFamily: 'Anybody', fontVariationSettings: "'wdth' 135", fontWeight: 700 }}
+                  >
+                    {stat?.value ?? "—"}
+                  </h1>
+                  <p className="font-['Roboto_Mono'] font-normal leading-[1.2] text-muted-foreground text-[10px] w-full">
+                    {stat?.subtitle || "No data available"}
+                  </p>
                 </div>
               </div>
-              <div aria-hidden="true" className="absolute border border-[#999999] border-solid inset-0 pointer-events-none rounded-[20px]" />
             </button>
           );
         })}
