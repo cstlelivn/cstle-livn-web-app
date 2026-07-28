@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, useRef, ReactNode } fro
 import { createClient, authAPI, userAPI } from "../utils/supabase/client.tsx";
 import { toast } from "sonner";
 
-export type UserRole = "Super Admin" | "Manager" | "Contractor" | "Associate";
+export type UserRole = "Super Admin" | "Manager" | "Accountant" | "Contractor" | "Associate";
 
 export type Permission =
   | "canViewDashboard"
@@ -19,6 +19,7 @@ export type Permission =
   | "canEditInventory"
   | "canViewFinance"
   | "canEditFinance"
+  | "canViewClientBilling"
   | "canViewAnalytics"
   | "canViewProposals"
   | "canEditProposals"
@@ -75,6 +76,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "canEditInventory",
     "canViewFinance",
     "canEditFinance",
+    "canViewClientBilling",
     "canViewAnalytics",
     "canViewProposals",
     "canEditProposals",
@@ -100,6 +102,11 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "canEditCRM",
     "canViewInventory",
     "canEditInventory",
+    // Managers see and manage the project BUDGET (cost target), but not
+    // canViewClientBilling -- the actual amount charged/invoiced to the
+    // client is reserved for Super Admin and Accountant.
+    "canViewFinance",
+    "canEditFinance",
     "canViewAnalytics",
     "canViewProposals",
     "canEditProposals",
@@ -109,6 +116,17 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "canViewAllProjects",
     "canEditPhases",
     "canManageTemplates",
+  ],
+  // Finance-focused role: full financial visibility (budget + actual client
+  // billing/income), but no project/team/CRM editing powers.
+  Accountant: [
+    "canViewDashboard",
+    "canViewProjects",
+    "canViewAllProjects",
+    "canViewFinance",
+    "canEditFinance",
+    "canViewClientBilling",
+    "canViewAnalytics",
   ],
   Contractor: [
     "canViewDashboard",
@@ -165,6 +183,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       "canEditInventory",
       "canViewFinance",
       "canEditFinance",
+      "canViewClientBilling",
       "canViewAnalytics",
       "canViewDesignLibrary",
       "canEditDesignLibrary",

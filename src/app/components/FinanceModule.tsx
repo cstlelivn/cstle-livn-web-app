@@ -12,6 +12,7 @@ import { Badge } from './ui/badge';
 import { RefreshCw, Plus, TrendingUp, TrendingDown, DollarSign, Receipt, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import AddTransactionDialog from './AddTransactionDialog';
+import { useAuth } from './AuthContext';
 
 // Use singleton Supabase client
 const supabase = createClient();
@@ -244,19 +245,30 @@ export default function FinanceModule() {
     };
   }, []);
 
+  const { hasPermission } = useAuth();
+  // The actual amount charged/invoiced to clients (income) is reserved for
+  // Super Admin and Accountant -- Managers see budget/expenses only. Filtering
+  // it out of the data here (rather than hiding individual UI elements below)
+  // means every calculation and chart downstream is automatically safe, with
+  // no risk of a stray spot leaking the real figure.
+  const canViewClientBilling = hasPermission("canViewClientBilling");
+  const visibleTransactions = canViewClientBilling
+    ? transactions
+    : transactions.filter(t => t.type !== 'income');
+
   // Calculate totals
-  const totalIncome = transactions
+  const totalIncome = visibleTransactions
     .filter(t => t.type === 'income')
     .reduce((sum, t) => sum + Number(t.amount), 0);
 
-  const totalExpenses = transactions
+  const totalExpenses = visibleTransactions
     .filter(t => t.type === 'expense')
     .reduce((sum, t) => sum + Number(t.amount), 0);
 
   const netProfit = totalIncome - totalExpenses;
 
   // Filter transactions
-  const filteredTransactions = transactions.filter(t => {
+  const filteredTransactions = visibleTransactions.filter(t => {
     if (filterType !== 'all' && t.type !== filterType) return false;
     if (filterCategory !== 'all' && t.category !== filterCategory) return false;
     if (filterStatus !== 'all' && t.status !== filterStatus) return false;
@@ -273,14 +285,14 @@ export default function FinanceModule() {
   });
 
   // Calculate category breakdowns
-  const incomeByCategory = transactions
+  const incomeByCategory = visibleTransactions
     .filter(t => t.type === 'income')
     .reduce((acc, t) => {
       acc[t.category] = (acc[t.category] || 0) + Number(t.amount);
       return acc;
     }, {} as Record<string, number>);
 
-  const expensesByCategory = transactions
+  const expensesByCategory = visibleTransactions
     .filter(t => t.type === 'expense')
     .reduce((acc, t) => {
       acc[t.category] = (acc[t.category] || 0) + Number(t.amount);
@@ -288,7 +300,7 @@ export default function FinanceModule() {
     }, {} as Record<string, number>);
 
   // Monthly data for charts
-  const monthlyData = transactions.reduce((acc, t) => {
+  const monthlyData = visibleTransactions.reduce((acc, t) => {
     const month = new Date(t.date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
     if (!acc[month]) {
       acc[month] = { month, income: 0, expenses: 0 };
@@ -355,22 +367,24 @@ export default function FinanceModule() {
         {/* OVERVIEW TAB */}
         <TabsContent value="overview" className="space-y-6">
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card className="border-border">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-muted-foreground">Total Income</p>
-                    <p className="text-success" style={{ fontSize: 'var(--text-h2)' }}>
-                      {formatCurrency(totalIncome)}
-                    </p>
+          <div className={`grid grid-cols-1 gap-4 ${canViewClientBilling ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
+            {canViewClientBilling && (
+              <Card className="border-border">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-muted-foreground">Total Income</p>
+                      <p className="text-success" style={{ fontSize: 'var(--text-h2)' }}>
+                        {formatCurrency(totalIncome)}
+                      </p>
+                    </div>
+                    <div className="p-3 rounded-full bg-success/10">
+                      <TrendingUp className="size-6 text-success" />
+                    </div>
                   </div>
-                  <div className="p-3 rounded-full bg-success/10">
-                    <TrendingUp className="size-6 text-success" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            )}
 
             <Card className="border-border">
               <CardContent className="pt-6">
@@ -388,21 +402,23 @@ export default function FinanceModule() {
               </CardContent>
             </Card>
 
-            <Card className="border-border">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-muted-foreground">Net Profit</p>
-                    <p className={netProfit >= 0 ? 'text-success' : 'text-destructive'} style={{ fontSize: 'var(--text-h2)' }}>
-                      {formatCurrency(netProfit)}
-                    </p>
+            {canViewClientBilling && (
+              <Card className="border-border">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-muted-foreground">Net Profit</p>
+                      <p className={netProfit >= 0 ? 'text-success' : 'text-destructive'} style={{ fontSize: 'var(--text-h2)' }}>
+                        {formatCurrency(netProfit)}
+                      </p>
+                    </div>
+                    <div className={`p-3 rounded-full ${netProfit >= 0 ? 'bg-success/10' : 'bg-destructive/10'}`}>
+                      <DollarSign className={`size-6 ${netProfit >= 0 ? 'text-success' : 'text-destructive'}`} />
+                    </div>
                   </div>
-                  <div className={`p-3 rounded-full ${netProfit >= 0 ? 'bg-success/10' : 'bg-destructive/10'}`}>
-                    <DollarSign className={`size-6 ${netProfit >= 0 ? 'text-success' : 'text-destructive'}`} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* Charts */}
@@ -410,7 +426,7 @@ export default function FinanceModule() {
             {/* Income vs Expenses Over Time */}
             <Card className="border-border">
               <CardHeader>
-                <CardTitle>Income vs Expenses (Last 6 Months)</CardTitle>
+                <CardTitle>{canViewClientBilling ? "Income vs Expenses (Last 6 Months)" : "Expenses (Last 6 Months)"}</CardTitle>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
@@ -426,7 +442,7 @@ export default function FinanceModule() {
                       }}
                     />
                     <Legend />
-                    <Bar dataKey="income" fill="var(--success)" name="Income" />
+                    {canViewClientBilling && <Bar dataKey="income" fill="var(--success)" name="Income" />}
                     <Bar dataKey="expenses" fill="var(--destructive)" name="Expenses" />
                   </BarChart>
                 </ResponsiveContainer>
@@ -485,7 +501,7 @@ export default function FinanceModule() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Types</SelectItem>
-                      <SelectItem value="income">Income</SelectItem>
+                      {canViewClientBilling && <SelectItem value="income">Income</SelectItem>}
                       <SelectItem value="expense">Expense</SelectItem>
                     </SelectContent>
                   </Select>
@@ -625,8 +641,9 @@ export default function FinanceModule() {
         {/* ANALYTICS TAB */}
         <TabsContent value="analytics" className="space-y-6">
           {/* Category Breakdowns */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className={`grid grid-cols-1 gap-6 ${canViewClientBilling ? "lg:grid-cols-2" : ""}`}>
             {/* Income by Category */}
+            {canViewClientBilling && (
             <Card className="border-border">
               <CardHeader>
                 <CardTitle>Income by Category</CardTitle>
@@ -648,9 +665,9 @@ export default function FinanceModule() {
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
-                    <RechartsTooltip 
-                      contentStyle={{ 
-                        backgroundColor: 'var(--card)', 
+                    <RechartsTooltip
+                      contentStyle={{
+                        backgroundColor: 'var(--card)',
                         border: '1px solid var(--border)',
                         borderRadius: 'var(--radius)'
                       }}
@@ -659,6 +676,7 @@ export default function FinanceModule() {
                 </ResponsiveContainer>
               </CardContent>
             </Card>
+            )}
 
             {/* Expenses by Category */}
             <Card className="border-border">
@@ -696,8 +714,9 @@ export default function FinanceModule() {
           </div>
 
           {/* Top Categories Lists */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className={`grid grid-cols-1 gap-6 ${canViewClientBilling ? "lg:grid-cols-2" : ""}`}>
             {/* Top Income Sources */}
+            {canViewClientBilling && (
             <Card className="border-border">
               <CardHeader>
                 <CardTitle>Top Income Sources</CardTitle>
@@ -716,6 +735,7 @@ export default function FinanceModule() {
                 </div>
               </CardContent>
             </Card>
+            )}
 
             {/* Top Expense Categories */}
             <Card className="border-border">

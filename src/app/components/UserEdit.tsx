@@ -45,8 +45,8 @@ export default function UserEdit({ userId, onBack }: UserEditProps) {
 
   const handleSave = async () => {
     // Prevent non-super-admins from assigning privileged roles
-    if (!isSuperAdmin && (role === "Super Admin" || role === "Manager")) {
-      toast.error("Only Super Admins can assign Manager or Super Admin roles");
+    if (!isSuperAdmin && (role === "Super Admin" || role === "Manager" || role === "Accountant")) {
+      toast.error("Only Super Admins can assign Manager, Accountant, or Super Admin roles");
       return;
     }
     
@@ -170,12 +170,13 @@ export default function UserEdit({ userId, onBack }: UserEditProps) {
                 >
                   {isSuperAdmin && <option value="Super Admin">Super Admin</option>}
                   {isSuperAdmin && <option value="Manager">Manager</option>}
+                  {isSuperAdmin && <option value="Accountant">Accountant</option>}
                   <option value="Contractor">Contractor</option>
                   <option value="Associate">Associate</option>
                 </select>
                 {!isSuperAdmin && (
                   <p className="mt-[8px] font-['Roboto_Mono'] text-[9px] text-muted-foreground">
-                    Only Super Admins can assign Manager or Super Admin roles
+                    Only Super Admins can assign Manager, Accountant, or Super Admin roles
                   </p>
                 )}
               </div>
@@ -262,7 +263,12 @@ export default function UserEdit({ userId, onBack }: UserEditProps) {
               )}
               {role === "Manager" && (
                 <p className="font-['Roboto_Mono'] font-normal text-[12px] text-[#999999]">
-                  Managers have full access to Projects and CRM, but cannot view Finance. They can manage team members and vendors. Only Super Admins can assign this role.
+                  Managers have full access to Projects and CRM, and can see/set each project's budget -- but not the actual amount charged to the client. They can manage team members and vendors. Only Super Admins can assign this role.
+                </p>
+              )}
+              {role === "Accountant" && (
+                <p className="font-['Roboto_Mono'] font-normal text-[12px] text-[#999999]">
+                  Accountants see full financial detail on every project, including the actual amount charged to clients (not just the budget). They can view projects but cannot edit them, and have no access to team/CRM management. Only Super Admins can assign this role.
                 </p>
               )}
               {role === "Contractor" && (
