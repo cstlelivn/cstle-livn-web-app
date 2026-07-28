@@ -329,15 +329,6 @@ export default function Login() {
             </div>
           )}
           
-          {/* Quick troubleshooting tip */}
-          <div className="mt-[12px] pt-[12px] border-t border-border/30">
-            <p className="font-['Roboto_Mono'] text-[9px] text-muted-foreground/70">
-              💡 Getting "Invalid login credentials"? If your password was reset, try using: <span className="font-bold text-accent">cstle-livn-2025</span>
-            </p>
-            <p className="font-['Roboto_Mono'] text-[9px] text-muted-foreground/70 mt-[4px]">
-              Or create a new account with Sign Up if you don't have one yet.
-            </p>
-          </div>
         </div>
       </div>
     </div>

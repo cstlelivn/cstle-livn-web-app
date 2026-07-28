@@ -318,56 +318,6 @@ app.post("/make-server-bcab437c/auth/signup", async (c) => {
   }
 });
 
-// Reset all user passwords to dummy password (for development - password disabled mode)
-app.post("/make-server-bcab437c/auth/reset-all-passwords", async (c) => {
-  try {
-    const DUMMY_PASSWORD = "cstle-livn-2025";
-    
-    // Get all users from Auth
-    const { data: { users }, error: listError } = await supabase.auth.admin.listUsers();
-    
-    if (listError) {
-      console.error("Error listing users:", listError);
-      return c.json({ error: `Failed to list users: ${listError.message}` }, 500);
-    }
-
-    console.log(`Resetting passwords for ${users.length} users to dummy password...`);
-    
-    const results = [];
-    for (const user of users) {
-      try {
-        const { error: updateError } = await supabase.auth.admin.updateUserById(
-          user.id,
-          { password: DUMMY_PASSWORD }
-        );
-        
-        if (updateError) {
-          console.error(`Failed to update password for user ${user.email}:`, updateError);
-          results.push({ email: user.email, success: false, error: updateError.message });
-        } else {
-          console.log(`✓ Password reset for ${user.email}`);
-          results.push({ email: user.email, success: true });
-        }
-      } catch (err) {
-        console.error(`Error updating user ${user.email}:`, err);
-        results.push({ email: user.email, success: false, error: err.message });
-      }
-    }
-    
-    const successCount = results.filter(r => r.success).length;
-    console.log(`✓ Successfully reset ${successCount}/${users.length} user passwords`);
-    
-    return c.json({ 
-      message: `Reset ${successCount}/${users.length} passwords to dummy password`,
-      results,
-      dummyPassword: DUMMY_PASSWORD
-    });
-  } catch (error) {
-    console.error("Password reset error:", error);
-    return c.json({ error: `Password reset failed: ${error.message}` }, 500);
-  }
-});
-
 // Get current session
 app.get("/make-server-bcab437c/auth/session", authMiddleware, async (c) => {
   const userData = c.get("userData");
