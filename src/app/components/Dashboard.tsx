@@ -27,81 +27,13 @@ export default function Dashboard({ onNavigate, onNewProject }: DashboardProps) 
   const canViewFinance = hasPermission("canViewFinance");
   const canViewTeam = hasPermission("canViewTeam");
 
-  // Helper function to get previous month data
-  const getPreviousMonthData = () => {
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
-    const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
-    const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
-
-    // Calculate previous month active projects
-    const prevMonthActiveProjects = projects.filter(
-      (p) => {
-        const startDate = new Date(p.startDate);
-        return (
-          (p.status === "In Progress" || p.status === "Planning") &&
-          startDate.getMonth() <= lastMonth &&
-          startDate.getFullYear() <= lastMonthYear
-        );
-      }
-    );
-
-    // Calculate previous month overdue tasks
-    const prevMonthOverdueTasks = tasks.filter(
-      (t) => {
-        const dueDate = new Date(t.dueDate);
-        return (
-          t.status !== "Completed" &&
-          dueDate < new Date(lastMonthYear, lastMonth + 1, 0) &&
-          dueDate.getMonth() === lastMonth &&
-          dueDate.getFullYear() === lastMonthYear
-        );
-      }
-    );
-
-    // Calculate previous month revenue
-    const prevMonthRevenue = canViewFinance ? transactions
-      .filter(
-        (t) => {
-          const date = new Date(t.date);
-          return (
-            t.type === "Income" &&
-            t.status === "Completed" &&
-            date.getMonth() === lastMonth &&
-            date.getFullYear() === lastMonthYear
-          );
-        }
-      )
-      .reduce((sum, t) => sum + t.amount, 0) : 0;
-
-    // Calculate previous month pending payments
-    const prevMonthPendingPayments = canViewFinance ? transactions.filter(
-      (t) => {
-        const date = new Date(t.date);
-        return (
-          t.type === "Expense" &&
-          t.status === "Pending" &&
-          date.getMonth() === lastMonth &&
-          date.getFullYear() === lastMonthYear
-        );
-      }
-    ) : [];
-
-    return {
-      activeProjects: prevMonthActiveProjects.length,
-      overdueTasks: prevMonthOverdueTasks.length,
-      revenue: prevMonthRevenue,
-      pendingPayments: prevMonthPendingPayments.reduce((sum, t) => sum + t.amount, 0),
-    };
-  };
-
   // Calculate real stats
   const activeProjects = projects.filter(
     (p) => p.status === "In Progress" || p.status === "Planning"
   );
-  const activeTeamMembers = teamMembers.filter((m) => m.active);
-  
+  const planningCount = activeProjects.filter((p) => p.status === "Planning").length;
+  const inProgressCount = activeProjects.filter((p) => p.status === "In Progress").length;
+
   // Only calculate financial stats if user has permission
   const currentMonthRevenue = canViewFinance ? transactions
     .filter(
@@ -112,40 +44,39 @@ export default function Dashboard({ onNavigate, onNewProject }: DashboardProps) 
     )
     .reduce((sum, t) => sum + t.amount, 0) : 0;
 
+  const teamMembersWithRatings = teamMembers.filter((m) => m.tasksCompleted > 0);
   const avgSatisfaction =
-    teamMembers.length > 0 ? teamMembers.reduce((sum, m) => sum + m.auraRating, 0) / teamMembers.length : 0;
+    teamMembersWithRatings.length > 0
+      ? teamMembersWithRatings.reduce((sum, m) => sum + m.auraRating, 0) / teamMembersWithRatings.length
+      : 0;
 
-  const overdueTasks = tasks.filter(
-    (t) => t.status !== "Completed" && new Date(t.dueDate) < new Date()
-  );
+  const openTasks = tasks.filter((t) => t.status !== "Completed");
+  const overdueTasks = openTasks.filter((t) => new Date(t.dueDate) < new Date());
 
-  const pendingPayments = canViewFinance ? transactions.filter(
-    (t) => t.type === "Expense" && t.status === "Pending"
-  ) : [];
+  const pendingPaymentsTotal = canViewFinance
+    ? transactions
+        .filter((t) => t.type === "Expense" && t.status === "Pending")
+        .reduce((sum, t) => sum + t.amount, 0)
+    : 0;
+  const pendingPaymentsCount = canViewFinance
+    ? transactions.filter((t) => t.type === "Expense" && t.status === "Pending").length
+    : 0;
 
   const completedPayments = canViewFinance ? transactions.filter(
     (t) => t.type === "Income" && t.status === "Completed"
   ) : [];
 
-  // Get previous month data for comparisons
-  const prevMonthData = getPreviousMonthData();
-
-  // Helper function to calculate percentage change
-  const calculatePercentageChange = (current: number, previous: number): string | null => {
-    if (previous === 0) return current > 0 ? "+100%" : null;
-    const change = ((current - previous) / previous) * 100;
-    const sign = change >= 0 ? "+" : "";
-    return `${sign}${change.toFixed(0)}%`;
-  };
-
-  // Build stats array based on permissions
+  // Build stats array based on permissions. Each subtitle deliberately shows
+  // something the headline number doesn't already say -- no repeating the
+  // same count twice, and no fake "+100%"-style change indicators (there's
+  // no reliable historical baseline to compare against yet).
   const allStats = [
     {
       label: "Active Projects",
       value: activeProjects.length.toString(),
-      subtitle: `${projects.length} total projects `,
-      change: calculatePercentageChange(activeProjects.length, prevMonthData.activeProjects),
-      changeColor: activeProjects.length >= prevMonthData.activeProjects ? "text-[#008a2e]" : "text-[#ff0004]",
+      subtitle: activeProjects.length > 0
+        ? `${planningCount} Planning · ${inProgressCount} In Progress`
+        : "No active projects",
       iconType: "folder",
       onClick: () => onNavigate("projects", "projects"),
       show: true,
@@ -153,48 +84,39 @@ export default function Dashboard({ onNavigate, onNewProject }: DashboardProps) 
     {
       label: "Overdue Tasks",
       value: overdueTasks.length.toString(),
-      subtitle: `${tasks.length} total tasks `,
-      change: calculatePercentageChange(overdueTasks.length, prevMonthData.overdueTasks),
-      changeColor: overdueTasks.length <= prevMonthData.overdueTasks ? "text-[#008a2e]" : "text-[#ff0004]",
+      subtitle: `of ${openTasks.length} open task${openTasks.length === 1 ? "" : "s"}`,
       iconType: "roller-brush",
       onClick: () => onNavigate("tasks"),
       show: true,
     },
     {
       label: "Monthly Revenue",
-      value: `${(currentMonthRevenue / 1000).toFixed(1)}M`,
-      subtitle: `${completedPayments.length} Payments`,
-      change: calculatePercentageChange(currentMonthRevenue, prevMonthData.revenue),
-      changeColor: currentMonthRevenue >= prevMonthData.revenue ? "text-[#008a2e]" : "text-[#ff0004]",
+      value: `$${(currentMonthRevenue / 1000).toFixed(1)}K`,
+      subtitle: `${completedPayments.length} payment${completedPayments.length === 1 ? "" : "s"} this month`,
       iconType: "line-chart-up",
       onClick: () => onNavigate("finance"),
       show: canViewFinance,
     },
     {
       label: "Payments Due",
-      value: `${(pendingPayments.reduce((sum, t) => sum + t.amount, 0) / 1000).toFixed(0)}K`,
-      subtitle: `${pendingPayments.length} Pending Payments`,
-      change: calculatePercentageChange(
-        pendingPayments.reduce((sum, t) => sum + t.amount, 0),
-        prevMonthData.pendingPayments
-      ),
-      changeColor: pendingPayments.reduce((sum, t) => sum + t.amount, 0) <= prevMonthData.pendingPayments ? "text-[#008a2e]" : "text-[#ff0004]",
+      value: `$${(pendingPaymentsTotal / 1000).toFixed(1)}K`,
+      subtitle: `${pendingPaymentsCount} pending payment${pendingPaymentsCount === 1 ? "" : "s"}`,
       iconType: "coins-hand",
       onClick: () => onNavigate("finance"),
       show: canViewFinance,
     },
     {
       label: "Team Performance",
-      value: avgSatisfaction.toFixed(1),
-      subtitle: "Average Aura Rating",
-      change: null, // No historical data for team performance yet
-      changeColor: "text-[#008a2e]",
+      value: teamMembersWithRatings.length > 0 ? avgSatisfaction.toFixed(1) : "—",
+      subtitle: teamMembersWithRatings.length > 0
+        ? `Avg. Aura rating · ${teamMembersWithRatings.length} rated`
+        : "No completed tasks rated yet",
       iconType: "activity",
       onClick: () => onNavigate("analytics"),
       show: canViewTeam,
     },
   ];
-  
+
   const stats = allStats.filter(stat => stat.show);
 
   const activeProjectsList = activeProjects.slice(0, 4);
@@ -349,11 +271,6 @@ export default function Dashboard({ onNavigate, onNewProject }: DashboardProps) 
                       <p className="basis-0 grow min-h-px min-w-px relative shrink-0 text-[#999999] text-[9px]">
                         {stat?.subtitle || "No data available"}
                       </p>
-                      {stat?.change && (
-                        <p className={`relative shrink-0 text-nowrap text-right whitespace-pre ${stat.changeColor || "text-[#999999]"}`}>
-                          {stat.change}
-                        </p>
-                      )}
                     </div>
                   </div>
                 </div>
