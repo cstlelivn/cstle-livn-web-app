@@ -39,8 +39,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import TaskDialog from "./TaskDialog";
 import TaskKanban from "./TaskKanban";
 import TaskGanttChart from "./TaskGanttChart";
-import PhaseProgressWidget from "./PhaseProgressWidget";
-import PhaseProgressWithCompletion from "./PhaseProgressWithCompletion";
 import EditProjectPhasesDialog from "./EditProjectPhasesDialog";
 import EmailUpdateModal from "./EmailUpdateModal";
 import PhaseView from "./PhaseView";
@@ -717,37 +715,7 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
         </div>
       </div>
 
-      {/* Phase Progress Widget */}
-      <div className="bg-card border border-border rounded-[12px] p-[20px]">
-        <div className="flex items-center justify-between mb-[16px]">
-          <h3 className="font-['Roboto_Mono'] font-bold text-[12px] text-foreground">
-            Project Phases
-          </h3>
-          <button
-            onClick={() => setIsManagePhasesOpen(true)}
-            className="px-[12px] py-[6px] bg-accent text-accent-foreground rounded-[6px] hover:bg-accent/90 transition-colors font-['Roboto_Mono'] font-medium text-[11px] flex items-center gap-[6px]"
-          >
-            <Edit2 className="w-3 h-3" />
-            Manage Phases
-          </button>
-        </div>
-        <PhaseProgressWithCompletion 
-          project={project} 
-          onProjectUpdate={(updatedProject) => {
-            // Update local project state with new progress/phases
-            updateProject(projectId, updatedProject);
-          }}
-        />
-      </div>
-
-      {/* Project Health Summary */}
-      <ProjectHealthSummary
-        tasks={projectTasks as any}
-        phases={normalizedPhases}
-        projectEndDate={project.endDate}
-      />
-
-      {/* Tasks & Phases Section */}
+      {/* Tasks & Phases Section — tasks lead the project, so this comes first */}
       <Tabs value={currentTab} onValueChange={(value: any) => setCurrentTab(value)} className="flex flex-col gap-[20px]">
         <div className="flex items-center justify-between">
           <TabsList className="bg-card border border-border rounded-[10px] p-[3px] h-auto">
@@ -955,10 +923,26 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
         )}
         </TabsContent>
 
-        <TabsContent value="phases" className="mt-0">
+        <TabsContent value="phases" className="mt-0 space-y-[16px]">
+          <div className="flex items-center justify-end">
+            <button
+              onClick={() => setIsManagePhasesOpen(true)}
+              className="px-[12px] py-[6px] bg-accent text-accent-foreground rounded-[6px] hover:bg-accent/90 transition-colors font-['Roboto_Mono'] font-medium text-[11px] flex items-center gap-[6px]"
+            >
+              <Edit2 className="w-3 h-3" />
+              Manage Phases
+            </button>
+          </div>
           <PhaseView projectId={projectId} />
         </TabsContent>
       </Tabs>
+
+      {/* Project Health Summary — secondary info, below the working area */}
+      <ProjectHealthSummary
+        tasks={projectTasks as any}
+        phases={normalizedPhases}
+        projectEndDate={project.endDate}
+      />
 
       {/* Task Dialog */}
       <TaskDialog
