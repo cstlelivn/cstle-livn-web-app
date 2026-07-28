@@ -18,6 +18,7 @@ import {
   RefreshCw,
   CheckSquare,
   ClipboardCheck,
+  LayoutTemplate,
 } from "lucide-react";
 import { AppProvider, useApp } from "./components/AppContext";
 import { AuthProvider, useAuth } from "./components/AuthContext";
@@ -38,6 +39,7 @@ import QCReviewQueue, { usePendingQCCount } from "./components/QCReviewQueue";
 import GlobalSearch from "./components/GlobalSearch";
 import NotificationBell from "./components/NotificationBell";
 import ProjectClientDiagnostic from "./components/ProjectClientDiagnostic";
+import TemplateBuilder from "./components/TemplateBuilder";
 import svgPaths from "./imports/svg-ydinhr03gq";
 
 type ViewType =
@@ -248,6 +250,12 @@ function AppContent() {
       show: hasPermission("canViewSettings"),
     },
     {
+      id: "templates",
+      label: "Templates",
+      icon: LayoutTemplate,
+      show: hasPermission("canManageTemplates"),
+    },
+    {
       id: "settings",
       label: "Settings",
       icon: Settings,
@@ -293,6 +301,8 @@ function AppContent() {
         return <SettingsModule />;
       case "diagnostic":
         return <ProjectClientDiagnostic />;
+      case "templates":
+        return <TemplateBuilder />;
       default:
         return <Dashboard onNavigate={handleNavigate} onNewProject={handleNewProject} />;
     }

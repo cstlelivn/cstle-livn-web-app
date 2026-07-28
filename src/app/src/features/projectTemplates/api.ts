@@ -36,6 +36,154 @@ export async function listProjectTemplates() {
   }));
 }
 
+/** Same as listProjectTemplates but includes inactive (archived) templates —
+ *  used by the template-builder admin screen. */
+export async function listAllProjectTemplates() {
+  const { data, error } = await supabase
+    .from('project_templates')
+    .select(`
+      *,
+      phase_templates (
+        *,
+        task_templates (*)
+      )
+    `)
+    .order('name');
+  if (error) {
+    if (isMissingTableError(error)) return [];
+    failIf(error, 'Failed to list project templates');
+  }
+  return (data ?? []).map((t: any) => ({
+    ...t,
+    phase_templates: (t.phase_templates ?? [])
+      .map((ph: any) => ({ ...ph, task_templates: (ph.task_templates ?? []).sort((a: any, b: any) => a.position - b.position) }))
+      .sort((a: any, b: any) => a.position - b.position),
+  }));
+}
+
+export interface ProjectTemplateInput {
+  name: string;
+  description?: string;
+  project_type?: string;
+  default_duration_days?: number;
+}
+
+export async function createProjectTemplate(input: ProjectTemplateInput) {
+  const { data, error } = await supabase
+    .from('project_templates')
+    .insert({ ...input, version: '1.0', active: true, created_at: now(), updated_at: now() })
+    .select()
+    .single();
+  failIf(error, 'Failed to create project template');
+  return data;
+}
+
+export async function updateProjectTemplate(id: string, updates: Partial<ProjectTemplateInput & { active: boolean }>) {
+  const { data, error } = await supabase
+    .from('project_templates')
+    .update({ ...updates, updated_at: now() })
+    .eq('id', id)
+    .select()
+    .single();
+  failIf(error, 'Failed to update project template');
+  return data;
+}
+
+/** Soft-delete only — hard-deleting would cascade and break historical
+ *  projects that reference this template's phase/task templates. */
+export async function archiveProjectTemplate(id: string) {
+  return updateProjectTemplate(id, { active: false });
+}
+
+export interface PhaseTemplateInput {
+  project_template_id: string;
+  name: string;
+  description?: string;
+  position: number;
+  default_duration_days?: number;
+  required?: boolean;
+}
+
+export async function createPhaseTemplate(input: PhaseTemplateInput) {
+  const { data, error } = await supabase
+    .from('phase_templates')
+    .insert({ ...input, created_at: now(), updated_at: now() })
+    .select()
+    .single();
+  failIf(error, 'Failed to create phase template');
+  return data;
+}
+
+export async function updatePhaseTemplate(id: string, updates: Partial<PhaseTemplateInput>) {
+  const { data, error } = await supabase
+    .from('phase_templates')
+    .update({ ...updates, updated_at: now() })
+    .eq('id', id)
+    .select()
+    .single();
+  failIf(error, 'Failed to update phase template');
+  return data;
+}
+
+export async function deletePhaseTemplate(id: string) {
+  const { error } = await supabase.from('phase_templates').delete().eq('id', id);
+  failIf(error, 'Failed to delete phase template');
+}
+
+export async function reorderPhaseTemplates(orderedIds: string[]) {
+  await Promise.all(
+    orderedIds.map((id, idx) =>
+      supabase.from('phase_templates').update({ position: idx, updated_at: now() }).eq('id', id)
+    )
+  );
+}
+
+export interface TaskTemplateInput {
+  phase_template_id: string;
+  project_template_id: string;
+  name: string;
+  description?: string;
+  task_type?: string;
+  position: number;
+  priority?: string;
+  required?: boolean;
+  default_duration_days?: number;
+}
+
+export async function createTaskTemplate(input: TaskTemplateInput) {
+  const { data, error } = await supabase
+    .from('task_templates')
+    .insert({ ...input, created_at: now(), updated_at: now() })
+    .select()
+    .single();
+  failIf(error, 'Failed to create task template');
+  return data;
+}
+
+export async function updateTaskTemplate(id: string, updates: Partial<TaskTemplateInput>) {
+  const { data, error } = await supabase
+    .from('task_templates')
+    .update({ ...updates, updated_at: now() })
+    .eq('id', id)
+    .select()
+    .single();
+  failIf(error, 'Failed to update task template');
+  return data;
+}
+
+export async function deleteTaskTemplate(id: string) {
+  const { error } = await supabase.from('task_templates').delete().eq('id', id);
+  failIf(error, 'Failed to delete task template');
+}
+
+export async function reorderTaskTemplates(orderedIds: string[]) {
+  await Promise.all(
+    orderedIds.map((id, idx) =>
+      supabase.from('task_templates').update({ position: idx, updated_at: now() }).eq('id', id)
+    )
+  );
+}
+
 export async function getProjectTemplate(id: string) {
   const { data, error } = await supabase
     .from('project_templates')
