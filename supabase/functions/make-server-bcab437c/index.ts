@@ -2988,22 +2988,11 @@ ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS dependency_task_id uuid REFERE
 // Trigger GitHub Actions workflow to sync website gallery from Google Drive
 app.post("/make-server-bcab437c/gallery/sync", authMiddleware, async (c) => {
   try {
-    // Verify user is Super Admin
-    const accessToken = c.req.header("Authorization")?.split(" ")[1];
-    const { data: { user }, error: authError } = await supabase.auth.getUser(accessToken);
-
-    if (authError || !user) {
-      return c.json({ error: "Authentication failed" }, 401);
-    }
-
-    // Get user role from app_metadata
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-
-    if (profile?.role !== "Super Admin") {
+    // authMiddleware already resolved the authoritative role from app_metadata
+    // (see its comment above -- role must never be re-derived from a
+    // user-writable table) and stored it on the context.
+    const userRole = c.get("userRole");
+    if (userRole !== "Super Admin") {
       return c.json({ error: "Only Super Admins can trigger gallery sync" }, 403);
     }
 
