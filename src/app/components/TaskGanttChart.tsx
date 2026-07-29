@@ -1,6 +1,8 @@
 import { useState, useRef } from "react";
 import { Edit2, Trash2, Plus, GripHorizontal } from "lucide-react";
 import { useApp, type Task } from "./AppContext";
+import { useAuth } from "./AuthContext";
+import { canEditTask } from "../src/features/tasks/permissions";
 import TaskDialog from "./TaskDialog";
 import { toast } from "sonner";
 
@@ -8,55 +10,92 @@ interface TaskGanttChartProps {
   projectId: number;
 }
 
+type TaskWithDates = Task & { start_date?: string };
+
+function addDays(dateStr: string, days: number): string {
+  const d = new Date(dateStr);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split("T")[0];
+}
+
+function daysBetween(a: string, b: string): number {
+  return Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000);
+}
+
 export default function TaskGanttChart({ projectId }: TaskGanttChartProps) {
-  const { getTasksByProject, getTeamMember, updateTask, deleteTask, getProject, addTask } = useApp();
+  const { getTasksByProject, getTeamMember, updateTask, deleteTask, getProject, addTask, teamMembers } = useApp();
+  const { currentUser, hasPermission } = useAuth();
   const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | undefined>(undefined);
   const [taskDialogMode, setTaskDialogMode] = useState<"add" | "edit">("add");
-  const [draggedTask, setDraggedTask] = useState<Task | null>(null);
-  const [resizingTask, setResizingTask] = useState<{ task: Task; edge: 'left' | 'right' } | null>(null);
+  const [draggedTask, setDraggedTask] = useState<TaskWithDates | null>(null);
   const [newTaskDate, setNewTaskDate] = useState<string | null>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
 
-  const tasks = getTasksByProject(projectId);
+  const tasks = getTasksByProject(projectId) as TaskWithDates[];
   const project = getProject(projectId);
+  const isManagerOrAdmin = hasPermission("canEditProjects");
+  const canEditThisTask = (task: Task) =>
+    canEditTask({ task, currentUserId: currentUser?.id, isManagerOrAdmin, teamMembers });
 
-  // Generate timeline in days (30 days)
-  const getDaysTimeline = (project: any) => {
-    if (!project || !project.startDate) return [];
-    
-    const startDate = new Date(project.startDate);
-    const days = [];
-    
-    for (let i = 0; i < 30; i++) {
-      const currentDate = new Date(startDate);
-      currentDate.setDate(currentDate.getDate() + i);
-      days.push({
-        date: currentDate.toISOString().split('T')[0],
-        label: `${currentDate.getDate()}`,
-        monthLabel: i === 0 || currentDate.getDate() === 1 ? currentDate.toLocaleDateString("en-US", { month: "short" }) : "",
-        isWeekend: currentDate.getDay() === 0 || currentDate.getDay() === 6,
+  // A task's "start" is its own start_date when the template/schedule set one;
+  // fall back to its due date (a single-day bar) rather than createdAt -- the
+  // DB insert timestamp is nearly identical for every task cloned from a
+  // template, which is what made every bar start at the same point regardless
+  // of where it actually falls in the project's schedule.
+  const taskStart = (task: TaskWithDates) => task.start_date || task.dueDate;
+
+  // Build a timeline window that actually spans the tasks, instead of a fixed
+  // 30 days from project start -- a project's real schedule easily runs
+  // longer than that, which clipped or mispositioned every later task.
+  const getDaysTimeline = () => {
+    const dated = tasks.filter((t) => t.dueDate || t.start_date);
+    if (dated.length === 0) {
+      if (!project?.startDate) return [];
+      const start = new Date(project.startDate);
+      return Array.from({ length: 30 }, (_, i) => {
+        const d = new Date(start);
+        d.setDate(d.getDate() + i);
+        return dayInfo(d);
       });
     }
-    
+
+    const allDates = dated.flatMap((t) => [taskStart(t), t.dueDate].filter(Boolean)) as string[];
+    let start = new Date(Math.min(...allDates.map((d) => new Date(d).getTime())));
+    let end = new Date(Math.max(...allDates.map((d) => new Date(d).getTime())));
+    start.setDate(start.getDate() - 2);
+    end.setDate(end.getDate() + 2);
+
+    const days = [];
+    const cursor = new Date(start);
+    while (cursor <= end) {
+      days.push(dayInfo(cursor));
+      cursor.setDate(cursor.getDate() + 1);
+    }
     return days;
   };
 
-  const days = getDaysTimeline(project);
+  function dayInfo(d: Date) {
+    return {
+      date: d.toISOString().split("T")[0],
+      label: `${d.getDate()}`,
+      monthLabel: d.getDate() === 1 ? d.toLocaleDateString("en-US", { month: "short" }) : "",
+      isWeekend: d.getDay() === 0 || d.getDay() === 6,
+      isToday: d.toDateString() === new Date().toDateString(),
+    };
+  }
 
-  // Calculate task position and width based on dueDate and optional start date
-  const getTaskPosition = (task: Task) => {
+  const days = getDaysTimeline();
+  const todayIndex = days.findIndex((d) => d.isToday);
+
+  const getTaskPosition = (task: TaskWithDates) => {
     if (days.length === 0) return { left: "0%", width: "4%" };
-    
-    const taskStart = task.createdAt ? new Date(task.createdAt) : new Date(days[0].date);
-    const taskEnd = new Date(task.dueDate);
-    const timelineStart = new Date(days[0].date);
-    
-    // Calculate days from start
-    const startOffset = Math.max(0, Math.floor((taskStart.getTime() - timelineStart.getTime()) / (1000 * 60 * 60 * 24)));
-    const endOffset = Math.floor((taskEnd.getTime() - timelineStart.getTime()) / (1000 * 60 * 60 * 24));
-    const duration = Math.max(1, endOffset - startOffset);
-    
+
+    const timelineStart = days[0].date;
+    const startOffset = Math.max(0, daysBetween(timelineStart, taskStart(task)));
+    const endOffset = Math.max(startOffset + 1, daysBetween(timelineStart, task.dueDate) + 1);
+    const duration = endOffset - startOffset;
+
     return {
       left: `${(startOffset / days.length) * 100}%`,
       width: `${(duration / days.length) * 100}%`,
@@ -108,7 +147,6 @@ export default function TaskGanttChart({ projectId }: TaskGanttChartProps) {
     setIsTaskDialogOpen(true);
   };
 
-  // Handle click on day cell to create new task
   const handleDayCellClick = (dayDate: string) => {
     setNewTaskDate(dayDate);
     setTaskDialogMode("add");
@@ -116,39 +154,32 @@ export default function TaskGanttChart({ projectId }: TaskGanttChartProps) {
     setIsTaskDialogOpen(true);
   };
 
-  // Handle drag start
-  const handleDragStart = (e: React.DragEvent, task: Task) => {
+  const handleDragStart = (e: React.DragEvent, task: TaskWithDates) => {
+    if (!canEditThisTask(task)) return;
     setDraggedTask(task);
     e.dataTransfer.effectAllowed = "move";
   };
 
-  // Handle drop on day cell
-  const handleDrop = (e: React.DragEvent, dayDate: string) => {
+  // Dropping a bar on a day cell moves the whole task there, keeping its
+  // original duration (drag the bar's start to that day, due date follows).
+  const handleDrop = async (e: React.DragEvent, dayDate: string) => {
     e.preventDefault();
-    if (draggedTask) {
-      // Calculate new due date
-      const oldDueDate = new Date(draggedTask.dueDate);
-      const newDueDate = new Date(dayDate);
-      
-      updateTask(draggedTask.id, {
-        ...draggedTask,
-        dueDate: newDueDate.toISOString().split('T')[0],
-      });
-      
-      toast.success(`Task moved to ${newDueDate.toLocaleDateString()}`);
-      setDraggedTask(null);
+    if (!draggedTask) return;
+    const duration = daysBetween(taskStart(draggedTask), draggedTask.dueDate);
+    const newStart = dayDate;
+    const newDue = addDays(newStart, duration);
+    try {
+      await updateTask(draggedTask.id, { start_date: newStart, dueDate: newDue } as Partial<Task>);
+      toast.success(`Task rescheduled to ${new Date(newStart).toLocaleDateString()}`);
+    } catch {
+      toast.error("Failed to reschedule task");
     }
+    setDraggedTask(null);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
-  };
-
-  // Handle resize start
-  const handleResizeStart = (e: React.MouseEvent, task: Task, edge: 'left' | 'right') => {
-    e.stopPropagation();
-    setResizingTask({ task, edge });
   };
 
   if (tasks.length === 0) {
@@ -181,6 +212,22 @@ export default function TaskGanttChart({ projectId }: TaskGanttChartProps) {
     );
   }
 
+  // Group by phase, ordered chronologically by each phase's earliest task
+  const phaseGroups = (() => {
+    const groups = new Map<string, TaskWithDates[]>();
+    for (const task of tasks) {
+      const key = task.phase || "No Phase";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(task);
+    }
+    for (const list of groups.values()) {
+      list.sort((a, b) => new Date(taskStart(a)).getTime() - new Date(taskStart(b)).getTime());
+    }
+    return Array.from(groups.entries()).sort(
+      ([, a], [, b]) => new Date(taskStart(a[0])).getTime() - new Date(taskStart(b[0])).getTime()
+    );
+  })();
+
   return (
     <div className="space-y-[16px]">
       {/* Header */}
@@ -188,7 +235,7 @@ export default function TaskGanttChart({ projectId }: TaskGanttChartProps) {
         <div>
           <h3 className="text-foreground">Gantt Chart</h3>
           <p className="text-muted-foreground small-text">
-            Click on a day to add a task, drag tasks to reschedule
+            Click on a day to add a task, drag a task bar to reschedule it
           </p>
         </div>
         <button
@@ -201,106 +248,144 @@ export default function TaskGanttChart({ projectId }: TaskGanttChartProps) {
       </div>
 
       {/* Gantt Chart */}
-      <div className="border border-border rounded-lg overflow-hidden bg-card">
-        {/* Timeline Header */}
-        <div className="flex border-b border-border bg-secondary/30 sticky top-0 z-10">
-          <div className="w-[200px] px-[12px] py-[8px] border-r border-border">
-            <span className="text-foreground">Task</span>
-          </div>
-          <div className="flex-1 flex" ref={timelineRef}>
-            {days.map((day, index) => (
-              <div
-                key={day.date}
-                className={`flex-1 min-w-[30px] px-[4px] py-[8px] border-r border-border text-center ${
-                  day.isWeekend ? "bg-muted/30" : ""
-                }`}
-              >
-                {day.monthLabel && (
-                  <div className="small-text text-muted-foreground mb-[2px]">
-                    {day.monthLabel}
+      <div className="border border-border rounded-lg overflow-hidden bg-card overflow-x-auto">
+        <div className="min-w-max relative">
+          {/* Timeline Header */}
+          <div className="flex border-b border-border bg-secondary/30 sticky top-0 z-10">
+            <div className="w-[200px] shrink-0 px-[12px] py-[8px] border-r border-border">
+              <span className="text-foreground">Task</span>
+            </div>
+            <div className="flex-1 flex" ref={timelineRef}>
+              {days.map((day) => (
+                <div
+                  key={day.date}
+                  className={`flex-1 min-w-[30px] px-[4px] py-[8px] border-r border-border text-center ${
+                    day.isWeekend ? "bg-muted/30" : ""
+                  } ${day.isToday ? "bg-accent/10" : ""}`}
+                >
+                  {day.monthLabel && (
+                    <div className="small-text text-muted-foreground mb-[2px]">
+                      {day.monthLabel}
+                    </div>
+                  )}
+                  <div className={`small-text ${day.isToday ? "text-accent font-bold" : "text-foreground"}`}>
+                    {day.label}
                   </div>
-                )}
-                <div className="small-text text-foreground">{day.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Today marker line, spanning all phase/task rows */}
+          {todayIndex >= 0 && days.length > 0 && (
+            <div
+              className="absolute top-0 bottom-0 w-[2px] bg-accent/60 pointer-events-none z-[5]"
+              style={{ left: `calc(200px + (100% - 200px) * ${todayIndex / days.length})` }}
+            />
+          )}
+
+          {/* Phase groups */}
+          <div className="divide-y divide-border">
+            {phaseGroups.map(([phaseName, phaseTasks]) => (
+              <div key={phaseName}>
+                {/* Phase header row */}
+                <div className="flex bg-secondary/40">
+                  <div className="w-[200px] shrink-0 px-[12px] py-[6px] border-r border-border">
+                    <span className="font-['Roboto_Mono'] font-bold text-[10px] text-foreground uppercase tracking-wide">
+                      {phaseName}
+                    </span>
+                  </div>
+                  <div className="flex-1 flex">
+                    {days.map((day) => (
+                      <div
+                        key={day.date}
+                        className={`flex-1 min-w-[30px] border-r border-border/30 ${day.isWeekend ? "bg-muted/10" : ""}`}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Task rows within this phase */}
+                <div className="divide-y divide-border/50">
+                  {phaseTasks.map((task) => {
+                    const assignee = task.assignee ? getTeamMember(task.assignee) : null;
+                    const position = getTaskPosition(task);
+                    const canEdit = canEditThisTask(task);
+
+                    return (
+                      <div key={task.id} className="flex hover:bg-secondary/20 transition-colors group">
+                        {/* Task Info */}
+                        <div className="w-[200px] shrink-0 px-[12px] py-[10px] border-r border-border flex items-center justify-between gap-[8px]">
+                          <div className="flex-1 min-w-0 pl-[8px]">
+                            <div className="text-foreground truncate small-text">
+                              {task.title}
+                            </div>
+                            {assignee && (
+                              <div className="text-muted-foreground small-text truncate">
+                                {assignee.name}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex gap-[4px] opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                            <button
+                              onClick={() => handleEditTask(task)}
+                              className="p-[4px] hover:bg-secondary rounded"
+                              title="Edit task"
+                            >
+                              <Edit2 className="w-3 h-3 text-muted-foreground" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteTask(task.id)}
+                              className="p-[4px] hover:bg-destructive/10 rounded"
+                              title="Delete task"
+                            >
+                              <Trash2 className="w-3 h-3 text-destructive" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Timeline Grid */}
+                        <div className="flex-1 relative flex h-[48px]">
+                          {days.map((day) => (
+                            <div
+                              key={day.date}
+                              className={`flex-1 min-w-[30px] border-r border-border/30 ${
+                                day.isWeekend ? "bg-muted/10" : ""
+                              } cursor-pointer hover:bg-accent/5 transition-colors`}
+                              onClick={() => handleDayCellClick(day.date)}
+                              onDrop={(e) => handleDrop(e, day.date)}
+                              onDragOver={handleDragOver}
+                            />
+                          ))}
+
+                          {/* Task Bar */}
+                          <div
+                            className={`absolute top-1/2 -translate-y-1/2 h-[28px] rounded flex items-center px-[8px] gap-[4px] hover:opacity-90 transition-opacity shadow-sm ${getStatusColor(
+                              task.status
+                            )} ${getPriorityColor(task.priority)} border-2 ${
+                              canEdit ? "cursor-move" : "cursor-not-allowed"
+                            }`}
+                            style={{
+                              left: position.left,
+                              width: position.width,
+                            }}
+                            draggable={canEdit}
+                            onDragStart={(e) => handleDragStart(e, task)}
+                            title={`${task.title} - ${task.status}${!canEdit ? " (assigned to someone else)" : ""}`}
+                          >
+                            <GripHorizontal className="w-3 h-3 text-white/70 shrink-0" />
+                            <span className="text-white small-text truncate flex-1">
+                              {task.title}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             ))}
           </div>
-        </div>
-
-        {/* Task Rows */}
-        <div className="divide-y divide-border">
-          {tasks.map((task) => {
-            const assignee = task.assignee ? getTeamMember(task.assignee) : null;
-            const position = getTaskPosition(task);
-
-            return (
-              <div key={task.id} className="flex hover:bg-secondary/20 transition-colors group">
-                {/* Task Info */}
-                <div className="w-[200px] px-[12px] py-[10px] border-r border-border flex items-center justify-between gap-[8px]">
-                  <div className="flex-1 min-w-0">
-                    <div className="text-foreground truncate small-text">
-                      {task.title}
-                    </div>
-                    {assignee && (
-                      <div className="text-muted-foreground small-text truncate">
-                        {assignee.name}
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex gap-[4px] opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={() => handleEditTask(task)}
-                      className="p-[4px] hover:bg-secondary rounded"
-                      title="Edit task"
-                    >
-                      <Edit2 className="w-3 h-3 text-muted-foreground" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteTask(task.id)}
-                      className="p-[4px] hover:bg-destructive/10 rounded"
-                      title="Delete task"
-                    >
-                      <Trash2 className="w-3 h-3 text-destructive" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Timeline Grid */}
-                <div className="flex-1 relative flex h-[48px]">
-                  {/* Day cells for dropping */}
-                  {days.map((day) => (
-                    <div
-                      key={day.date}
-                      className={`flex-1 min-w-[30px] border-r border-border/50 ${
-                        day.isWeekend ? "bg-muted/10" : ""
-                      } cursor-pointer hover:bg-accent/5 transition-colors`}
-                      onClick={() => handleDayCellClick(day.date)}
-                      onDrop={(e) => handleDrop(e, day.date)}
-                      onDragOver={handleDragOver}
-                    />
-                  ))}
-
-                  {/* Task Bar */}
-                  <div
-                    className={`absolute top-1/2 -translate-y-1/2 h-[28px] rounded cursor-move ${getStatusColor(
-                      task.status
-                    )} ${getPriorityColor(task.priority)} border-2 flex items-center px-[8px] gap-[4px] hover:opacity-90 transition-opacity shadow-sm`}
-                    style={{
-                      left: position.left,
-                      width: position.width,
-                    }}
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, task)}
-                    title={`${task.title} - ${task.status}`}
-                  >
-                    <GripHorizontal className="w-3 h-3 text-white/70" />
-                    <span className="text-white small-text truncate flex-1">
-                      {task.title}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
         </div>
       </div>
 

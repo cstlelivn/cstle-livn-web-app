@@ -238,6 +238,12 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
     const matchesAssignee = filterAssignee === "all" || assigneeName === filterAssignee;
 
     return matchesSearch && matchesStatus && matchesPriority && matchesAssignee;
+  }).sort((a, b) => {
+    // Soonest due date first; tasks with no due date sort last
+    if (!a.dueDate && !b.dueDate) return 0;
+    if (!a.dueDate) return 1;
+    if (!b.dueDate) return -1;
+    return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
   });
 
   const handleDeleteProject = () => {
@@ -441,11 +447,41 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
 
   const TaskGridItem = ({ task, onEdit }: { task: AppTask; onEdit: (task: AppTask) => void }) => {
     const assignee = getTeamMember(task.assignee);
+    const canEdit = canEditTask({
+      task,
+      currentUserId: currentUser?.id,
+      isManagerOrAdmin: hasPermission("canEditProjects"),
+      teamMembers,
+    });
+
+    const handleStatusChange = async (status: AppTask["status"]) => {
+      try {
+        await updateTask(task.id, { status });
+        toast.success("Task status updated");
+      } catch (error) {
+        toast.error("Failed to update task status");
+      }
+    };
+
     return (
       <div className="bg-card border border-border rounded-[20px] p-[20px] hover:shadow-md transition-all">
         <div className="flex items-start justify-between mb-[12px]">
           <div className="flex items-start gap-[8px] flex-1">
-            {getStatusIcon(task.status)}
+            {canEdit ? (
+              <Select value={task.status} onValueChange={(value) => handleStatusChange(value as AppTask["status"])}>
+                <SelectTrigger className="w-[28px] h-[28px] p-0 justify-center border-none bg-transparent shadow-none [&>svg]:hidden shrink-0">
+                  {getStatusIcon(task.status)}
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="To Do">To Do</SelectItem>
+                  <SelectItem value="In Progress">In Progress</SelectItem>
+                  <SelectItem value="Review">Review</SelectItem>
+                  <SelectItem value="Completed">Completed</SelectItem>
+                </SelectContent>
+              </Select>
+            ) : (
+              <div title="You can only update tasks assigned to you" className="shrink-0">{getStatusIcon(task.status)}</div>
+            )}
             <div className="flex-1 min-w-0">
               <h4 className="font-['Roboto_Mono'] font-bold text-[14px] text-foreground mb-[4px]">
                 {task.title}
@@ -953,10 +989,14 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
         )}
 
         {taskView === "calendar" && (
-          <TaskCalendarView 
-            tasks={filteredTasks} 
+          <TaskCalendarView
+            tasks={filteredTasks}
             getTeamMember={getTeamMember}
             onEditTask={handleEditTask}
+            updateTask={updateTask}
+            teamMembers={teamMembers}
+            currentUserId={currentUser?.id}
+            isManagerOrAdmin={hasPermission("canEditProjects")}
           />
         )}
 
@@ -1046,16 +1086,68 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
 }
 
 // Task Calendar View Component
-function TaskCalendarView({ 
-  tasks, 
+function TaskCalendarView({
+  tasks,
   getTeamMember,
   onEditTask,
-}: { 
+  updateTask,
+  teamMembers = [],
+  currentUserId,
+  isManagerOrAdmin = false,
+}: {
   tasks: AppTask[];
   getTeamMember: (id: number) => any;
   onEditTask?: (task: AppTask) => void;
+  updateTask?: (id: number, updates: Partial<AppTask>) => Promise<void>;
+  teamMembers?: Array<{ id: string | number; authUserId?: string | null }>;
+  currentUserId?: string | null;
+  isManagerOrAdmin?: boolean;
 }) {
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [draggedTask, setDraggedTask] = useState<AppTask | null>(null);
+  const [dragOverDay, setDragOverDay] = useState<number | null>(null);
+
+  const canEditThisTask = (task: AppTask) =>
+    canEditTask({ task: task as any, currentUserId, isManagerOrAdmin, teamMembers });
+
+  const handleDragStart = (e: React.DragEvent, task: AppTask) => {
+    if (!canEditThisTask(task)) {
+      e.preventDefault();
+      return;
+    }
+    setDraggedTask(task);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDrop = async (e: React.DragEvent, day: number) => {
+    e.preventDefault();
+    setDragOverDay(null);
+    if (!draggedTask || !updateTask) return;
+
+    const newDue = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+    const newDueStr = newDue.toISOString().split("T")[0];
+
+    // Shift start_date by the same amount so the task's own duration is
+    // preserved, not just its due date -- moving a task on the calendar
+    // should move the whole task, the way dragging its bar does on the
+    // Gantt chart.
+    const oldStart = (draggedTask as any).start_date || draggedTask.dueDate;
+    const oldDue = draggedTask.dueDate;
+    const durationDays = oldStart && oldDue
+      ? Math.round((new Date(oldDue).getTime() - new Date(oldStart).getTime()) / 86400000)
+      : 0;
+    const newStart = new Date(newDue);
+    newStart.setDate(newStart.getDate() - durationDays);
+    const newStartStr = newStart.toISOString().split("T")[0];
+
+    try {
+      await updateTask(draggedTask.id, { dueDate: newDueStr, start_date: newStartStr } as Partial<AppTask>);
+      toast.success(`Task rescheduled to ${formatDate(newDueStr)}`);
+    } catch (error) {
+      toast.error("Failed to reschedule task");
+    }
+    setDraggedTask(null);
+  };
 
   const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
   const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -1147,9 +1239,19 @@ function TaskCalendarView({
           return (
             <div
               key={index}
+              onDragOver={(e) => {
+                if (!day) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "move";
+                if (dragOverDay !== day) setDragOverDay(day);
+              }}
+              onDragLeave={() => setDragOverDay((d) => (d === day ? null : d))}
+              onDrop={(e) => day && handleDrop(e, day)}
               className={`min-h-[100px] p-[8px] rounded-[8px] border border-border ${
                 day ? "bg-background hover:bg-card transition-colors" : "bg-transparent border-transparent"
-              } ${isToday(day) ? "ring-2 ring-accent" : ""}`}
+              } ${isToday(day) ? "ring-2 ring-accent" : ""} ${
+                dragOverDay === day && day ? "ring-2 ring-accent bg-accent/5" : ""
+              }`}
             >
               {day && (
                 <>
@@ -1161,11 +1263,17 @@ function TaskCalendarView({
                   <div className="space-y-[4px]">
                     {dayTasks.map((task) => {
                       const assignee = getTeamMember(task.assignee);
+                      const canEdit = canEditThisTask(task);
                       return (
                         <button
                           key={task.id}
                           onClick={() => onEditTask?.(task)}
+                          draggable={canEdit}
+                          onDragStart={(e) => handleDragStart(e, task)}
+                          title={canEdit ? "Drag to reschedule" : "You can only reschedule tasks assigned to you"}
                           className={`w-full p-[6px] rounded-[4px] hover:ring-2 hover:ring-accent/50 transition-all cursor-pointer ${
+                            canEdit ? "cursor-grab active:cursor-grabbing" : ""
+                          } ${
                             task.status === "Completed"
                               ? "bg-success/10"
                               : task.status === "In Progress"
