@@ -57,7 +57,7 @@ type ViewType =
   | "diagnostic";
 
 type SubViewType = {
-  projects: "projects" | "qc-review";
+  projects: "projects" | "tasks" | "qc-review";
   teams: "team" | "vendors";
 };
 
@@ -163,16 +163,15 @@ function AppContent() {
       setCurrentView("projects");
       if (subViewOrId === "qc-review") {
         setProjectsSubView("qc-review");
+      } else if (subViewOrId === "tasks") {
+        setProjectsSubView("tasks");
       } else {
         setProjectsSubView("projects");
       }
     } else if (view === "tasks") {
-      // Tasks now live inside each project (task-first project view), not as
-      // a standalone cross-project tab -- send these old shortcuts to the
-      // project list instead.
       setSelectedProjectId(null);
       setCurrentView("projects");
-      setProjectsSubView("projects");
+      setProjectsSubView("tasks");
     } else if (view === "team") {
       setCurrentView("teams");
       setTeamsSubView("team");

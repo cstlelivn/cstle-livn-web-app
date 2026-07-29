@@ -1,35 +1,46 @@
 import { useState } from "react";
-import { Plus, Search, List, Grid3x3, Calendar as CalendarIcon, CheckCircle2, Clock, AlertCircle, Users as UsersIcon, Filter, Edit2, Trash2, MoreVertical, ChevronDown, ClipboardCheck } from "lucide-react";
+import { Plus, Search, CheckCircle2, Clock, AlertCircle, Edit2, Trash2, MoreVertical } from "lucide-react";
 import { useApp, type Task } from "./AppContext";
 import { useAuth } from "./AuthContext";
 import TaskDialog from "./TaskDialog";
-import TaskKanban from "./TaskKanban";
-import TaskGanttChart from "./TaskGanttChart";
-import TaskReviewDialog from "./TaskReviewDialog";
 import { Input } from "./ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "./ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "./ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "./ui/alert-dialog";
 import { Badge } from "./ui/badge";
+import { formatDate } from "../src/lib/dates";
+import { canEditTask } from "../src/features/tasks/permissions";
+import { toast } from "sonner";
+
+type TimeFrame = "all" | "overdue" | "today" | "week" | "month";
+
+function daysUntil(dueDate: string): number {
+  const due = new Date(dueDate);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  due.setHours(0, 0, 0, 0);
+  return Math.round((due.getTime() - today.getTime()) / 86400000);
+}
 
 export default function TaskManagement() {
   const { tasks, projects, teamMembers, getProject, getTeamMember, deleteTask, updateTask } = useApp();
-  const { hasPermission } = useAuth();
-  const [view, setView] = useState<"list" | "kanban" | "gantt">("list");
+  const { currentUser, hasPermission } = useAuth();
+  const isManagerOrAdmin = hasPermission("canEditProjects");
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [filterProject, setFilterProject] = useState<string>("all");
   const [filterAssignee, setFilterAssignee] = useState<string>("all");
+  const [timeFrame, setTimeFrame] = useState<TimeFrame>("all");
   const [groupBy, setGroupBy] = useState<"none" | "project" | "assignee" | "status" | "priority">("none");
   const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | undefined>(undefined);
   const [taskDialogMode, setTaskDialogMode] = useState<"add" | "edit">("add");
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<number | null>(null);
-  const [reviewDialogTask, setReviewDialogTask] = useState<Task | null>(null);
 
-  // Filter tasks
+  // Filter tasks -- incomplete tasks only for time-frame filtering, since a
+  // completed task being "overdue" isn't something anyone needs to act on
   const filteredTasks = tasks.filter((task) => {
     const matchesSearch =
       task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -38,8 +49,27 @@ export default function TaskManagement() {
     const matchesPriority = filterPriority === "all" || task.priority === filterPriority;
     const matchesProject = filterProject === "all" || task.projectId.toString() === filterProject;
     const matchesAssignee = filterAssignee === "all" || task.assignee === filterAssignee;
-    
-    return matchesSearch && matchesStatus && matchesPriority && matchesProject && matchesAssignee;
+
+    let matchesTimeFrame = true;
+    if (timeFrame !== "all") {
+      if (task.status === "Completed" || !task.dueDate) {
+        matchesTimeFrame = false;
+      } else {
+        const diff = daysUntil(task.dueDate);
+        if (timeFrame === "overdue") matchesTimeFrame = diff < 0;
+        else if (timeFrame === "today") matchesTimeFrame = diff === 0;
+        else if (timeFrame === "week") matchesTimeFrame = diff >= 0 && diff <= 7;
+        else if (timeFrame === "month") matchesTimeFrame = diff >= 0 && diff <= 30;
+      }
+    }
+
+    return matchesSearch && matchesStatus && matchesPriority && matchesProject && matchesAssignee && matchesTimeFrame;
+  }).sort((a, b) => {
+    // Soonest due date first (urgency); tasks with no due date sort last
+    if (!a.dueDate && !b.dueDate) return 0;
+    if (!a.dueDate) return 1;
+    if (!b.dueDate) return -1;
+    return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
   });
 
   // Group tasks
@@ -194,33 +224,10 @@ export default function TaskManagement() {
       {/* Controls */}
       <div className="bg-card border border-border rounded-[12px] p-[20px]">
         <div className="flex items-center justify-between mb-[16px]">
-          <div className="flex items-center gap-[12px]">
-            <button
-              onClick={() => setView("list")}
-              className={`p-[8px] rounded-[6px] transition-colors ${
-                view === "list" ? "bg-accent text-accent-foreground" : "hover:bg-accent/10 text-muted-foreground"
-              }`}
-            >
-              <List className="w-[16px] h-[16px]" />
-            </button>
-            <button
-              onClick={() => setView("kanban")}
-              className={`p-[8px] rounded-[6px] transition-colors ${
-                view === "kanban" ? "bg-accent text-accent-foreground" : "hover:bg-accent/10 text-muted-foreground"
-              }`}
-            >
-              <Grid3x3 className="w-[16px] h-[16px]" />
-            </button>
-            <button
-              onClick={() => setView("gantt")}
-              className={`p-[8px] rounded-[6px] transition-colors ${
-                view === "gantt" ? "bg-accent text-accent-foreground" : "hover:bg-accent/10 text-muted-foreground"
-              }`}
-            >
-              <CalendarIcon className="w-[16px] h-[16px]" />
-            </button>
-          </div>
-          
+          <h3 style={{ fontVariationSettings: "'wdth' 137", fontWeight: 700 }}>
+            All Tasks
+          </h3>
+
           {hasPermission("canEditProjects") && (
             <button
               onClick={handleAddTask}
@@ -233,7 +240,7 @@ export default function TaskManagement() {
         </div>
 
         {/* Filters */}
-        <div className="grid grid-cols-6 gap-[12px]">
+        <div className="grid grid-cols-7 gap-[12px]">
           <div className="col-span-2">
             <div className="relative">
               <Search className="absolute left-[12px] top-1/2 -translate-y-1/2 w-[14px] h-[14px] text-muted-foreground" />
@@ -245,14 +252,27 @@ export default function TaskManagement() {
               />
             </div>
           </div>
-          
+
+          <Select value={timeFrame} onValueChange={(value) => setTimeFrame(value as TimeFrame)}>
+            <SelectTrigger className="h-[36px] bg-background border-border font-['Roboto_Mono'] text-[11px]">
+              <SelectValue placeholder="Due" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Any Time</SelectItem>
+              <SelectItem value="overdue">Overdue</SelectItem>
+              <SelectItem value="today">Due Today</SelectItem>
+              <SelectItem value="week">Due This Week</SelectItem>
+              <SelectItem value="month">Due This Month</SelectItem>
+            </SelectContent>
+          </Select>
+
           <Select value={filterStatus} onValueChange={setFilterStatus}>
             <SelectTrigger className="h-[36px] bg-background border-border font-['Roboto_Mono'] text-[11px]">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="Not Started">Not Started</SelectItem>
+              <SelectItem value="To Do">To Do</SelectItem>
               <SelectItem value="In Progress">In Progress</SelectItem>
               <SelectItem value="Review">Review</SelectItem>
               <SelectItem value="Completed">Completed</SelectItem>
@@ -301,9 +321,8 @@ export default function TaskManagement() {
         </div>
       </div>
 
-      {/* Task Views */}
-      {view === "list" && (
-        <div className="space-y-[24px]">
+      {/* Task List */}
+      <div className="space-y-[24px]">
           {Object.entries(groupedTasks).map(([groupName, groupTasks]) => (
             <div key={groupName} className="bg-card border border-border rounded-[12px] p-[20px]">
               {groupBy !== "none" && (
@@ -330,6 +349,16 @@ export default function TaskManagement() {
                     const project = getProject(task.projectId);
                     const assignee = getTeamMember(task.assignee);
                     const overdue = isOverdue(task.dueDate, task.status);
+                    const canEdit = canEditTask({ task, currentUserId: currentUser?.id, isManagerOrAdmin, teamMembers });
+
+                    const handleStatusChange = async (status: Task["status"]) => {
+                      try {
+                        await updateTask(task.id, { status });
+                        toast.success("Task status updated");
+                      } catch (error) {
+                        toast.error("Failed to update task status");
+                      }
+                    };
 
                     return (
                       <div
@@ -337,7 +366,23 @@ export default function TaskManagement() {
                         className="flex items-center gap-[16px] p-[16px] bg-background border border-border rounded-[8px] hover:shadow-sm transition-all cursor-pointer group"
                         onClick={() => handleEditTask(task)}
                       >
-                        <div className="shrink-0">{getStatusIcon(task.status)}</div>
+                        <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                          {canEdit ? (
+                            <Select value={task.status} onValueChange={(value) => handleStatusChange(value as Task["status"])}>
+                              <SelectTrigger className="w-[36px] h-[28px] p-0 justify-center border-none bg-transparent shadow-none [&>svg]:hidden">
+                                {getStatusIcon(task.status)}
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="To Do">To Do</SelectItem>
+                                <SelectItem value="In Progress">In Progress</SelectItem>
+                                <SelectItem value="Review">Review</SelectItem>
+                                <SelectItem value="Completed">Completed</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <div title="You can only update tasks assigned to you">{getStatusIcon(task.status)}</div>
+                          )}
+                        </div>
 
                         <div className="flex-1 min-w-0 grid grid-cols-12 gap-[16px] items-center">
                           <div className="col-span-4">
@@ -381,13 +426,22 @@ export default function TaskManagement() {
                           </div>
 
                           <div className="col-span-2">
-                            <p
-                              className={`font-['Roboto_Mono'] text-[10px] ${
-                                overdue ? "text-destructive font-bold" : "text-muted-foreground"
-                              }`}
-                            >
-                              {overdue ? "Overdue" : task.dueDate}
-                            </p>
+                            {task.dueDate ? (
+                              <p
+                                className={`font-['Roboto_Mono'] text-[10px] ${
+                                  overdue
+                                    ? "text-destructive font-bold"
+                                    : task.status !== "Completed" && daysUntil(task.dueDate) <= 3
+                                    ? "text-warning font-bold"
+                                    : "text-muted-foreground"
+                                }`}
+                              >
+                                {overdue ? "Overdue · " : ""}
+                                {formatDate(task.dueDate)}
+                              </p>
+                            ) : (
+                              <p className="font-['Roboto_Mono'] text-[10px] text-muted-foreground">No due date</p>
+                            )}
                           </div>
                         </div>
 
@@ -422,10 +476,6 @@ export default function TaskManagement() {
             </div>
           ))}
         </div>
-      )}
-
-      {view === "kanban" && <TaskKanban tasks={filteredTasks} />}
-      {view === "gantt" && <TaskGanttChart tasks={filteredTasks} />}
 
       {/* Task Dialog */}
       <TaskDialog
@@ -453,17 +503,6 @@ export default function TaskManagement() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* Review Dialog */}
-      <TaskReviewDialog
-        open={reviewDialogTask !== null}
-        onOpenChange={(open) => setReviewDialogTask(open ? reviewDialogTask : null)}
-        task={reviewDialogTask}
-        onReviewComplete={(task) => {
-          updateTask(task);
-          setReviewDialogTask(null);
-        }}
-      />
     </div>
   );
 }
