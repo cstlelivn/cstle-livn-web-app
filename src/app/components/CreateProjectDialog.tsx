@@ -7,6 +7,7 @@ import { Textarea } from "./ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { toast } from "sonner";
 import { useApp, type PhaseWithDuration } from "./AppContext";
+import { useAuth } from "./AuthContext";
 import { fetchPhaseTemplates, type PhaseTemplate, savePhaseTemplateToServer, updatePhaseTemplateOnServer } from "./PhaseTemplateManager";
 import svgPaths from "../imports/svg-irwlcgai14";
 import { DndProvider, useDrag, useDrop } from 'react-dnd'
@@ -158,7 +159,8 @@ export default function CreateProjectDialog({
   onCreateProject,
   canViewFinance,
 }: CreateProjectDialogProps) {
-  const { clients } = useApp();
+  const { clients, teamMembers } = useApp();
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     title: "",
     client: "",
@@ -428,9 +430,14 @@ export default function CreateProjectDialog({
         const created = await createProject(projectPayload);
         if (!created) throw new Error("Project creation returned no data");
 
+        // Every task must have an assignee -- default template-cloned tasks
+        // to whoever is creating the project until they're reassigned.
+        const currentMember = (teamMembers as any[]).find((m) => String(m.authUserId) === String(user?.id));
+
         await applyTemplateToProject(String(created.id), selectedProjectTemplateId, {
           enabledPhaseTemplateIds: Array.from(enabledPhaseIds),
           startDate: formData.startDate,
+          defaultAssigneeId: currentMember ? String(currentMember.id) : undefined,
         });
 
         toast.success(`Project created with ${enabledPhases.length} phases from "${selectedProjectTemplate?.name}"`);

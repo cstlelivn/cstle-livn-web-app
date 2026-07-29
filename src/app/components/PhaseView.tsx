@@ -371,15 +371,16 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
                         });
                         return (
                           <div key={task.id} className="flex items-center gap-[8px] text-[10px]">
+                            <span className="font-['Roboto_Mono'] text-foreground flex-1 truncate">{task.title}</span>
                             <TaskStatusControl
                               status={task.status}
                               canEdit={taskCanEdit}
                               canApproveQC={canApproveQC}
                               onChange={(status) => updateTask(task.id, { status })}
-                              triggerClassName="w-[24px] h-[24px] p-0 justify-center border border-transparent bg-transparent shadow-none [&>svg]:hidden shrink-0 rounded-[4px] cursor-pointer hover:bg-accent/10 hover:border-accent/30 transition-colors"
-                              iconSize="w-3 h-3"
+                              showLabel
+                              triggerClassName="h-[20px] px-[6px] gap-[4px] border border-border bg-secondary/40 shadow-none rounded-full shrink-0 cursor-pointer hover:bg-accent/10 hover:border-accent/30 transition-colors [&>svg:last-child]:hidden"
+                              iconSize="w-2.5 h-2.5"
                             />
-                            <span className="font-['Roboto_Mono'] text-foreground flex-1 truncate">{task.title}</span>
                             {task.task_type && (
                               <span className="font-['Roboto_Mono'] text-[9px] text-muted-foreground bg-secondary px-[6px] py-[1px] rounded">{task.task_type}</span>
                             )}

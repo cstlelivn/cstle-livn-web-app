@@ -1,8 +1,11 @@
 import { useState, useRef } from "react";
-import { Edit2, Trash2, Plus, GripHorizontal } from "lucide-react";
+import { Edit2, Trash2, Plus, GripHorizontal, ChevronLeft, ChevronRight } from "lucide-react";
 import { useApp, type Task } from "./AppContext";
 import { useAuth } from "./AuthContext";
 import { canEditTask } from "../src/features/tasks/permissions";
+import { offerSaveDurationToTemplate } from "../src/features/tasks/saveToTemplate";
+import { ALL_TASK_STATUSES, getEmployeeActions } from "../src/features/tasks/statusWorkflow";
+import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuSeparator } from "./ui/context-menu";
 import TaskDialog from "./TaskDialog";
 import { toast } from "sonner";
 
@@ -38,10 +41,18 @@ export default function TaskGanttChart({ projectId }: TaskGanttChartProps) {
   const [resizing, setResizing] = useState<{ taskId: number; edge: "left" | "right"; deltaDays: number } | null>(null);
   const resizeRef = useRef<{ taskId: number; edge: "left" | "right"; startX: number; pxPerDay: number; deltaDays: number } | null>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const scrollByWeek = (direction: 1 | -1) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollBy({ left: direction * 7 * 30, behavior: "smooth" });
+  };
 
   const tasks = getTasksByProject(projectId) as TaskWithDates[];
   const project = getProject(projectId);
   const isManagerOrAdmin = hasPermission("canEditProjects");
+  const canApproveQC = hasPermission("canApproveTaskQC");
   const canEditThisTask = (task: Task) =>
     canEditTask({ task, currentUserId: currentUser?.id, isManagerOrAdmin, teamMembers });
 
@@ -160,15 +171,21 @@ export default function TaskGanttChart({ projectId }: TaskGanttChartProps) {
 
       try {
         if (r.edge === "left") {
-          const newStart = addDays(start, r.deltaDays);
-          if (daysBetween(newStart, due) < 1) return;
+          // Clamp to the 1-day-minimum floor instead of aborting -- dragging
+          // past the point where duration would go to 0 (easy to overshoot
+          // when trying to land exactly on 1 day) used to silently drop the
+          // whole update, snapping the bar back to its old, larger duration.
+          let newStart = addDays(start, r.deltaDays);
+          if (daysBetween(newStart, due) < 1) newStart = addDays(due, -1);
           await updateTask(t.id, { start_date: newStart } as Partial<Task>);
           toast.success(`Task now starts ${new Date(newStart).toLocaleDateString()}`);
+          offerSaveDurationToTemplate(t as any, daysBetween(newStart, due));
         } else {
-          const newDue = addDays(due, r.deltaDays);
-          if (daysBetween(start, newDue) < 1) return;
+          let newDue = addDays(due, r.deltaDays);
+          if (daysBetween(start, newDue) < 1) newDue = addDays(start, 1);
           await updateTask(t.id, { dueDate: newDue });
           toast.success(`Task now due ${new Date(newDue).toLocaleDateString()}`);
+          offerSaveDurationToTemplate(t as any, daysBetween(start, newDue));
         }
       } catch (error) {
         toast.error("Failed to resize task");
@@ -177,6 +194,15 @@ export default function TaskGanttChart({ projectId }: TaskGanttChartProps) {
 
     window.addEventListener("mousemove", handleMouseMove);
     window.addEventListener("mouseup", handleMouseUp);
+  };
+
+  const handleStatusChange = async (taskId: number, status: string) => {
+    try {
+      await updateTask(taskId, { status } as Partial<Task>);
+      toast.success("Task status updated");
+    } catch {
+      toast.error("Failed to update task status");
+    }
   };
 
   const getStatusColor = (status: Task["status"]) => {
@@ -317,17 +343,33 @@ export default function TaskGanttChart({ projectId }: TaskGanttChartProps) {
             Click on a day to add a task, drag a task bar to reschedule it
           </p>
         </div>
-        <button
-          onClick={handleAddTask}
-          className="px-[12px] py-[6px] bg-accent text-accent-foreground rounded-lg hover:opacity-90 transition-opacity flex items-center gap-[6px]"
-        >
-          <Plus className="w-3 h-3" />
-          Add Task
-        </button>
+        <div className="flex items-center gap-[8px]">
+          <button
+            onClick={() => scrollByWeek(-1)}
+            className="p-[8px] rounded-[6px] bg-background border border-border hover:bg-secondary transition-colors"
+            title="Scroll timeline left"
+          >
+            <ChevronLeft className="w-4 h-4 text-foreground" />
+          </button>
+          <button
+            onClick={() => scrollByWeek(1)}
+            className="p-[8px] rounded-[6px] bg-background border border-border hover:bg-secondary transition-colors"
+            title="Scroll timeline right"
+          >
+            <ChevronRight className="w-4 h-4 text-foreground" />
+          </button>
+          <button
+            onClick={handleAddTask}
+            className="px-[12px] py-[6px] bg-accent text-accent-foreground rounded-lg hover:opacity-90 transition-opacity flex items-center gap-[6px]"
+          >
+            <Plus className="w-3 h-3" />
+            Add Task
+          </button>
+        </div>
       </div>
 
       {/* Gantt Chart */}
-      <div className="border border-border rounded-lg overflow-hidden bg-card overflow-x-auto">
+      <div ref={scrollRef} className="border border-border rounded-lg overflow-hidden bg-card overflow-x-auto scroll-smooth">
         <div className="min-w-max relative">
           {/* Timeline Header */}
           <div className="flex border-b border-border bg-secondary/30 sticky top-0 z-10">
@@ -438,41 +480,68 @@ export default function TaskGanttChart({ projectId }: TaskGanttChartProps) {
                           ))}
 
                           {/* Task Bar */}
-                          <div
-                            className={`absolute top-1/2 -translate-y-1/2 h-[28px] rounded flex items-center px-[8px] gap-[4px] hover:opacity-90 transition-opacity shadow-sm ${getStatusColor(
-                              task.status
-                            )} ${getPriorityColor(task.priority)} border-2 ${
-                              canEdit ? "cursor-move" : "cursor-not-allowed"
-                            }`}
-                            style={{
-                              left: position.left,
-                              width: position.width,
-                            }}
-                            draggable={canEdit}
-                            onDragStart={(e) => handleDragStart(e, task)}
-                            title={`${task.title} - ${task.status}${!canEdit ? " (assigned to someone else)" : ""}`}
-                          >
-                            {canEdit && (
+                          <ContextMenu>
+                            <ContextMenuTrigger asChild>
                               <div
-                                draggable={false}
-                                onMouseDown={(e) => handleResizeStart(e, task, "left")}
-                                className="absolute left-0 top-0 bottom-0 w-[6px] cursor-ew-resize hover:bg-white/30 rounded-l"
-                                title="Drag to change start date"
-                              />
-                            )}
-                            <GripHorizontal className="w-3 h-3 text-white/70 shrink-0" />
-                            <span className="text-white small-text truncate flex-1">
-                              {task.title}
-                            </span>
-                            {canEdit && (
-                              <div
-                                draggable={false}
-                                onMouseDown={(e) => handleResizeStart(e, task, "right")}
-                                className="absolute right-0 top-0 bottom-0 w-[6px] cursor-ew-resize hover:bg-white/30 rounded-r"
-                                title="Drag to change due date"
-                              />
-                            )}
-                          </div>
+                                className={`absolute top-1/2 -translate-y-1/2 h-[28px] rounded flex items-center px-[8px] gap-[4px] hover:opacity-90 transition-opacity shadow-sm ${getStatusColor(
+                                  task.status
+                                )} ${getPriorityColor(task.priority)} border-2 ${
+                                  canEdit ? "cursor-move" : "cursor-not-allowed"
+                                }`}
+                                style={{
+                                  left: position.left,
+                                  width: position.width,
+                                }}
+                                draggable={canEdit}
+                                onDragStart={(e) => handleDragStart(e, task)}
+                                title={`${task.title} - ${task.status}${!canEdit ? " (assigned to someone else)" : ""} -- right-click to change status`}
+                              >
+                                {canEdit && (
+                                  <div
+                                    draggable={false}
+                                    onMouseDown={(e) => handleResizeStart(e, task, "left")}
+                                    className="absolute left-0 top-0 bottom-0 w-[6px] cursor-ew-resize hover:bg-white/30 rounded-l"
+                                    title="Drag to change start date"
+                                  />
+                                )}
+                                <GripHorizontal className="w-3 h-3 text-white/70 shrink-0" />
+                                <span className="text-white small-text truncate flex-1">
+                                  {task.title}
+                                </span>
+                                {canEdit && (
+                                  <div
+                                    draggable={false}
+                                    onMouseDown={(e) => handleResizeStart(e, task, "right")}
+                                    className="absolute right-0 top-0 bottom-0 w-[6px] cursor-ew-resize hover:bg-white/30 rounded-r"
+                                    title="Drag to change due date"
+                                  />
+                                )}
+                              </div>
+                            </ContextMenuTrigger>
+                            <ContextMenuContent>
+                              <ContextMenuLabel>{task.title}</ContextMenuLabel>
+                              <ContextMenuSeparator />
+                              {(() => {
+                                const statusOptions = canApproveQC
+                                  ? ALL_TASK_STATUSES
+                                  : canEdit
+                                  ? getEmployeeActions(task.status).map((a) => a.nextStatus)
+                                  : [];
+                                if (statusOptions.length === 0) {
+                                  return (
+                                    <ContextMenuItem disabled>
+                                      {task.status} — waiting on a supervisor or QC
+                                    </ContextMenuItem>
+                                  );
+                                }
+                                return statusOptions.map((s) => (
+                                  <ContextMenuItem key={s} onClick={() => handleStatusChange(task.id, s)}>
+                                    Set status: {s}
+                                  </ContextMenuItem>
+                                ));
+                              })()}
+                            </ContextMenuContent>
+                          </ContextMenu>
                         </div>
                       </div>
                     );

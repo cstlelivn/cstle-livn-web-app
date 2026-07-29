@@ -334,18 +334,8 @@ export default function TaskManagement() {
                         className="flex items-center gap-[16px] p-[16px] bg-background border border-border rounded-[8px] hover:shadow-sm transition-all cursor-pointer group"
                         onClick={() => handleEditTask(task)}
                       >
-                        <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
-                          <TaskStatusControl
-                            status={task.status}
-                            canEdit={canEdit}
-                            canApproveQC={canApproveQC}
-                            onChange={(status) => updateTask(task.id, { status })}
-                            triggerClassName="w-[36px] h-[28px] p-0 justify-center border border-transparent bg-transparent shadow-none [&>svg]:hidden rounded-[6px] cursor-pointer hover:bg-accent/10 hover:border-accent/30 transition-colors"
-                          />
-                        </div>
-
                         <div className="flex-1 min-w-0 grid grid-cols-12 gap-[16px] items-center">
-                          <div className="col-span-4">
+                          <div className="col-span-3">
                             <h4 className="font-['Roboto_Mono'] font-bold text-[11px] text-foreground mb-[4px]">
                               {task.title}
                             </h4>
@@ -354,6 +344,18 @@ export default function TaskManagement() {
                                 {task.description}
                               </p>
                             )}
+                          </div>
+
+                          <div className="col-span-2" onClick={(e) => e.stopPropagation()}>
+                            <TaskStatusControl
+                              status={task.status}
+                              canEdit={canEdit}
+                              canApproveQC={canApproveQC}
+                              onChange={(status) => updateTask(task.id, { status })}
+                              showLabel
+                              triggerClassName="h-[24px] px-[8px] gap-[4px] border border-border bg-secondary/40 shadow-none rounded-full cursor-pointer hover:bg-accent/10 hover:border-accent/30 transition-colors [&>svg:last-child]:hidden"
+                              iconSize="w-3 h-3"
+                            />
                           </div>
 
                           <div className="col-span-2">
@@ -379,7 +381,7 @@ export default function TaskManagement() {
                             )}
                           </div>
 
-                          <div className="col-span-2">
+                          <div className="col-span-1">
                             <Badge className={`${getPriorityColor(task.priority)} font-['Roboto_Mono'] text-[9px] px-[8px] py-[2px]`}>
                               {task.priority}
                             </Badge>

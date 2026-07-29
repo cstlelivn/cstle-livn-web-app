@@ -500,11 +500,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Task methods
   const addTask = async (task: Omit<Task, "id" | "createdAt">) => {
     try {
+      // Every task must have an assignee -- default to the current user
+      // rather than leaving it unassigned when no one picked someone.
+      // Callers pass either `assignee` or `assignee_id`, so both need to be
+      // covered here or the raw one gets picked up downstream over this default.
+      const rawAssignee = (task as any).assignee_id ?? task.assignee;
+      let assignee = rawAssignee;
+      if (!assignee || assignee === "" || assignee === "unassigned") {
+        const currentMember = (realtimeTeam as any[]).find((m) => String(m.authUserId) === String(user?.id));
+        assignee = currentMember ? String(currentMember.id) : assignee;
+      }
+
       const result = await tasksAPI.createTask({
         ...task,
+        assignee,
+        assignee_id: assignee,
         createdAt: new Date().toISOString(),
-      });
-      
+      } as any);
+
       // Realtime hook will automatically update the list
     } catch (error) {
       console.error('❌ Failed to create task:', error);

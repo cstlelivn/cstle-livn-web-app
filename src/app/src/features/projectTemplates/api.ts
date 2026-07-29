@@ -226,12 +226,13 @@ export async function applyTemplateToProject(
     enabledPhaseTemplateIds: string[];   // which phases to include
     startDate?: string;                  // project start date for schedule generation
     teamMemberIds?: string[];            // initial team for auto-assignment hints
+    defaultAssigneeId?: string;          // every task must have an assignee -- fallback when no one is picked yet
   }
 ) {
   const template = await getProjectTemplate(templateId);
   if (!template) throw new Error('Template not found');
 
-  const { enabledPhaseTemplateIds, startDate } = options;
+  const { enabledPhaseTemplateIds, startDate, defaultAssigneeId } = options;
 
   // Only include enabled phases, sorted by position
   const enabledPhases = (template.phase_templates ?? [])
@@ -281,6 +282,7 @@ export async function applyTemplateToProject(
         project_id: projectId,
         phase_id: phase.id,
         phase: ph.name,          // keep text field in sync for legacy compatibility
+        task_template_id: tt.id, // lets schedule changes be saved back to the template later
         title: tt.name,
         description: tt.description ?? '',
         task_type: tt.task_type ?? 'Administrative',
@@ -288,6 +290,7 @@ export async function applyTemplateToProject(
         priority: tt.priority ?? 'Medium',
         progress: 0,
         is_required: tt.required ?? true,
+        assignee_id: defaultAssigneeId ?? null,
         start_date: taskStart,
         due_date: taskDue,
         tags: [],

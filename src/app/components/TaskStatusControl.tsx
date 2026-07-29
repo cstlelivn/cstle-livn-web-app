@@ -28,10 +28,37 @@ interface TaskStatusControlProps {
   onChange: (status: TaskStatus) => Promise<void> | void;
   triggerClassName?: string;
   iconSize?: string;
+  /** Render the status text next to the icon, as a pill -- an icon alone
+   *  reads as decoration, not a control, in list/grid rows. */
+  showLabel?: boolean;
 }
 
+// NOTE: the Select's auto-appended chevron is always the LAST svg child, so
+// hiding it must target :last-child specifically -- a bare "[&>svg]:hidden"
+// hides the status icon too, since lucide icons render as a direct <svg>
+// child of the trigger just like the chevron. That bug made the control
+// invisible for anyone with edit rights (the read-only div branches below
+// don't go through Select, so only they ever showed an icon).
 const DEFAULT_TRIGGER_CLASS =
-  "w-[40px] h-[32px] p-0 justify-center border border-transparent bg-transparent shadow-none [&>svg]:hidden rounded-[6px] cursor-pointer hover:bg-accent/10 hover:border-accent/30 transition-colors";
+  "w-[40px] h-[32px] p-0 justify-center border border-transparent bg-transparent shadow-none [&>svg:last-child]:hidden rounded-[6px] cursor-pointer hover:bg-accent/10 hover:border-accent/30 transition-colors";
+
+const LABEL_TRIGGER_CLASS =
+  "h-[26px] px-[10px] gap-[6px] border border-border bg-secondary/40 shadow-none rounded-full cursor-pointer hover:bg-accent/10 hover:border-accent/30 transition-colors [&>svg:last-child]:opacity-60 [&>svg:last-child]:w-3 [&>svg:last-child]:h-3";
+
+function statusTextClass(status: TaskStatus) {
+  switch (status) {
+    case "Completed":
+      return "text-success";
+    case "In Progress":
+      return "text-accent";
+    case "Under Review":
+      return "text-warning";
+    case "Pending QC":
+      return "text-primary";
+    default:
+      return "text-muted-foreground";
+  }
+}
 
 export default function TaskStatusControl({
   status,
@@ -40,6 +67,7 @@ export default function TaskStatusControl({
   onChange,
   triggerClassName,
   iconSize,
+  showLabel,
 }: TaskStatusControlProps) {
   const handleChange = async (value: string) => {
     try {
@@ -50,7 +78,17 @@ export default function TaskStatusControl({
     }
   };
 
-  const triggerCls = triggerClassName ?? DEFAULT_TRIGGER_CLASS;
+  const triggerCls = triggerClassName ?? (showLabel ? LABEL_TRIGGER_CLASS : DEFAULT_TRIGGER_CLASS);
+  const readOnlyCls = showLabel
+    ? "flex items-center gap-[6px] h-[26px] px-[10px] rounded-full border border-border bg-secondary/40"
+    : "flex items-center justify-center w-[40px] h-[32px]";
+
+  const content = (
+    <>
+      {getTaskStatusIcon(status, iconSize)}
+      {showLabel && <span className={`font-['Roboto_Mono'] text-[10px] font-medium ${statusTextClass(status)}`}>{status}</span>}
+    </>
+  );
 
   // QC-capable users get full control over the status -- picking "Completed"
   // from Pending QC is the approval, picking "In Progress" from Pending QC
@@ -61,7 +99,7 @@ export default function TaskStatusControl({
     return (
       <Select value={status} onValueChange={handleChange}>
         <SelectTrigger className={triggerCls} title="Click to change status">
-          {getTaskStatusIcon(status, iconSize)}
+          {content}
         </SelectTrigger>
         <SelectContent>
           {ALL_TASK_STATUSES.map((s) => (
@@ -78,18 +116,15 @@ export default function TaskStatusControl({
     const actions = getEmployeeActions(status);
     if (actions.length === 0) {
       return (
-        <div
-          title={`${status} — waiting on a supervisor or QC`}
-          className="flex items-center justify-center w-[40px] h-[32px]"
-        >
-          {getTaskStatusIcon(status, iconSize)}
+        <div title={`${status} — waiting on a supervisor or QC`} className={readOnlyCls}>
+          {content}
         </div>
       );
     }
     return (
       <Select value={status} onValueChange={handleChange}>
         <SelectTrigger className={triggerCls} title="Click to update status">
-          {getTaskStatusIcon(status, iconSize)}
+          {content}
         </SelectTrigger>
         <SelectContent>
           {actions.map((a) => (
@@ -103,11 +138,8 @@ export default function TaskStatusControl({
   }
 
   return (
-    <div
-      title="You can only update tasks assigned to you"
-      className="flex items-center justify-center w-[40px] h-[32px]"
-    >
-      {getTaskStatusIcon(status, iconSize)}
+    <div title="You can only update tasks assigned to you" className={readOnlyCls}>
+      {content}
     </div>
   );
 }

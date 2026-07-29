@@ -51,6 +51,8 @@ import { useProjectPhases } from "../src/features/projectPhases/useProjectPhases
 import { markProjectComplete } from "../src/features/projects/api";
 import { formatDate } from "../src/lib/dates";
 import { canEditTask } from "../src/features/tasks/permissions";
+import { ALL_TASK_STATUSES, getEmployeeActions } from "../src/features/tasks/statusWorkflow";
+import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuSeparator } from "./ui/context-menu";
 
 // Task type definition
 interface AppTask {
@@ -357,24 +359,24 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
 
     return (
       <div className="flex items-center gap-[16px] p-[16px] bg-card border border-border rounded-[8px] hover:shadow-sm transition-all group">
-        <div className="flex items-center gap-[12px] flex-1 min-w-0">
+        <div className="flex-1 min-w-0">
+          <h4 className="font-['Roboto_Mono'] font-bold text-[14px] text-foreground mb-[4px]">
+            {task.title}
+          </h4>
+          <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground truncate">
+            {task.description}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-[16px] shrink-0">
           <TaskStatusControl
             status={task.status}
             canEdit={canEdit}
             canApproveQC={canApproveQC}
             onChange={(status) => updateTask(task.id, { status })}
+            showLabel
           />
-          <div className="flex-1 min-w-0">
-            <h4 className="font-['Roboto_Mono'] font-bold text-[14px] text-foreground mb-[4px]">
-              {task.title}
-            </h4>
-            <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground truncate">
-              {task.description}
-            </p>
-          </div>
-        </div>
 
-        <div className="flex items-center gap-[16px] shrink-0">
           {isManagerOrAdmin ? (
             <Select value={String(task.assignee || "")} onValueChange={handleAssigneeChange}>
               <SelectTrigger
@@ -483,22 +485,13 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
     return (
       <div className="bg-card border border-border rounded-[20px] p-[20px] hover:shadow-md transition-all">
         <div className="flex items-start justify-between mb-[12px]">
-          <div className="flex items-start gap-[8px] flex-1">
-            <TaskStatusControl
-              status={task.status}
-              canEdit={canEdit}
-              canApproveQC={canApproveQC}
-              onChange={(status) => updateTask(task.id, { status })}
-              triggerClassName="w-[28px] h-[28px] p-0 justify-center border border-transparent bg-transparent shadow-none [&>svg]:hidden shrink-0 rounded-[6px] cursor-pointer hover:bg-accent/10 hover:border-accent/30 transition-colors"
-            />
-            <div className="flex-1 min-w-0">
-              <h4 className="font-['Roboto_Mono'] font-bold text-[14px] text-foreground mb-[4px]">
-                {task.title}
-              </h4>
-              <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground line-clamp-2">
-                {task.description}
-              </p>
-            </div>
+          <div className="flex-1 min-w-0">
+            <h4 className="font-['Roboto_Mono'] font-bold text-[14px] text-foreground mb-[4px]">
+              {task.title}
+            </h4>
+            <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground line-clamp-2">
+              {task.description}
+            </p>
           </div>
         </div>
 
@@ -514,6 +507,14 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
         </div>
 
         <div className="space-y-[8px] mb-[12px]">
+          <TaskStatusControl
+            status={task.status}
+            canEdit={canEdit}
+            canApproveQC={canApproveQC}
+            onChange={(status) => updateTask(task.id, { status })}
+            showLabel
+          />
+
           {isManagerOrAdmin ? (
             <Select value={String(task.assignee || "")} onValueChange={handleAssigneeChange}>
               <SelectTrigger
@@ -553,21 +554,6 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
               )}`}
             >
               {task.priority}
-            </div>
-            <div
-              className={`px-[12px] py-[4px] rounded-full text-[10px] font-['Roboto_Mono'] font-medium ${
-                task.status === "Completed"
-                  ? "bg-success/10 text-success"
-                  : task.status === "In Progress"
-                  ? "bg-accent/10 text-accent"
-                  : task.status === "Under Review"
-                  ? "bg-warning/10 text-warning"
-                  : task.status === "Pending QC"
-                  ? "bg-primary/10 text-primary"
-                  : "bg-muted/10 text-muted-foreground"
-              }`}
-            >
-              {task.status}
             </div>
           </div>
         </div>
@@ -1031,6 +1017,7 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
             teamMembers={teamMembers}
             currentUserId={currentUser?.id}
             isManagerOrAdmin={hasPermission("canEditProjects")}
+            canApproveQC={hasPermission("canApproveTaskQC")}
           />
         )}
 
@@ -1154,6 +1141,7 @@ function TaskCalendarView({
   teamMembers = [],
   currentUserId,
   isManagerOrAdmin = false,
+  canApproveQC = false,
 }: {
   tasks: AppTask[];
   getTeamMember: (id: number) => any;
@@ -1162,6 +1150,7 @@ function TaskCalendarView({
   teamMembers?: Array<{ id: string | number; authUserId?: string | null }>;
   currentUserId?: string | null;
   isManagerOrAdmin?: boolean;
+  canApproveQC?: boolean;
 }) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [draggedTask, setDraggedTask] = useState<AppTask | null>(null);
@@ -1314,34 +1303,68 @@ function TaskCalendarView({
                     {dayTasks.map((task) => {
                       const assignee = getTeamMember(task.assignee);
                       const canEdit = canEditThisTask(task);
+                      const statusOptions = canApproveQC
+                        ? ALL_TASK_STATUSES
+                        : canEdit
+                        ? getEmployeeActions(task.status).map((a) => a.nextStatus)
+                        : [];
+
+                      const handleStatusChange = async (status: string) => {
+                        if (!updateTask) return;
+                        try {
+                          await updateTask(task.id, { status } as Partial<AppTask>);
+                          toast.success("Task status updated");
+                        } catch {
+                          toast.error("Failed to update task status");
+                        }
+                      };
+
                       return (
-                        <button
-                          key={task.id}
-                          onClick={() => onEditTask?.(task)}
-                          draggable={canEdit}
-                          onDragStart={(e) => handleDragStart(e, task)}
-                          title={canEdit ? "Drag to reschedule" : "You can only reschedule tasks assigned to you"}
-                          className={`w-full p-[6px] rounded-[4px] hover:ring-2 hover:ring-accent/50 transition-all cursor-pointer ${
-                            canEdit ? "cursor-grab active:cursor-grabbing" : ""
-                          } ${
-                            task.status === "Completed"
-                              ? "bg-success/10"
-                              : task.status === "In Progress"
-                              ? "bg-accent/10"
-                              : task.priority === "Urgent"
-                              ? "bg-destructive/10"
-                              : "bg-muted/10"
-                          }`}
-                        >
-                          <p className="font-['Roboto_Mono'] font-medium text-[9px] text-foreground truncate mb-[2px] text-left">
-                            {task.title}
-                          </p>
-                          {assignee && (
-                            <p className="font-['Roboto_Mono'] font-normal text-[8px] text-muted-foreground truncate text-left">
-                              {assignee.name}
-                            </p>
-                          )}
-                        </button>
+                        <ContextMenu key={task.id}>
+                          <ContextMenuTrigger asChild>
+                            <button
+                              onClick={() => onEditTask?.(task)}
+                              draggable={canEdit}
+                              onDragStart={(e) => handleDragStart(e, task)}
+                              title={canEdit ? "Drag to reschedule, right-click to update status" : "You can only reschedule tasks assigned to you"}
+                              className={`w-full p-[6px] rounded-[4px] hover:ring-2 hover:ring-accent/50 transition-all cursor-pointer ${
+                                canEdit ? "cursor-grab active:cursor-grabbing" : ""
+                              } ${
+                                task.status === "Completed"
+                                  ? "bg-success/10"
+                                  : task.status === "In Progress"
+                                  ? "bg-accent/10"
+                                  : task.priority === "Urgent"
+                                  ? "bg-destructive/10"
+                                  : "bg-muted/10"
+                              }`}
+                            >
+                              <p className="font-['Roboto_Mono'] font-medium text-[9px] text-foreground truncate mb-[2px] text-left">
+                                {task.title}
+                              </p>
+                              {assignee && (
+                                <p className="font-['Roboto_Mono'] font-normal text-[8px] text-muted-foreground truncate text-left">
+                                  {assignee.name}
+                                </p>
+                              )}
+                            </button>
+                          </ContextMenuTrigger>
+                          <ContextMenuContent>
+                            <ContextMenuLabel>{task.title}</ContextMenuLabel>
+                            <ContextMenuSeparator />
+                            {statusOptions.length === 0 ? (
+                              <ContextMenuItem disabled>
+                                {task.status} — waiting on a supervisor or QC
+                              </ContextMenuItem>
+                            ) : (
+                              statusOptions.map((s) => (
+                                <ContextMenuItem key={s} onClick={() => handleStatusChange(s)}>
+                                  Set status: {s}
+                                </ContextMenuItem>
+                              ))
+                            )}
+                          </ContextMenuContent>
+                        </ContextMenu>
                       );
                     })}
                   </div>
