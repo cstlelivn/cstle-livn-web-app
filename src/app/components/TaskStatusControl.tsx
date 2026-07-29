@@ -42,8 +42,12 @@ interface TaskStatusControlProps {
 const DEFAULT_TRIGGER_CLASS =
   "w-[40px] h-[32px] p-0 justify-center border border-transparent bg-transparent shadow-none [&>svg:last-child]:hidden rounded-[6px] cursor-pointer hover:bg-accent/10 hover:border-accent/30 transition-colors";
 
+// w-fit is required: the base SelectTrigger ships "w-full" and tailwind-merge
+// only drops it when this string supplies its own width utility -- without
+// one, the trigger silently claims 100% of its flex row and crushes whatever
+// sits next to it (e.g. the task title) down to zero visible width.
 const LABEL_TRIGGER_CLASS =
-  "h-[26px] px-[10px] gap-[6px] border border-border bg-secondary/40 shadow-none rounded-full cursor-pointer hover:bg-accent/10 hover:border-accent/30 transition-colors [&>svg:last-child]:opacity-60 [&>svg:last-child]:w-3 [&>svg:last-child]:h-3";
+  "w-fit h-[26px] px-[10px] gap-[6px] border border-border bg-secondary/40 shadow-none rounded-full cursor-pointer hover:bg-accent/10 hover:border-accent/30 transition-colors [&>svg:last-child]:opacity-60 [&>svg:last-child]:w-3 [&>svg:last-child]:h-3";
 
 function statusTextClass(status: TaskStatus) {
   switch (status) {

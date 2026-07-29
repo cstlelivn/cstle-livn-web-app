@@ -378,7 +378,7 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
                               canApproveQC={canApproveQC}
                               onChange={(status) => updateTask(task.id, { status })}
                               showLabel
-                              triggerClassName="h-[20px] px-[6px] gap-[4px] border border-border bg-secondary/40 shadow-none rounded-full shrink-0 cursor-pointer hover:bg-accent/10 hover:border-accent/30 transition-colors [&>svg:last-child]:hidden"
+                              triggerClassName="w-fit h-[20px] px-[6px] gap-[4px] border border-border bg-secondary/40 shadow-none rounded-full shrink-0 cursor-pointer hover:bg-accent/10 hover:border-accent/30 transition-colors [&>svg:last-child]:hidden"
                               iconSize="w-2.5 h-2.5"
                             />
                             {task.task_type && (

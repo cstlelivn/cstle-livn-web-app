@@ -353,7 +353,7 @@ export default function TaskManagement() {
                               canApproveQC={canApproveQC}
                               onChange={(status) => updateTask(task.id, { status })}
                               showLabel
-                              triggerClassName="h-[24px] px-[8px] gap-[4px] border border-border bg-secondary/40 shadow-none rounded-full cursor-pointer hover:bg-accent/10 hover:border-accent/30 transition-colors [&>svg:last-child]:hidden"
+                              triggerClassName="w-fit h-[24px] px-[8px] gap-[4px] border border-border bg-secondary/40 shadow-none rounded-full cursor-pointer hover:bg-accent/10 hover:border-accent/30 transition-colors [&>svg:last-child]:hidden"
                               iconSize="w-3 h-3"
                             />
                           </div>
