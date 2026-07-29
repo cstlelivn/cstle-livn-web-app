@@ -116,9 +116,17 @@ export default function TaskGanttChart({ projectId }: TaskGanttChartProps) {
   const getTaskPosition = (task: TaskWithDates) => {
     if (days.length === 0) return { left: "0%", width: "4%" };
 
+    // due_date is the exclusive end of the task everywhere else in this file
+    // (the "1d"/"2d" duration label is daysBetween(start, due) with no +1, and
+    // the resize-commit floor requires daysBetween(start, due) >= 1) -- adding
+    // another "+ 1" here on top of that made every bar exactly one day wider
+    // than its real duration, so a genuine 1-day task (start Aug 10, due Aug
+    // 11) visually spanned both the 10 and 11 columns instead of just the 10.
+    // The Math.max is only there to floor tasks with no real start_date (where
+    // taskStart() falls back to dueDate, giving a 0-width span) to 1 column.
     const timelineStart = days[0].date;
     let startOffset = Math.max(0, daysBetween(timelineStart, taskStart(task)));
-    let endOffset = Math.max(startOffset + 1, daysBetween(timelineStart, task.dueDate) + 1);
+    let endOffset = Math.max(startOffset + 1, daysBetween(timelineStart, task.dueDate));
 
     // Live preview while a resize handle is being dragged, before the change
     // is committed to the DB on mouseup.
