@@ -31,7 +31,7 @@ export default function Dashboard({ onNavigate, onNewProject }: DashboardProps) 
   // Check permissions
   const canViewFinance = hasPermission("canViewFinance");
   const canViewTeam = hasPermission("canViewTeam");
-  const isSuperAdmin = hasPermission("canForceCompleteProject");
+  const isSuperAdmin = hasPermission("canForceCompleteProjects");
 
   // Handle gallery sync
   const handleSyncGallery = async () => {
