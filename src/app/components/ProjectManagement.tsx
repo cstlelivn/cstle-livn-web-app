@@ -4,13 +4,11 @@ import {
   Trash2,
   List,
   Grid3x3,
-  CalendarIcon,
   BarChart2,
   MapPin,
   DollarSign,
   Clock,
   Users as UsersIcon,
-  Kanban,
   ChevronLeft,
   ChevronRight,
   Tag,
@@ -61,7 +59,7 @@ export default function ProjectManagement({ onViewProject, openCreateDialog = fa
   const { hasPermission } = useAuth();
   const canViewFinance = hasPermission("canViewFinance");
   const canDeleteProjects = hasPermission("canEditProjects");
-  const [view, setView] = useState<"list" | "grid" | "calendar" | "kanban" | "gantt">("list");
+  const [view, setView] = useState<"list" | "grid" | "gantt">("list");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isNewClientDialogOpen, setIsNewClientDialogOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -187,217 +185,6 @@ export default function ProjectManagement({ onViewProject, openCreateDialog = fa
     ...(canViewFinance ? [{ field: "budget", label: "Budget" }] : []),
   ];
 
-  const ProjectListItem = ({ project }: { project: typeof projects[0] }) => {
-    const teamNames = project.team
-      .map((id) => getTeamMember(id)?.name)
-      .filter(Boolean)
-      .join(", ");
-
-    return (
-      <div className="relative group">
-        <button
-          onClick={() => onViewProject(project.id)}
-          className="w-full flex items-center gap-[16px] p-[16px] bg-card border border-border rounded-[8px] hover:shadow-md transition-all text-left"
-        >
-          <div
-            className={`w-[4px] h-[60px] rounded-full shrink-0 ${
-              project.status === "In Progress"
-                ? "bg-accent"
-                : project.status === "Delayed"
-                ? "bg-destructive"
-                : project.status === "Completed"
-                ? "bg-success"
-                : "bg-muted"
-            }`}
-          />
-          <div className="flex-1 min-w-0 grid grid-cols-12 gap-[16px] items-center">
-          <div className="col-span-3">
-            <h4 className="font-['Roboto_Mono'] font-bold text-[14px] text-foreground mb-[4px]">
-              {project.title}
-            </h4>
-            <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground">
-              {project.client}
-            </p>
-          </div>
-          <div className="col-span-2">
-            <div className="flex items-center gap-[6px]">
-              <MapPin className="w-3 h-3 text-muted-foreground" />
-              <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground truncate">
-                {project.location}
-              </p>
-            </div>
-          </div>
-          {canViewFinance && (
-            <div className="col-span-2">
-              <div className="flex items-center gap-[6px]">
-                <DollarSign className="w-3 h-3 text-muted-foreground" />
-                <p className="font-['Roboto_Mono'] font-normal text-[11px] text-foreground">
-                  ${(project.spent / 1000).toFixed(0)}K / ${(project.budget / 1000).toFixed(0)}K
-                </p>
-              </div>
-            </div>
-          )}
-          <div className="col-span-2">
-            <div className="flex items-center gap-[6px]">
-              <Clock className="w-3 h-3 text-muted-foreground" />
-              <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground">
-                {project.endDate ? formatDate(project.endDate) : "—"}
-              </p>
-            </div>
-          </div>
-          <div className="col-span-2">
-            <div
-              className={`px-[12px] py-[4px] rounded-full text-[10px] font-['Roboto_Mono'] font-medium text-center ${
-                project.status === "In Progress"
-                  ? "bg-accent/10 text-accent"
-                  : project.status === "Delayed"
-                  ? "bg-destructive/10 text-destructive"
-                  : project.status === "Completed"
-                  ? "bg-success/10 text-success"
-                  : "bg-muted/10 text-muted"
-              }`}
-            >
-              {project.status}
-            </div>
-          </div>
-          <div className="col-span-1">
-            <div className="flex items-center justify-center">
-              <div className="relative w-[40px] h-[40px]">
-                <svg className="w-full h-full transform -rotate-90">
-                  <circle
-                    cx="20"
-                    cy="20"
-                    r="16"
-                    fill="none"
-                    stroke="var(--secondary)"
-                    strokeWidth="4"
-                  />
-                  <circle
-                    cx="20"
-                    cy="20"
-                    r="16"
-                    fill="none"
-                    stroke="var(--accent)"
-                    strokeWidth="4"
-                    strokeDasharray={`${(project.progress / 100) * 100.53} 100.53`}
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <p className="absolute inset-0 flex items-center justify-center font-['Roboto_Mono'] font-bold text-[10px] text-foreground">
-                  {project.progress}%
-                </p>
-              </div>
-            </div>
-          </div>
-          </div>
-        </button>
-        {canDeleteProjects && (
-          <button
-            onClick={(e) => handleDeleteProject(project.id, e)}
-            className="absolute right-[16px] top-1/2 -translate-y-1/2 p-[8px] rounded-[6px] bg-background border border-border hover:bg-destructive hover:border-destructive hover:text-white transition-colors opacity-0 group-hover:opacity-100"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
-        )}
-      </div>
-    );
-  };
-
-  const ProjectGridItem = ({ project }: { project: typeof projects[0] }) => {
-    const teamNames = project.team
-      .map((id) => getTeamMember(id)?.name)
-      .filter(Boolean);
-
-    return (
-      <div className="relative group">
-        <button
-          onClick={() => onViewProject(project.id)}
-          className="w-full bg-card border border-border rounded-[12px] p-[20px] hover:shadow-md transition-all text-left"
-        >
-          <div className="flex items-start justify-between mb-[16px]">
-            <div className="flex-1">
-              <h4 className="font-['Roboto_Mono'] font-bold text-[14px] text-foreground mb-[4px]">
-                {project.title}
-              </h4>
-              <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground">
-                {project.client}
-              </p>
-            </div>
-            <div
-              className={`px-[12px] py-[4px] rounded-full text-[10px] font-['Roboto_Mono'] font-medium ${
-                project.status === "In Progress"
-                  ? "bg-accent/10 text-accent"
-                  : project.status === "Delayed"
-                  ? "bg-destructive/10 text-destructive"
-                  : project.status === "Completed"
-                  ? "bg-success/10 text-success"
-                  : "bg-muted/10 text-muted"
-              }`}
-            >
-              {project.status}
-            </div>
-          </div>
-
-        <div className="space-y-[12px] mb-[16px]">
-          <div className="flex items-center gap-[6px]">
-            <MapPin className="w-3 h-3 text-muted-foreground" />
-            <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground">
-              {project.location}
-            </p>
-          </div>
-          {canViewFinance && (
-            <div className="flex items-center gap-[6px]">
-              <DollarSign className="w-3 h-3 text-muted-foreground" />
-              <p className="font-['Roboto_Mono'] font-normal text-[11px] text-foreground">
-                ${project.spent.toLocaleString()} / ${project.budget.toLocaleString()}
-              </p>
-            </div>
-          )}
-          <div className="flex items-center gap-[6px]">
-            <Clock className="w-3 h-3 text-muted-foreground" />
-            <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground">
-              {project.startDate ? formatDate(project.startDate) : "—"} → {project.endDate ? formatDate(project.endDate) : "—"}
-            </p>
-          </div>
-          {teamNames.length > 0 && (
-            <div className="flex items-center gap-[6px]">
-              <UsersIcon className="w-3 h-3 text-muted-foreground" />
-              <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground truncate">
-                {teamNames.join(", ")}
-              </p>
-            </div>
-          )}
-        </div>
-
-        <div className="space-y-[8px]">
-          <div className="flex items-center justify-between">
-            <p className="font-['Roboto_Mono'] font-normal text-[10px] text-muted-foreground">
-              {project.phase}
-            </p>
-            <p className="font-['Roboto_Mono'] font-bold text-[11px] text-foreground">
-              {project.progress}%
-            </p>
-          </div>
-          <div className="w-full h-[6px] bg-secondary rounded-full overflow-hidden">
-            <div
-              className="h-full bg-accent transition-all"
-              style={{ width: `${project.progress}%` }}
-            />
-          </div>
-        </div>
-        </button>
-        {canDeleteProjects && (
-          <button
-            onClick={(e) => handleDeleteProject(project.id, e)}
-            className="absolute top-[20px] right-[20px] p-[8px] rounded-[6px] bg-background border border-border hover:bg-destructive hover:border-destructive hover:text-white transition-colors opacity-0 group-hover:opacity-100 z-10"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
-        )}
-      </div>
-    );
-  };
-
   return (
     <div className="flex flex-col gap-[29px] w-full px-[0px] py-[32px]">
       {/* Header */}
@@ -452,17 +239,6 @@ export default function ProjectManagement({ onViewProject, openCreateDialog = fa
             <Grid3x3 className="w-[14px] h-[14px]" />
           </button>
           <button
-            onClick={() => setView("calendar")}
-            className={`p-[6px] rounded-[4px] transition-colors ${
-              view === "calendar"
-                ? "bg-accent text-accent-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-            title="Calendar View"
-          >
-            <CalendarIcon className="w-[14px] h-[14px]" />
-          </button>
-          <button
             onClick={() => setView("gantt")}
             className={`p-[6px] rounded-[4px] transition-colors ${
               view === "gantt"
@@ -473,17 +249,6 @@ export default function ProjectManagement({ onViewProject, openCreateDialog = fa
           >
             <BarChart2 className="w-[14px] h-[14px]" />
           </button>
-          <button
-            onClick={() => setView("kanban")}
-            className={`p-[6px] rounded-[4px] transition-colors ${
-              view === "kanban"
-                ? "bg-accent text-accent-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-            title="Kanban View"
-          >
-            <Kanban className="w-[14px] h-[14px]" />
-          </button>
         </div>
       </div>
 
@@ -491,7 +256,14 @@ export default function ProjectManagement({ onViewProject, openCreateDialog = fa
       {view === "list" && (
         <div className="space-y-[12px]">
           {filteredProjects.map((project) => (
-            <ProjectListItem key={project.id} project={project} />
+            <ProjectListItem
+              key={project.id}
+              project={project}
+              onViewProject={onViewProject}
+              onDeleteClick={handleDeleteProject}
+              canViewFinance={canViewFinance}
+              canDeleteProjects={canDeleteProjects}
+            />
           ))}
         </div>
       )}
@@ -499,14 +271,18 @@ export default function ProjectManagement({ onViewProject, openCreateDialog = fa
       {view === "grid" && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-[20px]">
           {filteredProjects.map((project) => (
-            <ProjectGridItem key={project.id} project={project} />
+            <ProjectGridItem
+              key={project.id}
+              project={project}
+              onViewProject={onViewProject}
+              onDeleteClick={handleDeleteProject}
+              canViewFinance={canViewFinance}
+              canDeleteProjects={canDeleteProjects}
+              getTeamMember={getTeamMember}
+            />
           ))}
         </div>
       )}
-
-      {view === "calendar" && <ProjectCalendarView projects={filteredProjects} onViewProject={onViewProject} />}
-
-      {view === "kanban" && <ProjectKanbanView projects={filteredProjects} onViewProject={onViewProject} />}
 
       {view === "gantt" && <ProjectGanttView projects={filteredProjects} onViewProject={onViewProject} />}
 
@@ -558,144 +334,223 @@ export default function ProjectManagement({ onViewProject, openCreateDialog = fa
   );
 }
 
-// Calendar View Component
-function ProjectCalendarView({ projects, onViewProject }: { projects: typeof useApp extends () => infer R ? R["projects"] : never; onViewProject: (id: number) => void }) {
-  const [currentDate, setCurrentDate] = useState(new Date());
+type ProjectRow = ReturnType<typeof useApp>["projects"][0];
 
-  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-  const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+interface ProjectCardProps {
+  project: ProjectRow;
+  onViewProject: (id: number) => void;
+  onDeleteClick: (id: number, e: React.MouseEvent) => void;
+  canViewFinance: boolean;
+  canDeleteProjects: boolean;
+}
 
-  const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-  const lastDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-  const startingDayOfWeek = firstDayOfMonth.getDay();
-  const daysInMonth = lastDayOfMonth.getDate();
-
-  const previousMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
-  };
-
-  const nextMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
-  };
-
-  const getProjectsForDate = (day: number) => {
-    const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-    return projects.filter((project) => {
-      const startDate = new Date(project.startDate);
-      const endDate = new Date(project.endDate);
-      const currentDateCheck = new Date(dateStr);
-      return currentDateCheck >= startDate && currentDateCheck <= endDate;
-    });
-  };
-
-  const calendarDays: (number | null)[] = [];
-  for (let i = 0; i < startingDayOfWeek; i++) {
-    calendarDays.push(null);
-  }
-  for (let day = 1; day <= daysInMonth; day++) {
-    calendarDays.push(day);
-  }
-
-  const isToday = (day: number | null) => {
-    if (!day) return false;
-    const today = new Date();
-    return (
-      day === today.getDate() &&
-      currentDate.getMonth() === today.getMonth() &&
-      currentDate.getFullYear() === today.getFullYear()
-    );
-  };
-
+// Hoisted to module scope (was previously defined inside ProjectManagement's
+// render body) -- a component defined inside another component's render is a
+// brand new function identity on every render, so React treated every card as
+// a new component type and destroyed/rebuilt the whole DOM subtree on every
+// re-render, which is what caused the constant hover/shadow flicker.
+function ProjectListItem({ project, onViewProject, onDeleteClick, canViewFinance, canDeleteProjects }: ProjectCardProps) {
   return (
-    <div className="bg-card border border-border rounded-[20px] p-[24px]">
-      {/* Calendar Header */}
-      <div className="flex items-center justify-between mb-[24px]">
-        <h3 style={{ fontVariationSettings: "'wdth' 137", fontWeight: 700 }}>
-          {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
-        </h3>
-        <div className="flex gap-[8px]">
-          <button
-            onClick={previousMonth}
-            className="p-[8px] rounded-[6px] bg-background border border-border hover:bg-secondary transition-colors"
-          >
-            <ChevronLeft className="w-4 h-4 text-foreground" />
-          </button>
-          <button
-            onClick={nextMonth}
-            className="p-[8px] rounded-[6px] bg-background border border-border hover:bg-secondary transition-colors"
-          >
-            <ChevronRight className="w-4 h-4 text-foreground" />
-          </button>
+    <div className="relative group">
+      <button
+        onClick={() => onViewProject(project.id)}
+        className="w-full flex items-center gap-[16px] p-[16px] bg-card border border-border rounded-[8px] hover:shadow-md transition-all text-left"
+      >
+        <div
+          className={`w-[4px] h-[60px] rounded-full shrink-0 ${
+            project.status === "In Progress"
+              ? "bg-accent"
+              : project.status === "Delayed"
+              ? "bg-destructive"
+              : project.status === "Completed"
+              ? "bg-success"
+              : "bg-muted"
+          }`}
+        />
+        <div className="flex-1 min-w-0 grid grid-cols-12 gap-[16px] items-center">
+        <div className="col-span-3">
+          <h4 className="font-['Roboto_Mono'] font-bold text-[14px] text-foreground mb-[4px]">
+            {project.title}
+          </h4>
+          <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground">
+            {project.client}
+          </p>
         </div>
-      </div>
-
-      {/* Calendar Grid */}
-      <div className="grid grid-cols-7 gap-[8px]">
-        {/* Day headers */}
-        {daysOfWeek.map((day) => (
-          <div key={day} className="text-center py-[8px]">
-            <p className="font-['Roboto_Mono'] font-bold text-[10px] text-muted-foreground uppercase">
-              {day}
+        <div className="col-span-2">
+          <div className="flex items-center gap-[6px]">
+            <MapPin className="w-3 h-3 text-muted-foreground" />
+            <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground truncate">
+              {project.location}
             </p>
           </div>
-        ))}
-
-        {/* Calendar days */}
-        {calendarDays.map((day, index) => {
-          const dayProjects = day ? getProjectsForDate(day) : [];
-          return (
-            <div
-              key={index}
-              className={`min-h-[100px] p-[8px] rounded-[8px] border transition-all ${
-                day
-                  ? isToday(day)
-                    ? "bg-accent/10 border-accent"
-                    : "bg-background border-border hover:border-accent/50"
-                  : "bg-card border-transparent"
-              }`}
-            >
-              {day && (
-                <>
-                  <p className={`font-['Roboto_Mono'] font-bold text-[11px] mb-[6px] ${
-                    isToday(day) ? "text-accent" : "text-foreground"
-                  }`}>
-                    {day}
-                  </p>
-                  <div className="space-y-[4px]">
-                    {dayProjects.slice(0, 3).map((project) => (
-                      <button
-                        key={project.id}
-                        onClick={() => onViewProject(project.id)}
-                        className={`w-full text-left px-[6px] py-[4px] rounded-[4px] transition-all hover:shadow-sm ${
-                          project.status === "In Progress"
-                            ? "bg-accent/20 border-l-2 border-accent"
-                            : project.status === "Delayed"
-                            ? "bg-destructive/20 border-l-2 border-destructive"
-                            : project.status === "Completed"
-                            ? "bg-success/20 border-l-2 border-success"
-                            : "bg-muted/20 border-l-2 border-muted"
-                        }`}
-                      >
-                        <p className="font-['Roboto_Mono'] font-medium text-[9px] text-foreground truncate">
-                          {project.title}
-                        </p>
-                        <p className="font-['Roboto_Mono'] font-normal text-[8px] text-muted-foreground truncate">
-                          {project.client}
-                        </p>
-                      </button>
-                    ))}
-                    {dayProjects.length > 3 && (
-                      <p className="font-['Roboto_Mono'] font-normal text-[8px] text-muted-foreground text-center">
-                        +{dayProjects.length - 3} more
-                      </p>
-                    )}
-                  </div>
-                </>
-              )}
+        </div>
+        {canViewFinance && (
+          <div className="col-span-2">
+            <div className="flex items-center gap-[6px]">
+              <DollarSign className="w-3 h-3 text-muted-foreground" />
+              <p className="font-['Roboto_Mono'] font-normal text-[11px] text-foreground">
+                ${(project.spent / 1000).toFixed(0)}K / ${(project.budget / 1000).toFixed(0)}K
+              </p>
             </div>
-          );
-        })}
+          </div>
+        )}
+        <div className="col-span-2">
+          <div className="flex items-center gap-[6px]">
+            <Clock className="w-3 h-3 text-muted-foreground" />
+            <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground">
+              {project.endDate ? formatDate(project.endDate) : "—"}
+            </p>
+          </div>
+        </div>
+        <div className="col-span-2">
+          <div
+            className={`px-[12px] py-[4px] rounded-full text-[10px] font-['Roboto_Mono'] font-medium text-center ${
+              project.status === "In Progress"
+                ? "bg-accent/10 text-accent"
+                : project.status === "Delayed"
+                ? "bg-destructive/10 text-destructive"
+                : project.status === "Completed"
+                ? "bg-success/10 text-success"
+                : "bg-muted/10 text-muted"
+            }`}
+          >
+            {project.status}
+          </div>
+        </div>
+        <div className="col-span-1">
+          <div className="flex items-center justify-center">
+            <div className="relative w-[40px] h-[40px]">
+              <svg className="w-full h-full transform -rotate-90">
+                <circle
+                  cx="20"
+                  cy="20"
+                  r="16"
+                  fill="none"
+                  stroke="var(--secondary)"
+                  strokeWidth="4"
+                />
+                <circle
+                  cx="20"
+                  cy="20"
+                  r="16"
+                  fill="none"
+                  stroke="var(--accent)"
+                  strokeWidth="4"
+                  strokeDasharray={`${(project.progress / 100) * 100.53} 100.53`}
+                  strokeLinecap="round"
+                />
+              </svg>
+              <p className="absolute inset-0 flex items-center justify-center font-['Roboto_Mono'] font-bold text-[10px] text-foreground">
+                {project.progress}%
+              </p>
+            </div>
+          </div>
+        </div>
+        </div>
+      </button>
+      {canDeleteProjects && (
+        <button
+          onClick={(e) => onDeleteClick(project.id, e)}
+          className="absolute right-[16px] top-1/2 -translate-y-1/2 p-[8px] rounded-[6px] bg-background border border-border hover:bg-destructive hover:border-destructive hover:text-white transition-colors opacity-0 group-hover:opacity-100"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+function ProjectGridItem({ project, onViewProject, onDeleteClick, canViewFinance, canDeleteProjects, getTeamMember }: ProjectCardProps & { getTeamMember: (id: string) => { name: string } | undefined }) {
+  const teamNames = project.team
+    .map((id: string) => getTeamMember(id)?.name)
+    .filter(Boolean);
+
+  return (
+    <div className="relative group">
+      <button
+        onClick={() => onViewProject(project.id)}
+        className="w-full bg-card border border-border rounded-[12px] p-[20px] hover:shadow-md transition-all text-left"
+      >
+        <div className="flex items-start justify-between mb-[16px]">
+          <div className="flex-1">
+            <h4 className="font-['Roboto_Mono'] font-bold text-[14px] text-foreground mb-[4px]">
+              {project.title}
+            </h4>
+            <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground">
+              {project.client}
+            </p>
+          </div>
+          <div
+            className={`px-[12px] py-[4px] rounded-full text-[10px] font-['Roboto_Mono'] font-medium ${
+              project.status === "In Progress"
+                ? "bg-accent/10 text-accent"
+                : project.status === "Delayed"
+                ? "bg-destructive/10 text-destructive"
+                : project.status === "Completed"
+                ? "bg-success/10 text-success"
+                : "bg-muted/10 text-muted"
+            }`}
+          >
+            {project.status}
+          </div>
+        </div>
+
+      <div className="space-y-[12px] mb-[16px]">
+        <div className="flex items-center gap-[6px]">
+          <MapPin className="w-3 h-3 text-muted-foreground" />
+          <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground">
+            {project.location}
+          </p>
+        </div>
+        {canViewFinance && (
+          <div className="flex items-center gap-[6px]">
+            <DollarSign className="w-3 h-3 text-muted-foreground" />
+            <p className="font-['Roboto_Mono'] font-normal text-[11px] text-foreground">
+              ${project.spent.toLocaleString()} / ${project.budget.toLocaleString()}
+            </p>
+          </div>
+        )}
+        <div className="flex items-center gap-[6px]">
+          <Clock className="w-3 h-3 text-muted-foreground" />
+          <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground">
+            {project.startDate ? formatDate(project.startDate) : "—"} → {project.endDate ? formatDate(project.endDate) : "—"}
+          </p>
+        </div>
+        {teamNames.length > 0 && (
+          <div className="flex items-center gap-[6px]">
+            <UsersIcon className="w-3 h-3 text-muted-foreground" />
+            <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground truncate">
+              {teamNames.join(", ")}
+            </p>
+          </div>
+        )}
       </div>
+
+      <div className="space-y-[8px]">
+        <div className="flex items-center justify-between">
+          <p className="font-['Roboto_Mono'] font-normal text-[10px] text-muted-foreground">
+            {project.phase}
+          </p>
+          <p className="font-['Roboto_Mono'] font-bold text-[11px] text-foreground">
+            {project.progress}%
+          </p>
+        </div>
+        <div className="w-full h-[6px] bg-secondary rounded-full overflow-hidden">
+          <div
+            className="h-full bg-accent transition-all"
+            style={{ width: `${project.progress}%` }}
+          />
+        </div>
+      </div>
+      </button>
+      {canDeleteProjects && (
+        <button
+          onClick={(e) => onDeleteClick(project.id, e)}
+          className="absolute top-[20px] right-[20px] p-[8px] rounded-[6px] bg-background border border-border hover:bg-destructive hover:border-destructive hover:text-white transition-colors opacity-0 group-hover:opacity-100 z-10"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      )}
     </div>
   );
 }
@@ -953,106 +808,6 @@ function ProjectGanttView({ projects, onViewProject }: { projects: typeof useApp
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-// Kanban View Component
-function ProjectKanbanView({ projects, onViewProject }: { projects: typeof useApp extends () => infer R ? R["projects"] : never; onViewProject: (id: number) => void }) {
-  const { hasPermission } = useAuth();
-  const canViewFinance = hasPermission("canViewFinance");
-  const statuses = ["Planning", "In Progress", "On Hold", "Review", "Completed"];
-
-  const getProjectsByStatus = (status: string) => {
-    return projects.filter((p) => p.status === status);
-  };
-
-  return (
-    <div className="flex gap-[16px] overflow-x-auto pb-[16px]">
-      {statuses.map((status) => {
-        const statusProjects = getProjectsByStatus(status);
-        return (
-          <div key={status} className="flex-shrink-0 w-[320px]">
-            <div className="bg-card border border-border rounded-[12px] p-[16px]">
-              <div className="flex items-center justify-between mb-[16px]">
-                <h3 className="font-['Roboto_Mono'] font-bold text-[14px] text-foreground">
-                  {status}
-                </h3>
-                <div className="px-[8px] py-[2px] bg-accent/10 rounded-full">
-                  <p className="font-['Roboto_Mono'] font-bold text-[11px] text-accent">
-                    {statusProjects.length}
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-[12px]">
-                {statusProjects.map((project) => (
-                  <button
-                    key={project.id}
-                    onClick={() => onViewProject(project.id)}
-                    className="w-full bg-background border border-border rounded-[8px] p-[16px] hover:shadow-md transition-all text-left"
-                  >
-                    <h4 className="font-['Roboto_Mono'] font-bold text-[13px] text-foreground mb-[8px]">
-                      {project.title}
-                    </h4>
-                    <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground mb-[12px]">
-                      {project.client}
-                    </p>
-
-                    <div className="space-y-[8px] mb-[12px]">
-                      <div className="flex items-center gap-[6px]">
-                        <MapPin className="w-3 h-3 text-muted-foreground" />
-                        <p className="font-['Roboto_Mono'] font-normal text-[10px] text-muted-foreground truncate">
-                          {project.location}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-[6px]">
-                        <Clock className="w-3 h-3 text-muted-foreground" />
-                        <p className="font-['Roboto_Mono'] font-normal text-[10px] text-muted-foreground">
-                          {project.startDate ? formatDate(project.startDate) : "—"} → {project.endDate ? formatDate(project.endDate) : "—"}
-                        </p>
-                      </div>
-                      {canViewFinance && (
-                        <div className="flex items-center gap-[6px]">
-                          <DollarSign className="w-3 h-3 text-muted-foreground" />
-                          <p className="font-['Roboto_Mono'] font-normal text-[10px] text-foreground">
-                            ${(project.spent / 1000).toFixed(0)}K / ${(project.budget / 1000).toFixed(0)}K
-                          </p>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="space-y-[6px]">
-                      <div className="flex items-center justify-between">
-                        <p className="font-['Roboto_Mono'] font-normal text-[10px] text-muted-foreground">
-                          {project.phase}
-                        </p>
-                        <p className="font-['Roboto_Mono'] font-bold text-[10px] text-foreground">
-                          {project.progress}%
-                        </p>
-                      </div>
-                      <div className="w-full h-[6px] bg-secondary rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-accent transition-all"
-                          style={{ width: `${project.progress}%` }}
-                        />
-                      </div>
-                    </div>
-                  </button>
-                ))}
-
-                {statusProjects.length === 0 && (
-                  <div className="py-[24px] text-center">
-                    <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground">
-                      No projects
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        );
-      })}
     </div>
   );
 }

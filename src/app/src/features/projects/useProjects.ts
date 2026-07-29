@@ -59,6 +59,19 @@ export function useProjects(enabled = true) {
     raf.current = null;
   }, [clientMap]);
 
+  // flush's identity changes once clientMap populates (right after the initial
+  // fetchClients() call resolves). It used to sit in the subscribe effect's
+  // dependency array below, which meant that single identity change tore down
+  // and re-ran the *entire* effect shortly after every mount -- a redundant
+  // second listProjects() fetch plus an unsubscribe/resubscribe of the
+  // realtime channel, right when the page was otherwise done loading. Routing
+  // through a ref lets realtime handlers always call the latest flush without
+  // making the effect depend on it.
+  const flushRef = useRef(flush);
+  useEffect(() => {
+    flushRef.current = flush;
+  }, [flush]);
+
   const refresh = useCallback(async () => {
     if (!enabled) return;
     try {
@@ -97,15 +110,15 @@ export function useProjects(enabled = true) {
           {
             onInsert: (p: any) => {
               q.current.push(p);
-              if (!raf.current) raf.current = requestAnimationFrame(flush);
+              if (!raf.current) raf.current = requestAnimationFrame(() => flushRef.current());
             },
             onUpdate: (p: any) => {
               q.current.push(p);
-              if (!raf.current) raf.current = requestAnimationFrame(flush);
+              if (!raf.current) raf.current = requestAnimationFrame(() => flushRef.current());
             },
             onDelete: (p: any) => {
               q.current.push(p);
-              if (!raf.current) raf.current = requestAnimationFrame(flush);
+              if (!raf.current) raf.current = requestAnimationFrame(() => flushRef.current());
             },
           }
         );
@@ -118,7 +131,7 @@ export function useProjects(enabled = true) {
       off();
       if (raf.current) cancelAnimationFrame(raf.current);
     };
-  }, [flush, enabled, fetchClients]);
+  }, [enabled]);
 
   return { projects: rows, loading, refresh };
 }

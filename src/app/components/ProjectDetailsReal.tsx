@@ -49,6 +49,7 @@ import { getClient } from "../src/features/clients/api";
 import { useProjectPhases } from "../src/features/projectPhases/useProjectPhases";
 import { markProjectComplete } from "../src/features/projects/api";
 import { formatDate } from "../src/lib/dates";
+import { canEditTask } from "../src/features/tasks/permissions";
 
 // Task type definition
 interface AppTask {
@@ -339,10 +340,40 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
 
   const TaskListItem = ({ task, onEdit }: { task: AppTask; onEdit: (task: AppTask) => void }) => {
     const assignee = getTeamMember(task.assignee);
+    const canEdit = canEditTask({
+      task,
+      currentUserId: currentUser?.id,
+      isManagerOrAdmin: hasPermission("canEditProjects"),
+      teamMembers,
+    });
+
+    const handleStatusChange = async (status: AppTask["status"]) => {
+      try {
+        await updateTask(task.id, { status });
+        toast.success("Task status updated");
+      } catch (error) {
+        toast.error("Failed to update task status");
+      }
+    };
+
     return (
       <div className="flex items-center gap-[16px] p-[16px] bg-card border border-border rounded-[8px] hover:shadow-sm transition-all group">
         <div className="flex items-center gap-[12px] flex-1 min-w-0">
-          {getStatusIcon(task.status)}
+          {canEdit ? (
+            <Select value={task.status} onValueChange={(value) => handleStatusChange(value as AppTask["status"])}>
+              <SelectTrigger className="w-[40px] h-[32px] p-0 justify-center border-none bg-transparent shadow-none [&>svg]:hidden">
+                {getStatusIcon(task.status)}
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="To Do">To Do</SelectItem>
+                <SelectItem value="In Progress">In Progress</SelectItem>
+                <SelectItem value="Review">Review</SelectItem>
+                <SelectItem value="Completed">Completed</SelectItem>
+              </SelectContent>
+            </Select>
+          ) : (
+            <div title="You can only update tasks assigned to you">{getStatusIcon(task.status)}</div>
+          )}
           <div className="flex-1 min-w-0">
             <h4 className="font-['Roboto_Mono'] font-bold text-[14px] text-foreground mb-[4px]">
               {task.title}
