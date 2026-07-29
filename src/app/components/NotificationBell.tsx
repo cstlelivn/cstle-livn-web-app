@@ -19,7 +19,7 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
   
   // Get tasks needing attention
   const tasksNeedingAttention = tasks.filter(
-    (t) => t.status === "Needs Support" || t.status === "Ready for Review"
+    (t) => t.status === "Under Review" || t.status === "Pending QC"
   );
 
   // Filter for active (incomplete) reminders
@@ -282,7 +282,7 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
                       </div>
                       <div className="flex-1">
                         <p className="font-['Roboto_Mono'] font-medium text-[11px] text-foreground">
-                          {tasksNeedingAttention.filter((t) => t.status === "Needs Support").length} need support • {tasksNeedingAttention.filter((t) => t.status === "Ready for Review").length} ready for review
+                          {tasksNeedingAttention.filter((t) => t.status === "Under Review").length} under review • {tasksNeedingAttention.filter((t) => t.status === "Pending QC").length} pending QC
                         </p>
                         <p className="font-['Roboto_Mono'] text-[9px] text-muted-foreground">
                           Click to view all tasks

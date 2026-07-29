@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Plus, Search, CheckCircle2, Clock, AlertCircle, Edit2, Trash2, MoreVertical } from "lucide-react";
+import { Plus, Search, Edit2, Trash2, MoreVertical } from "lucide-react";
 import { useApp, type Task } from "./AppContext";
 import { useAuth } from "./AuthContext";
 import TaskDialog from "./TaskDialog";
+import TaskStatusControl from "./TaskStatusControl";
 import { Input } from "./ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "./ui/dropdown-menu";
@@ -135,19 +136,6 @@ export default function TaskManagement() {
     setDeleteConfirmOpen(false);
   };
 
-  const getStatusIcon = (status: Task["status"]) => {
-    switch (status) {
-      case "Completed":
-        return <CheckCircle2 className="w-[14px] h-[14px] text-success" />;
-      case "In Progress":
-        return <Clock className="w-[14px] h-[14px] text-accent" />;
-      case "Review":
-        return <AlertCircle className="w-[14px] h-[14px] text-warning" />;
-      default:
-        return <div className="w-[14px] h-[14px] rounded-full border-2 border-muted-foreground" />;
-    }
-  };
-
   const getPriorityColor = (priority: Task["priority"]) => {
     switch (priority) {
       case "Urgent":
@@ -156,19 +144,6 @@ export default function TaskManagement() {
         return "bg-warning text-warning-foreground";
       case "Medium":
         return "bg-accent text-accent-foreground";
-      default:
-        return "bg-muted text-muted-foreground";
-    }
-  };
-
-  const getStatusColor = (status: Task["status"]) => {
-    switch (status) {
-      case "Completed":
-        return "bg-success text-success-foreground";
-      case "In Progress":
-        return "bg-accent text-accent-foreground";
-      case "Review":
-        return "bg-warning text-warning-foreground";
       default:
         return "bg-muted text-muted-foreground";
     }
@@ -274,7 +249,8 @@ export default function TaskManagement() {
               <SelectItem value="all">All Statuses</SelectItem>
               <SelectItem value="To Do">To Do</SelectItem>
               <SelectItem value="In Progress">In Progress</SelectItem>
-              <SelectItem value="Review">Review</SelectItem>
+              <SelectItem value="Under Review">Under Review</SelectItem>
+              <SelectItem value="Pending QC">Pending QC</SelectItem>
               <SelectItem value="Completed">Completed</SelectItem>
             </SelectContent>
           </Select>
@@ -350,15 +326,7 @@ export default function TaskManagement() {
                     const assignee = getTeamMember(task.assignee);
                     const overdue = isOverdue(task.dueDate, task.status);
                     const canEdit = canEditTask({ task, currentUserId: currentUser?.id, isManagerOrAdmin, teamMembers });
-
-                    const handleStatusChange = async (status: Task["status"]) => {
-                      try {
-                        await updateTask(task.id, { status });
-                        toast.success("Task status updated");
-                      } catch (error) {
-                        toast.error("Failed to update task status");
-                      }
-                    };
+                    const canApproveQC = hasPermission("canApproveTaskQC");
 
                     return (
                       <div
@@ -367,24 +335,13 @@ export default function TaskManagement() {
                         onClick={() => handleEditTask(task)}
                       >
                         <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
-                          {canEdit ? (
-                            <Select value={task.status} onValueChange={(value) => handleStatusChange(value as Task["status"])}>
-                              <SelectTrigger
-                                className="w-[36px] h-[28px] p-0 justify-center border border-transparent bg-transparent shadow-none [&>svg]:hidden rounded-[6px] cursor-pointer hover:bg-accent/10 hover:border-accent/30 transition-colors"
-                                title="Click to change status"
-                              >
-                                {getStatusIcon(task.status)}
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="To Do">To Do</SelectItem>
-                                <SelectItem value="In Progress">In Progress</SelectItem>
-                                <SelectItem value="Review">Review</SelectItem>
-                                <SelectItem value="Completed">Completed</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          ) : (
-                            <div title="You can only update tasks assigned to you">{getStatusIcon(task.status)}</div>
-                          )}
+                          <TaskStatusControl
+                            status={task.status}
+                            canEdit={canEdit}
+                            canApproveQC={canApproveQC}
+                            onChange={(status) => updateTask(task.id, { status })}
+                            triggerClassName="w-[36px] h-[28px] p-0 justify-center border border-transparent bg-transparent shadow-none [&>svg]:hidden rounded-[6px] cursor-pointer hover:bg-accent/10 hover:border-accent/30 transition-colors"
+                          />
                         </div>
 
                         <div className="flex-1 min-w-0 grid grid-cols-12 gap-[16px] items-center">

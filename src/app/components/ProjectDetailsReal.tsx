@@ -38,6 +38,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import TaskDialog from "./TaskDialog";
 import TaskKanban from "./TaskKanban";
+import TaskStatusControl from "./TaskStatusControl";
 import TaskGanttChart from "./TaskGanttChart";
 import EditProjectPhasesDialog from "./EditProjectPhasesDialog";
 import EmailUpdateModal from "./EmailUpdateModal";
@@ -56,7 +57,7 @@ interface AppTask {
   id: number;
   title: string;
   description: string;
-  status: "To Do" | "In Progress" | "Review" | "Completed";
+  status: "To Do" | "In Progress" | "Under Review" | "Pending QC" | "Completed";
   priority: "Low" | "Medium" | "High" | "Urgent";
   assignee: number;
   dueDate: string;
@@ -318,19 +319,6 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
     setEditedPhase("");
   };
 
-  const getStatusIcon = (status: AppTask["status"]) => {
-    switch (status) {
-      case "Completed":
-        return <CheckCircle2 className="w-4 h-4 text-success" />;
-      case "In Progress":
-        return <Clock className="w-4 h-4 text-accent" />;
-      case "Review":
-        return <AlertCircle className="w-4 h-4 text-warning" />;
-      default:
-        return <Circle className="w-4 h-4 text-muted-foreground" />;
-    }
-  };
-
   const getPriorityColor = (priority: AppTask["priority"]) => {
     switch (priority) {
       case "Urgent":
@@ -347,6 +335,7 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
   const TaskListItem = ({ task, onEdit }: { task: AppTask; onEdit: (task: AppTask) => void }) => {
     const assignee = getTeamMember(task.assignee);
     const isManagerOrAdmin = hasPermission("canEditProjects");
+    const canApproveQC = hasPermission("canApproveTaskQC");
     const canEdit = canEditTask({
       task,
       currentUserId: currentUser?.id,
@@ -356,15 +345,6 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
     const durationDays = (task as any).start_date && task.dueDate
       ? Math.max(1, daysBetweenUTC((task as any).start_date, task.dueDate))
       : null;
-
-    const handleStatusChange = async (status: AppTask["status"]) => {
-      try {
-        await updateTask(task.id, { status });
-        toast.success("Task status updated");
-      } catch (error) {
-        toast.error("Failed to update task status");
-      }
-    };
 
     const handleAssigneeChange = async (memberId: string) => {
       try {
@@ -378,24 +358,12 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
     return (
       <div className="flex items-center gap-[16px] p-[16px] bg-card border border-border rounded-[8px] hover:shadow-sm transition-all group">
         <div className="flex items-center gap-[12px] flex-1 min-w-0">
-          {canEdit ? (
-            <Select value={task.status} onValueChange={(value) => handleStatusChange(value as AppTask["status"])}>
-              <SelectTrigger
-                className="w-[40px] h-[32px] p-0 justify-center border border-transparent bg-transparent shadow-none [&>svg]:hidden rounded-[6px] cursor-pointer hover:bg-accent/10 hover:border-accent/30 transition-colors"
-                title="Click to change status"
-              >
-                {getStatusIcon(task.status)}
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="To Do">To Do</SelectItem>
-                <SelectItem value="In Progress">In Progress</SelectItem>
-                <SelectItem value="Review">Review</SelectItem>
-                <SelectItem value="Completed">Completed</SelectItem>
-              </SelectContent>
-            </Select>
-          ) : (
-            <div title="You can only update tasks assigned to you">{getStatusIcon(task.status)}</div>
-          )}
+          <TaskStatusControl
+            status={task.status}
+            canEdit={canEdit}
+            canApproveQC={canApproveQC}
+            onChange={(status) => updateTask(task.id, { status })}
+          />
           <div className="flex-1 min-w-0">
             <h4 className="font-['Roboto_Mono'] font-bold text-[14px] text-foreground mb-[4px]">
               {task.title}
@@ -492,6 +460,7 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
   const TaskGridItem = ({ task, onEdit }: { task: AppTask; onEdit: (task: AppTask) => void }) => {
     const assignee = getTeamMember(task.assignee);
     const isManagerOrAdmin = hasPermission("canEditProjects");
+    const canApproveQC = hasPermission("canApproveTaskQC");
     const canEdit = canEditTask({
       task,
       currentUserId: currentUser?.id,
@@ -501,15 +470,6 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
     const durationDays = (task as any).start_date && task.dueDate
       ? Math.max(1, daysBetweenUTC((task as any).start_date, task.dueDate))
       : null;
-
-    const handleStatusChange = async (status: AppTask["status"]) => {
-      try {
-        await updateTask(task.id, { status });
-        toast.success("Task status updated");
-      } catch (error) {
-        toast.error("Failed to update task status");
-      }
-    };
 
     const handleAssigneeChange = async (memberId: string) => {
       try {
@@ -524,24 +484,13 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
       <div className="bg-card border border-border rounded-[20px] p-[20px] hover:shadow-md transition-all">
         <div className="flex items-start justify-between mb-[12px]">
           <div className="flex items-start gap-[8px] flex-1">
-            {canEdit ? (
-              <Select value={task.status} onValueChange={(value) => handleStatusChange(value as AppTask["status"])}>
-                <SelectTrigger
-                  className="w-[28px] h-[28px] p-0 justify-center border border-transparent bg-transparent shadow-none [&>svg]:hidden shrink-0 rounded-[6px] cursor-pointer hover:bg-accent/10 hover:border-accent/30 transition-colors"
-                  title="Click to change status"
-                >
-                  {getStatusIcon(task.status)}
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="To Do">To Do</SelectItem>
-                  <SelectItem value="In Progress">In Progress</SelectItem>
-                  <SelectItem value="Review">Review</SelectItem>
-                  <SelectItem value="Completed">Completed</SelectItem>
-                </SelectContent>
-              </Select>
-            ) : (
-              <div title="You can only update tasks assigned to you" className="shrink-0">{getStatusIcon(task.status)}</div>
-            )}
+            <TaskStatusControl
+              status={task.status}
+              canEdit={canEdit}
+              canApproveQC={canApproveQC}
+              onChange={(status) => updateTask(task.id, { status })}
+              triggerClassName="w-[28px] h-[28px] p-0 justify-center border border-transparent bg-transparent shadow-none [&>svg]:hidden shrink-0 rounded-[6px] cursor-pointer hover:bg-accent/10 hover:border-accent/30 transition-colors"
+            />
             <div className="flex-1 min-w-0">
               <h4 className="font-['Roboto_Mono'] font-bold text-[14px] text-foreground mb-[4px]">
                 {task.title}
@@ -611,6 +560,10 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
                   ? "bg-success/10 text-success"
                   : task.status === "In Progress"
                   ? "bg-accent/10 text-accent"
+                  : task.status === "Under Review"
+                  ? "bg-warning/10 text-warning"
+                  : task.status === "Pending QC"
+                  ? "bg-primary/10 text-primary"
                   : "bg-muted/10 text-muted-foreground"
               }`}
             >
@@ -938,7 +891,8 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
               <option value="all">All Status</option>
               <option value="To Do">To Do</option>
               <option value="In Progress">In Progress</option>
-              <option value="Review">Review</option>
+              <option value="Under Review">Under Review</option>
+              <option value="Pending QC">Pending QC</option>
               <option value="Completed">Completed</option>
             </select>
             <select

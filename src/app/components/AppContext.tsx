@@ -56,7 +56,7 @@ export interface Task {
   projectId: number;
   title: string;
   description: string;
-  status: "To Do" | "In Progress" | "Review" | "Completed" | "Needs Review" | "Rejected";
+  status: "To Do" | "In Progress" | "Under Review" | "Pending QC" | "Completed";
   priority: "Low" | "Medium" | "High" | "Urgent";
   assignee: string; // Team member UUID (string)
   dueDate: string;

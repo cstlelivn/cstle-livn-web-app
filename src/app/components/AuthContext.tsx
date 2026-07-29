@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, useRef, ReactNode } fro
 import { createClient, authAPI, userAPI } from "../utils/supabase/client.tsx";
 import { toast } from "sonner";
 
-export type UserRole = "Super Admin" | "Manager" | "Accountant" | "Contractor" | "Associate";
+export type UserRole = "Super Admin" | "Admin" | "Manager" | "Quality Control" | "Accountant" | "Contractor" | "Associate";
 
 export type Permission =
   | "canViewDashboard"
@@ -30,7 +30,8 @@ export type Permission =
   | "canViewAllProjects"
   | "canEditPhases"
   | "canForceCompleteProjects"
-  | "canManageTemplates";
+  | "canManageTemplates"
+  | "canApproveTaskQC";
 
 export interface User {
   id: string;
@@ -88,6 +89,36 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "canEditPhases",
     "canForceCompleteProjects",
     "canManageTemplates",
+    "canApproveTaskQC",
+  ],
+  // Distinct from Super Admin -- same day-to-day operational scope as
+  // Manager, but kept as its own tier rather than merged with Super Admin
+  // or Manager, per explicit product decision.
+  Admin: [
+    "canViewDashboard",
+    "canViewProjects",
+    "canEditProjects",
+    "canViewVendors",
+    "canEditVendors",
+    "canViewTeam",
+    "canEditTeam",
+    "canManageTeam",
+    "canViewCRM",
+    "canEditCRM",
+    "canViewInventory",
+    "canEditInventory",
+    "canViewFinance",
+    "canEditFinance",
+    "canViewAnalytics",
+    "canViewProposals",
+    "canEditProposals",
+    "canViewSettings",
+    "canViewQCReviewQueue",
+    "canViewPhaseQCReviewQueue",
+    "canViewAllProjects",
+    "canEditPhases",
+    "canManageTemplates",
+    "canApproveTaskQC",
   ],
   Manager: [
     "canViewDashboard",
@@ -116,6 +147,18 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "canViewAllProjects",
     "canEditPhases",
     "canManageTemplates",
+    "canApproveTaskQC",
+  ],
+  // QC-focused role: can review and approve/reject task and phase QC across
+  // every project, but has no project/team/CRM/finance editing powers.
+  "Quality Control": [
+    "canViewDashboard",
+    "canViewProjects",
+    "canViewAllProjects",
+    "canViewQCReviewQueue",
+    "canViewPhaseQCReviewQueue",
+    "canApproveTaskQC",
+    "canViewAnalytics",
   ],
   // Finance-focused role: full financial visibility (budget + actual client
   // billing/income), but no project/team/CRM editing powers.
@@ -197,6 +240,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       "canEditPhases",
       "canForceCompleteProjects",
       "canManageTemplates",
+      "canApproveTaskQC",
     ];
     
     const permissionMap: Record<string, boolean> = {};

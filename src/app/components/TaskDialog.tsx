@@ -34,6 +34,7 @@ export default function TaskDialog({
 
   // Check if user is Manager/Admin
   const isManagerOrAdmin = hasPermission("canEditProjects");
+  const canApproveQC = hasPermission("canApproveTaskQC");
 
   // Editing an existing task the current user doesn't own (and isn't a
   // manager/admin) should be view-only — mirrors the tasks_update RLS policy.
@@ -189,39 +190,6 @@ export default function TaskDialog({
     setSelectedTemplate("");
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "Completed":
-      case "Approved":
-        return "bg-success/10 text-success";
-      case "In Progress":
-      case "Under Review":
-        return "bg-primary/10 text-primary";
-      case "Ready for Review":
-      case "Needs Support":
-        return "bg-warning/10 text-warning";
-      case "Revision Required":
-        return "bg-destructive/10 text-destructive";
-      case "To Do":
-        return "bg-muted text-muted-foreground";
-      default:
-        return "bg-muted text-muted-foreground";
-    }
-  };
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case "Urgent":
-        return "bg-destructive/10 text-destructive";
-      case "High":
-        return "bg-warning/10 text-warning";
-      case "Medium":
-        return "bg-primary/10 text-primary";
-      default:
-        return "bg-muted text-muted-foreground";
-    }
-  };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -302,7 +270,7 @@ export default function TaskDialog({
           </div>
 
           {/* QC Review Feedback - Show when task has been sent back for revision */}
-          {task && task.reviewFeedback && task.status === "Revision Required" && (
+          {task && task.reviewFeedback && task.status !== "Completed" && (
             <div style={{ 
               padding: '16px', 
               backgroundColor: 'rgba(239, 68, 68, 0.05)', 
@@ -340,7 +308,7 @@ export default function TaskDialog({
                 marginTop: '12px',
                 margin: 0
               }}>
-                💡 Please address the feedback above and mark as "Ready for Review" when complete
+                💡 Please address the feedback above and mark as "Pending QC" when complete
               </p>
             </div>
           )}
@@ -372,7 +340,6 @@ export default function TaskDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {/* Employee/Contractor Statuses */}
                   <SelectItem value="To Do" className="text-[10px]">
                     <span className="flex items-center gap-[8px]">
                       <span className="w-2 h-2 rounded-full bg-muted"></span>
@@ -385,52 +352,28 @@ export default function TaskDialog({
                       In Progress
                     </span>
                   </SelectItem>
-                  <SelectItem value="Needs Support" className="text-[10px]">
+                  <SelectItem value="Under Review" className="text-[10px]" disabled={!canApproveQC}>
                     <span className="flex items-center gap-[8px]">
                       <span className="w-2 h-2 rounded-full bg-warning"></span>
-                      Needs Support
+                      Under Review{!canApproveQC ? " (supervisor only)" : ""}
                     </span>
                   </SelectItem>
-                  <SelectItem value="Ready for Review" className="text-[10px]">
+                  <SelectItem value="Pending QC" className="text-[10px]">
                     <span className="flex items-center gap-[8px]">
                       <span className="w-2 h-2 rounded-full bg-accent"></span>
-                      Ready for Review
+                      Pending QC
                     </span>
                   </SelectItem>
-                  
-                  {/* Manager/Admin Only Statuses */}
-                  {isManagerOrAdmin && (
-                    <>
-                      <SelectItem value="Under Review" className="text-[10px]">
-                        <span className="flex items-center gap-[8px]">
-                          <span className="w-2 h-2 rounded-full bg-primary"></span>
-                          Under Review
-                        </span>
-                      </SelectItem>
-                      <SelectItem value="Approved" className="text-[10px]">
-                        <span className="flex items-center gap-[8px]">
-                          <span className="w-2 h-2 rounded-full bg-success"></span>
-                          Approved
-                        </span>
-                      </SelectItem>
-                      <SelectItem value="Revision Required" className="text-[10px]">
-                        <span className="flex items-center gap-[8px]">
-                          <span className="w-2 h-2 rounded-full bg-destructive"></span>
-                          Revision Required
-                        </span>
-                      </SelectItem>
-                      <SelectItem value="Completed" className="text-[10px]">
-                        <span className="flex items-center gap-[8px]">
-                          <span className="w-2 h-2 rounded-full bg-success"></span>
-                          Completed
-                        </span>
-                      </SelectItem>
-                    </>
-                  )}
+                  <SelectItem value="Completed" className="text-[10px]" disabled={!canApproveQC}>
+                    <span className="flex items-center gap-[8px]">
+                      <span className="w-2 h-2 rounded-full bg-success"></span>
+                      Completed{!canApproveQC ? " (QC only)" : ""}
+                    </span>
+                  </SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-[9px] text-muted-foreground mt-[4px]">
-                💡 "Needs Support" or "Ready for Review" will notify managers
+                💡 Mark "Pending QC" once your work is done — only QC-capable roles can approve it to Completed
               </p>
             </div>
 

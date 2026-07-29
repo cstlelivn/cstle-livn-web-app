@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { CheckCircle2, Clock, AlertCircle, Edit2, Plus, ArrowRight } from "lucide-react";
+import { Edit2, Plus, ArrowRight } from "lucide-react";
 import { useApp, type Task } from "./AppContext";
 import TaskDialog from "./TaskDialog";
+import { getTaskStatusIcon } from "./TaskStatusControl";
 import { formatDate } from "../src/lib/dates";
 
 interface RecentTasksWidgetProps {
@@ -16,27 +17,9 @@ export default function RecentTasksWidget({ onNavigateToProjects }: RecentTasksW
 
   // Get recent incomplete tasks (sorted by due date)
   const recentTasks = tasks
-    .filter((t) => t.status !== "Completed" && t.status !== "Approved")
+    .filter((t) => t.status !== "Completed")
     .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
     .slice(0, 5);
-
-  const getStatusIcon = (status: Task["status"]) => {
-    switch (status) {
-      case "Completed":
-      case "Approved":
-        return <CheckCircle2 className="w-3 h-3 text-success" />;
-      case "In Progress":
-      case "Under Review":
-        return <Clock className="w-3 h-3 text-accent" />;
-      case "Ready for Review":
-      case "Needs Support":
-        return <AlertCircle className="w-3 h-3 text-warning" />;
-      case "Revision Required":
-        return <AlertCircle className="w-3 h-3 text-destructive" />;
-      default:
-        return <div className="w-3 h-3 rounded-full border-2 border-muted-foreground" />;
-    }
-  };
 
   const getPriorityColor = (priority: Task["priority"]) => {
     switch (priority) {
@@ -98,7 +81,7 @@ export default function RecentTasksWidget({ onNavigateToProjects }: RecentTasksW
                 className="flex items-center gap-[12px] p-[12px] bg-background border border-border rounded-[8px] hover:shadow-sm transition-all cursor-pointer group"
                 onClick={() => handleEditTask(task)}
               >
-                <div className="shrink-0">{getStatusIcon(task.status)}</div>
+                <div className="shrink-0">{getTaskStatusIcon(task.status, "w-3 h-3")}</div>
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-[8px] mb-[4px]">

@@ -5,6 +5,7 @@ import { Plus, Edit2, Trash2, User, Calendar as CalendarIcon, AlertCircle } from
 import { useApp, type Task } from "./AppContext";
 import { useAuth } from "./AuthContext";
 import { canEditTask } from "../src/features/tasks/permissions";
+import { getEmployeeActions } from "../src/features/tasks/statusWorkflow";
 import { Badge } from "./ui/badge";
 import TaskDialog from "./TaskDialog";
 import { toast } from "sonner";
@@ -17,7 +18,8 @@ interface TaskKanbanProps {
 const STATUS_COLUMNS = [
   { id: "To Do" as const, label: "To Do", color: "bg-muted/10" },
   { id: "In Progress" as const, label: "In Progress", color: "bg-primary/10" },
-  { id: "Review" as const, label: "Review", color: "bg-accent/10" },
+  { id: "Under Review" as const, label: "Under Review", color: "bg-warning/10" },
+  { id: "Pending QC" as const, label: "Pending QC", color: "bg-primary/10" },
   { id: "Completed" as const, label: "Completed", color: "bg-success/10" },
 ];
 
@@ -251,6 +253,7 @@ export default function TaskKanban({ projectId }: TaskKanbanProps) {
 
   const tasks = getTasksByProject(projectId);
   const isManagerOrAdmin = hasPermission("canEditProjects");
+  const canApproveQC = hasPermission("canApproveTaskQC");
 
   const canEditThisTask = (task: Task) =>
     canEditTask({ task, currentUserId: currentUser?.id, isManagerOrAdmin, teamMembers });
@@ -260,6 +263,18 @@ export default function TaskKanban({ projectId }: TaskKanbanProps) {
     if (!canEditThisTask(task as Task)) {
       toast.error("You can only update tasks assigned to you");
       return;
+    }
+    // Dragging is otherwise free-form (any column to any column), which
+    // would let a plain employee drag their own task straight into
+    // Completed, skipping the Under Review/Pending QC/QC-approval gate
+    // entirely. Only QC-capable roles may drop onto a status outside the
+    // employee's own allowed forward actions.
+    if (!canApproveQC) {
+      const allowed = getEmployeeActions(task!.status).map((a) => a.nextStatus);
+      if (!allowed.includes(newStatus as any)) {
+        toast.error("Only a supervisor or QC can move a task to that status");
+        return;
+      }
     }
     const updates: Partial<Task> = { status: newStatus };
     if (newStatus === "Completed") {

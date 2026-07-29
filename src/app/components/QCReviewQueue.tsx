@@ -19,9 +19,7 @@ export default function QCReviewQueue() {
     if (!hasPermission("canViewQCReviewQueue")) {
       return [];
     }
-    return tasks.filter(
-      (t) => t.status === "Ready for Review" || t.status === "Needs Review"
-    );
+    return tasks.filter((t) => t.status === "Pending QC");
   }, [tasks, hasPermission]);
 
   // Get unique projects and workers from tasks awaiting review
@@ -148,7 +146,7 @@ export default function QCReviewQueue() {
       toast.loading("Requesting changes...", { id: "task-reject" });
       
       await updateTask(taskId, {
-        status: "Revision Required",
+        status: "In Progress",
         reviewFeedback: feedback,
       });
       
@@ -518,8 +516,6 @@ export function usePendingQCCount() {
     if (!hasPermission("canViewQCReviewQueue")) {
       return 0;
     }
-    return tasks.filter(
-      (t) => t.status === "Ready for Review" || t.status === "Needs Review"
-    ).length;
+    return tasks.filter((t) => t.status === "Pending QC").length;
   }, [tasks, hasPermission]);
 }
