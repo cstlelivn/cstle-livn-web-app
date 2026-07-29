@@ -346,12 +346,16 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
 
   const TaskListItem = ({ task, onEdit }: { task: AppTask; onEdit: (task: AppTask) => void }) => {
     const assignee = getTeamMember(task.assignee);
+    const isManagerOrAdmin = hasPermission("canEditProjects");
     const canEdit = canEditTask({
       task,
       currentUserId: currentUser?.id,
-      isManagerOrAdmin: hasPermission("canEditProjects"),
+      isManagerOrAdmin,
       teamMembers,
     });
+    const durationDays = (task as any).start_date && task.dueDate
+      ? Math.max(1, daysBetweenUTC((task as any).start_date, task.dueDate))
+      : null;
 
     const handleStatusChange = async (status: AppTask["status"]) => {
       try {
@@ -359,6 +363,15 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
         toast.success("Task status updated");
       } catch (error) {
         toast.error("Failed to update task status");
+      }
+    };
+
+    const handleAssigneeChange = async (memberId: string) => {
+      try {
+        await updateTask(task.id, { assignee: memberId } as Partial<AppTask>);
+        toast.success("Task reassigned");
+      } catch (error) {
+        toast.error("Failed to reassign task");
       }
     };
 
@@ -391,12 +404,28 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
         </div>
 
         <div className="flex items-center gap-[16px] shrink-0">
-          <div className="flex items-center gap-[6px] min-w-[100px]">
-            <User className="w-3 h-3 text-muted-foreground" />
-            <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground truncate">
-              {assignee?.name}
-            </p>
-          </div>
+          {isManagerOrAdmin ? (
+            <Select value={String(task.assignee || "")} onValueChange={handleAssigneeChange}>
+              <SelectTrigger className="w-[110px] h-[28px] px-[6px] gap-[6px] border-none bg-transparent shadow-none text-[11px]">
+                <User className="w-3 h-3 text-muted-foreground shrink-0" />
+                <span className="truncate">{assignee?.name || "Unassigned"}</span>
+              </SelectTrigger>
+              <SelectContent>
+                {teamMembers.map((m: any) => (
+                  <SelectItem key={m.id} value={String(m.id)}>
+                    {m.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <div className="flex items-center gap-[6px] min-w-[100px]" title="Only Managers/Super Admins can reassign tasks">
+              <User className="w-3 h-3 text-muted-foreground" />
+              <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground truncate">
+                {assignee?.name}
+              </p>
+            </div>
+          )}
 
           <div className="flex items-center gap-[6px] min-w-[90px]">
             <CalendarIcon className="w-3 h-3 text-muted-foreground" />
@@ -404,6 +433,15 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
               {task.dueDate ? formatDate(task.dueDate) : "No due date"}
             </p>
           </div>
+
+          {durationDays !== null && (
+            <div className="flex items-center gap-[6px] min-w-[50px]" title="Expected duration">
+              <Clock className="w-3 h-3 text-muted-foreground" />
+              <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground">
+                {durationDays}d
+              </p>
+            </div>
+          )}
 
           <div
             className={`px-[12px] py-[4px] rounded-full text-[10px] font-['Roboto_Mono'] font-medium min-w-[70px] text-center ${getPriorityColor(
@@ -447,12 +485,16 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
 
   const TaskGridItem = ({ task, onEdit }: { task: AppTask; onEdit: (task: AppTask) => void }) => {
     const assignee = getTeamMember(task.assignee);
+    const isManagerOrAdmin = hasPermission("canEditProjects");
     const canEdit = canEditTask({
       task,
       currentUserId: currentUser?.id,
-      isManagerOrAdmin: hasPermission("canEditProjects"),
+      isManagerOrAdmin,
       teamMembers,
     });
+    const durationDays = (task as any).start_date && task.dueDate
+      ? Math.max(1, daysBetweenUTC((task as any).start_date, task.dueDate))
+      : null;
 
     const handleStatusChange = async (status: AppTask["status"]) => {
       try {
@@ -460,6 +502,15 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
         toast.success("Task status updated");
       } catch (error) {
         toast.error("Failed to update task status");
+      }
+    };
+
+    const handleAssigneeChange = async (memberId: string) => {
+      try {
+        await updateTask(task.id, { assignee: memberId } as Partial<AppTask>);
+        toast.success("Task reassigned");
+      } catch (error) {
+        toast.error("Failed to reassign task");
       }
     };
 
@@ -505,16 +556,33 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
         </div>
 
         <div className="space-y-[8px] mb-[12px]">
-          <div className="flex items-center gap-[6px]">
-            <User className="w-3 h-3 text-muted-foreground" />
-            <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground">
-              {assignee?.name}
-            </p>
-          </div>
+          {isManagerOrAdmin ? (
+            <Select value={String(task.assignee || "")} onValueChange={handleAssigneeChange}>
+              <SelectTrigger className="w-full h-[24px] px-[2px] gap-[6px] border-none bg-transparent shadow-none text-[11px] justify-start">
+                <User className="w-3 h-3 text-muted-foreground shrink-0" />
+                <span className="truncate">{assignee?.name || "Unassigned"}</span>
+              </SelectTrigger>
+              <SelectContent>
+                {teamMembers.map((m: any) => (
+                  <SelectItem key={m.id} value={String(m.id)}>
+                    {m.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <div className="flex items-center gap-[6px]">
+              <User className="w-3 h-3 text-muted-foreground" />
+              <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground">
+                {assignee?.name}
+              </p>
+            </div>
+          )}
           <div className="flex items-center gap-[6px]">
             <CalendarIcon className="w-3 h-3 text-muted-foreground" />
             <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground">
               Due: {task.dueDate ? formatDate(task.dueDate) : "No due date"}
+              {durationDays !== null && ` · ${durationDays}d`}
             </p>
           </div>
           <div className="flex items-center gap-[6px]">
@@ -1085,6 +1153,32 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
   );
 }
 
+// due_date/start_date are stored as UTC-midnight timestamps representing a
+// plain calendar day, not a real moment in time. Reading them with local
+// Date getters (getFullYear/getMonth/getDate) or writing them via the local
+// `new Date(y, m, d)` constructor shifts the effective day backward by one
+// for anyone west of UTC (all of North America) -- these helpers treat
+// date-only values as UTC-anchored strings throughout, sidestepping local
+// timezone entirely.
+function ymd(year: number, month1to12: number, day: number): string {
+  return `${year}-${String(month1to12).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function dateOnly(dateStr: string): string {
+  return dateStr.slice(0, 10);
+}
+
+function addDaysUTC(dateStr: string, days: number): string {
+  const [y, m, d] = dateOnly(dateStr).split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
+function daysBetweenUTC(fromStr: string, toStr: string): number {
+  const [ay, am, ad] = dateOnly(fromStr).split("-").map(Number);
+  const [by, bm, bd] = dateOnly(toStr).split("-").map(Number);
+  return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86400000);
+}
+
 // Task Calendar View Component
 function TaskCalendarView({
   tasks,
@@ -1124,8 +1218,13 @@ function TaskCalendarView({
     setDragOverDay(null);
     if (!draggedTask || !updateTask) return;
 
-    const newDue = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
-    const newDueStr = newDue.toISOString().split("T")[0];
+    // Build the target date as a plain string from the calendar's own
+    // integers -- no Date object round-trip. due_date/start_date are stored
+    // as UTC-midnight timestamps; going through `new Date(y, m, day)`
+    // (local midnight) and then `.toISOString()` shifts the date backward
+    // by a day for anyone west of UTC, which is what made dropping on a day
+    // actually land the task on the day before.
+    const newDueStr = ymd(currentDate.getFullYear(), currentDate.getMonth() + 1, day);
 
     // Shift start_date by the same amount so the task's own duration is
     // preserved, not just its due date -- moving a task on the calendar
@@ -1133,12 +1232,8 @@ function TaskCalendarView({
     // Gantt chart.
     const oldStart = (draggedTask as any).start_date || draggedTask.dueDate;
     const oldDue = draggedTask.dueDate;
-    const durationDays = oldStart && oldDue
-      ? Math.round((new Date(oldDue).getTime() - new Date(oldStart).getTime()) / 86400000)
-      : 0;
-    const newStart = new Date(newDue);
-    newStart.setDate(newStart.getDate() - durationDays);
-    const newStartStr = newStart.toISOString().split("T")[0];
+    const durationDays = oldStart && oldDue ? daysBetweenUTC(oldStart, oldDue) : 0;
+    const newStartStr = addDaysUTC(newDueStr, -durationDays);
 
     try {
       await updateTask(draggedTask.id, { dueDate: newDueStr, start_date: newStartStr } as Partial<AppTask>);
@@ -1166,19 +1261,8 @@ function TaskCalendarView({
   };
 
   const getTasksForDate = (day: number) => {
-    // task.dueDate comes back as a full ISO timestamp (e.g. "2026-07-30T00:00:00+00:00"),
-    // not a plain "YYYY-MM-DD" string, so a strict string comparison here never
-    // matched anything -- the calendar looked empty even when every task had a
-    // real due date. Compare local calendar components instead.
-    return tasks.filter((task) => {
-      if (!task.dueDate) return false;
-      const due = new Date(task.dueDate);
-      return (
-        due.getFullYear() === currentDate.getFullYear() &&
-        due.getMonth() === currentDate.getMonth() &&
-        due.getDate() === day
-      );
-    });
+    const cellDateStr = ymd(currentDate.getFullYear(), currentDate.getMonth() + 1, day);
+    return tasks.filter((task) => task.dueDate && dateOnly(task.dueDate) === cellDateStr);
   };
 
   const calendarDays: (number | null)[] = [];

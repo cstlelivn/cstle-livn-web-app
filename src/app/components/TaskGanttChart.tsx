@@ -12,9 +12,14 @@ interface TaskGanttChartProps {
 
 type TaskWithDates = Task & { start_date?: string };
 
+// due_date/start_date are stored as UTC-midnight timestamps representing a
+// plain calendar day. Mutating a parsed Date via local setDate()/getDate()
+// shifts the effective day backward by one for anyone west of UTC (all of
+// North America) -- use the UTC variants throughout so the chart and its
+// drag-to-reschedule land on the day actually shown, not the day before.
 function addDays(dateStr: string, days: number): string {
   const d = new Date(dateStr);
-  d.setDate(d.getDate() + days);
+  d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().split("T")[0];
 }
 
@@ -48,6 +53,12 @@ export default function TaskGanttChart({ projectId }: TaskGanttChartProps) {
   // Build a timeline window that actually spans the tasks, instead of a fixed
   // 30 days from project start -- a project's real schedule easily runs
   // longer than that, which clipped or mispositioned every later task.
+  // "Today" is a real local concept (the viewer's actual current day), built
+  // from local getters -- everything else here works in UTC-anchored date
+  // strings, so this is the one deliberate exception.
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+
   const getDaysTimeline = () => {
     const dated = tasks.filter((t) => t.dueDate || t.start_date);
     if (dated.length === 0) {
@@ -55,7 +66,7 @@ export default function TaskGanttChart({ projectId }: TaskGanttChartProps) {
       const start = new Date(project.startDate);
       return Array.from({ length: 30 }, (_, i) => {
         const d = new Date(start);
-        d.setDate(d.getDate() + i);
+        d.setUTCDate(d.getUTCDate() + i);
         return dayInfo(d);
       });
     }
@@ -63,25 +74,26 @@ export default function TaskGanttChart({ projectId }: TaskGanttChartProps) {
     const allDates = dated.flatMap((t) => [taskStart(t), t.dueDate].filter(Boolean)) as string[];
     let start = new Date(Math.min(...allDates.map((d) => new Date(d).getTime())));
     let end = new Date(Math.max(...allDates.map((d) => new Date(d).getTime())));
-    start.setDate(start.getDate() - 2);
-    end.setDate(end.getDate() + 2);
+    start.setUTCDate(start.getUTCDate() - 2);
+    end.setUTCDate(end.getUTCDate() + 2);
 
     const days = [];
     const cursor = new Date(start);
     while (cursor <= end) {
       days.push(dayInfo(cursor));
-      cursor.setDate(cursor.getDate() + 1);
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
     }
     return days;
   };
 
   function dayInfo(d: Date) {
+    const dateStr = d.toISOString().split("T")[0];
     return {
-      date: d.toISOString().split("T")[0],
-      label: `${d.getDate()}`,
-      monthLabel: d.getDate() === 1 ? d.toLocaleDateString("en-US", { month: "short" }) : "",
-      isWeekend: d.getDay() === 0 || d.getDay() === 6,
-      isToday: d.toDateString() === new Date().toDateString(),
+      date: dateStr,
+      label: `${d.getUTCDate()}`,
+      monthLabel: d.getUTCDate() === 1 ? d.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" }) : "",
+      isWeekend: d.getUTCDay() === 0 || d.getUTCDay() === 6,
+      isToday: dateStr === todayStr,
     };
   }
 
