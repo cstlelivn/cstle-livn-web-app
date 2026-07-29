@@ -243,10 +243,16 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
     setDeleteConfirmOpen(true);
   };
 
-  const confirmDeleteProject = () => {
-    deleteProject(projectId);
-    setDeleteConfirmOpen(false);
-    onBack();
+  const confirmDeleteProject = async () => {
+    try {
+      await deleteProject(projectId);
+      toast.success("Project deleted");
+      setDeleteConfirmOpen(false);
+      onBack();
+    } catch (error) {
+      toast.error("Failed to delete project");
+      setDeleteConfirmOpen(false);
+    }
   };
 
   const handleAddTask = () => {
@@ -566,12 +572,14 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
               Force Complete
             </button>
           )}
-          <button
-            onClick={handleDeleteProject}
-            className="p-[8px] rounded-[6px] bg-background border border-border hover:bg-destructive hover:border-destructive hover:text-white transition-colors"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+          {hasPermission("canEditProjects") && (
+            <button
+              onClick={handleDeleteProject}
+              className="p-[8px] rounded-[6px] bg-background border border-border hover:bg-destructive hover:border-destructive hover:text-white transition-colors"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
 

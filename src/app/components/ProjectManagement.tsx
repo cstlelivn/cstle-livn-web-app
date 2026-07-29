@@ -32,6 +32,7 @@ import ProjectGanttChart from "./ProjectGanttChart";
 import { getPhaseTemplates, type PhaseTemplate } from "./PhaseTemplateManager";
 import CreateProjectDialog from "./CreateProjectDialog";
 import { formatDate } from "../src/lib/dates";
+import { toast } from "sonner";
 
 // Default phases for Cstle Livn
 const DEFAULT_PHASES = [
@@ -59,6 +60,7 @@ export default function ProjectManagement({ onViewProject, openCreateDialog = fa
   const { projects, clients, teamMembers, addProject, deleteProject, getTeamMember, addClient } = useApp();
   const { hasPermission } = useAuth();
   const canViewFinance = hasPermission("canViewFinance");
+  const canDeleteProjects = hasPermission("canEditProjects");
   const [view, setView] = useState<"list" | "grid" | "calendar" | "kanban" | "gantt">("list");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isNewClientDialogOpen, setIsNewClientDialogOpen] = useState(false);
@@ -86,9 +88,14 @@ export default function ProjectManagement({ onViewProject, openCreateDialog = fa
     setDeleteConfirmOpen(true);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (projectToDelete) {
-      deleteProject(projectToDelete);
+      try {
+        await deleteProject(projectToDelete);
+        toast.success("Project deleted");
+      } catch (error) {
+        toast.error("Failed to delete project");
+      }
       setProjectToDelete(null);
     }
     setDeleteConfirmOpen(false);
@@ -284,12 +291,14 @@ export default function ProjectManagement({ onViewProject, openCreateDialog = fa
           </div>
           </div>
         </button>
-        <button
-          onClick={(e) => handleDeleteProject(project.id, e)}
-          className="absolute right-[16px] top-1/2 -translate-y-1/2 p-[8px] rounded-[6px] bg-background border border-border hover:bg-destructive hover:border-destructive hover:text-white transition-colors opacity-0 group-hover:opacity-100"
-        >
-          <Trash2 className="w-4 h-4" />
-        </button>
+        {canDeleteProjects && (
+          <button
+            onClick={(e) => handleDeleteProject(project.id, e)}
+            className="absolute right-[16px] top-1/2 -translate-y-1/2 p-[8px] rounded-[6px] bg-background border border-border hover:bg-destructive hover:border-destructive hover:text-white transition-colors opacity-0 group-hover:opacity-100"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        )}
       </div>
     );
   };
@@ -377,12 +386,14 @@ export default function ProjectManagement({ onViewProject, openCreateDialog = fa
           </div>
         </div>
         </button>
-        <button
-          onClick={(e) => handleDeleteProject(project.id, e)}
-          className="absolute top-[20px] right-[20px] p-[8px] rounded-[6px] bg-background border border-border hover:bg-destructive hover:border-destructive hover:text-white transition-colors opacity-0 group-hover:opacity-100 z-10"
-        >
-          <Trash2 className="w-4 h-4" />
-        </button>
+        {canDeleteProjects && (
+          <button
+            onClick={(e) => handleDeleteProject(project.id, e)}
+            className="absolute top-[20px] right-[20px] p-[8px] rounded-[6px] bg-background border border-border hover:bg-destructive hover:border-destructive hover:text-white transition-colors opacity-0 group-hover:opacity-100 z-10"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        )}
       </div>
     );
   };
