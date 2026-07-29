@@ -1,10 +1,13 @@
 import { useApp } from "./AppContext";
 import { useAuth } from "./AuthContext";
 import { formatDate } from "../src/lib/dates";
-import { FolderKanban, ExternalLink, Clock } from "lucide-react";
+import { FolderKanban, ExternalLink, Clock, RefreshCw } from "lucide-react";
+import { triggerGallerySyncWorkflow } from "../src/features/gallery/api";
+import { toast } from "sonner";
 import svgPaths from "../imports/svg-kds79s2oqf";
 import RecentTasksWidget from "./RecentTasksWidget";
 import AIInsightsWidget from "./AIInsightsWidget";
+import { useState } from "react";
 
 interface DashboardProps {
   onNavigate: (view: string, id?: number) => void;
@@ -23,10 +26,31 @@ export default function Dashboard({ onNavigate, onNewProject }: DashboardProps) 
   } = useApp();
   
   const { hasPermission } = useAuth();
+  const [syncingGallery, setSyncingGallery] = useState(false);
 
   // Check permissions
   const canViewFinance = hasPermission("canViewFinance");
   const canViewTeam = hasPermission("canViewTeam");
+  const isSuperAdmin = hasPermission("canForceCompleteProject");
+
+  // Handle gallery sync
+  const handleSyncGallery = async () => {
+    if (!isSuperAdmin) {
+      toast.error("Only Super Admins can sync the gallery");
+      return;
+    }
+
+    setSyncingGallery(true);
+    try {
+      await triggerGallerySyncWorkflow();
+      toast.success("Gallery sync triggered! It will run in the background.");
+    } catch (error) {
+      console.error("Gallery sync error:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to trigger gallery sync");
+    } finally {
+      setSyncingGallery(false);
+    }
+  };
 
   // Calculate real stats
   const activeProjects = projects.filter(
@@ -188,6 +212,19 @@ export default function Dashboard({ onNavigate, onNewProject }: DashboardProps) 
               New Project
             </p>
           </button>
+          {isSuperAdmin && (
+            <button
+              onClick={handleSyncGallery}
+              disabled={syncingGallery}
+              className="flex items-center gap-[8px] px-[16px] py-[8px] bg-background border border-border rounded-[6px] hover:bg-card transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              title="Trigger website gallery sync from Google Drive"
+            >
+              <RefreshCw className={`w-4 h-4 text-foreground ${syncingGallery ? "animate-spin" : ""}`} />
+              <p className="font-['Roboto_Mono'] text-[10px] text-foreground">
+                {syncingGallery ? "Syncing..." : "Sync Gallery"}
+              </p>
+            </button>
+          )}
           <button
             onClick={() => window.open(googleReviewsUrl, "_blank")}
             className="flex items-center gap-[8px] px-[16px] py-[8px] bg-background border border-border rounded-[6px] hover:bg-card transition-colors"

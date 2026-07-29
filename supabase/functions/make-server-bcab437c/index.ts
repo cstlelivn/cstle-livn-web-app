@@ -2985,4 +2985,59 @@ ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS dependency_task_id uuid REFERE
   }
 });
 
+// Trigger GitHub Actions workflow to sync website gallery from Google Drive
+app.post("/make-server-bcab437c/gallery/sync", authMiddleware, async (c) => {
+  try {
+    // Verify user is Super Admin
+    const accessToken = c.req.header("Authorization")?.split(" ")[1];
+    const { data: { user }, error: authError } = await supabase.auth.getUser(accessToken);
+
+    if (authError || !user) {
+      return c.json({ error: "Authentication failed" }, 401);
+    }
+
+    // Get user role from app_metadata
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    if (profile?.role !== "Super Admin") {
+      return c.json({ error: "Only Super Admins can trigger gallery sync" }, 403);
+    }
+
+    // Call GitHub API to dispatch workflow
+    const githubToken = Deno.env.get("GITHUB_TOKEN");
+    if (!githubToken) {
+      console.error("GITHUB_TOKEN not set");
+      return c.json({ error: "Gallery sync not configured" }, 500);
+    }
+
+    const response = await fetch(
+      "https://api.github.com/repos/cstlelivn/cstle-website/actions/workflows/sync-gallery.yml/dispatches",
+      {
+        method: "POST",
+        headers: {
+          "Accept": "application/vnd.github.v3+json",
+          "Authorization": `token ${githubToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ ref: "main" }),
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.text();
+      console.error("GitHub API error:", error);
+      return c.json({ error: "Failed to trigger workflow", details: error }, 500);
+    }
+
+    return c.json({ ok: true, message: "Gallery sync triggered successfully" });
+  } catch (err: any) {
+    console.error("Gallery sync error:", err);
+    return c.json({ error: String(err?.message ?? err) }, 500);
+  }
+});
+
 Deno.serve(app.fetch);
