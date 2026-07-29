@@ -3,6 +3,7 @@
  */
 
 import { createClient } from '../../../utils/supabase/client.tsx';
+import { projectId } from '../../../utils/supabase/info';
 
 const supabase = createClient();
 
@@ -14,7 +15,7 @@ export async function triggerGallerySyncWorkflow(): Promise<void> {
   }
 
   const response = await fetch(
-    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/make-server-bcab437c/gallery/sync`,
+    `https://${projectId}.supabase.co/functions/v1/make-server-bcab437c/gallery/sync`,
     {
       method: 'POST',
       headers: {
