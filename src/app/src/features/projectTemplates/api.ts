@@ -205,6 +205,19 @@ export async function getProjectTemplate(id: string) {
   };
 }
 
+/** Adds `days` work-days to a date, skipping Sundays (crews are typically off Sundays only). */
+function addWorkDays(date: Date, days: number): Date {
+  const result = new Date(date);
+  let remaining = days;
+  while (remaining > 0) {
+    result.setDate(result.getDate() + 1);
+    if (result.getDay() !== 0) {
+      remaining--;
+    }
+  }
+  return result;
+}
+
 /** Clone a full template into a project, creating project_phases and tasks */
 export async function applyTemplateToProject(
   projectId: string,
@@ -231,7 +244,7 @@ export async function applyTemplateToProject(
   for (let i = 0; i < enabledPhases.length; i++) {
     const ph = enabledPhases[i];
     const phStart = cursor.toISOString().split('T')[0];
-    const phEnd = new Date(cursor.getTime() + (ph.default_duration_days ?? 7) * 86400000)
+    const phEnd = addWorkDays(cursor, ph.default_duration_days ?? 7)
       .toISOString().split('T')[0];
 
     const { data: phase, error: phErr } = await supabase
@@ -254,11 +267,16 @@ export async function applyTemplateToProject(
     failIf(phErr, `Failed to create phase: ${ph.name}`);
     createdPhases.push(phase);
 
-    // Clone task templates for this phase
+    // Clone task templates for this phase. Each task's start is where the
+    // previous one in the same phase left off (not all pinned to the phase's
+    // own start date) -- otherwise every task in a phase landed on the exact
+    // same due date regardless of how many days apart they actually are.
     const taskTemplates = (ph.task_templates ?? []).sort((a: any, b: any) => a.position - b.position);
+    let taskCursor = new Date(cursor);
     for (const tt of taskTemplates) {
-      const taskDue = new Date(cursor.getTime() + (tt.default_duration_days ?? 1) * 86400000)
-        .toISOString().split('T')[0];
+      const taskStart = taskCursor.toISOString().split('T')[0];
+      taskCursor = addWorkDays(taskCursor, tt.default_duration_days ?? 1);
+      const taskDue = taskCursor.toISOString().split('T')[0];
       await supabase.from('tasks').insert({
         project_id: projectId,
         phase_id: phase.id,
@@ -270,7 +288,7 @@ export async function applyTemplateToProject(
         priority: tt.priority ?? 'Medium',
         progress: 0,
         is_required: tt.required ?? true,
-        start_date: phStart,
+        start_date: taskStart,
         due_date: taskDue,
         tags: [],
         created_at: now(),
@@ -278,8 +296,12 @@ export async function applyTemplateToProject(
       });
     }
 
-    // Advance cursor by phase duration
-    cursor = new Date(cursor.getTime() + (ph.default_duration_days ?? 7) * 86400000);
+    // Advance to the next phase's start: whichever is later of the phase's own
+    // declared duration (leaves buffer if the phase has one) or when its last
+    // task actually finishes (so a phase whose tasks add up to more than its
+    // nominal duration doesn't bleed the next phase's tasks into it).
+    const phaseDeclaredEnd = addWorkDays(cursor, ph.default_duration_days ?? 7);
+    cursor = taskCursor > phaseDeclaredEnd ? taskCursor : phaseDeclaredEnd;
   }
 
   // Log activity

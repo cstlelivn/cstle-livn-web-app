@@ -1074,8 +1074,19 @@ function TaskCalendarView({
   };
 
   const getTasksForDate = (day: number) => {
-    const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-    return tasks.filter((task) => task.dueDate === dateStr);
+    // task.dueDate comes back as a full ISO timestamp (e.g. "2026-07-30T00:00:00+00:00"),
+    // not a plain "YYYY-MM-DD" string, so a strict string comparison here never
+    // matched anything -- the calendar looked empty even when every task had a
+    // real due date. Compare local calendar components instead.
+    return tasks.filter((task) => {
+      if (!task.dueDate) return false;
+      const due = new Date(task.dueDate);
+      return (
+        due.getFullYear() === currentDate.getFullYear() &&
+        due.getMonth() === currentDate.getMonth() &&
+        due.getDate() === day
+      );
+    });
   };
 
   const calendarDays: (number | null)[] = [];
