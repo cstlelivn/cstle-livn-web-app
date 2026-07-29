@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
-  ChevronDown, ChevronRight, Plus, Trash2, CheckCircle2,
-  AlertCircle, Clock, Circle, Package, ClipboardCheck, Search,
+  ChevronDown, ChevronRight, Plus, Trash2,
+  AlertCircle, Package, ClipboardCheck, Search,
   MoreHorizontal, ArrowUpDown, Calendar, User,
 } from "lucide-react";
 import { Badge } from "./ui/badge";
@@ -14,6 +14,8 @@ import { Textarea } from "./ui/textarea";
 import { toast } from "sonner";
 import { useApp } from "./AppContext";
 import { useAuth } from "./AuthContext";
+import { canEditTask } from "../src/features/tasks/permissions";
+import TaskStatusControl from "./TaskStatusControl";
 import { useProjectPhases } from "../src/features/projectPhases/useProjectPhases";
 import {
   createProjectPhase,
@@ -69,8 +71,10 @@ interface PhaseViewProps {
 }
 
 export default function PhaseView({ projectId }: PhaseViewProps) {
-  const { getTasksByProject, teamMembers, getTeamMember } = useApp();
+  const { getTasksByProject, teamMembers, getTeamMember, updateTask } = useApp();
   const { currentUser, hasPermission } = useAuth();
+  const isManagerOrAdmin = hasPermission("canEditProjects");
+  const canApproveQC = hasPermission("canApproveTaskQC");
   const { phases, loading, refresh, updatePhase } = useProjectPhases(projectId);
   const [expandedPhases, setExpandedPhases] = useState<Set<string>>(new Set());
   const [phaseProcurement, setPhaseProcurement] = useState<Record<string, any[]>>({});
@@ -359,13 +363,22 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
                     <div className="space-y-[6px]">
                       {phaseTasks.slice(0, 8).map((task: any) => {
                         const assignee = getTeamMember(task.assignee);
+                        const taskCanEdit = canEditTask({
+                          task,
+                          currentUserId: currentUser?.id,
+                          isManagerOrAdmin,
+                          teamMembers,
+                        });
                         return (
                           <div key={task.id} className="flex items-center gap-[8px] text-[10px]">
-                            {task.status === "Completed"
-                              ? <CheckCircle2 className="w-3 h-3 text-success shrink-0" />
-                              : task.status === "In Progress"
-                              ? <Clock className="w-3 h-3 text-primary shrink-0" />
-                              : <Circle className="w-3 h-3 text-muted-foreground shrink-0" />}
+                            <TaskStatusControl
+                              status={task.status}
+                              canEdit={taskCanEdit}
+                              canApproveQC={canApproveQC}
+                              onChange={(status) => updateTask(task.id, { status })}
+                              triggerClassName="w-[24px] h-[24px] p-0 justify-center border border-transparent bg-transparent shadow-none [&>svg]:hidden shrink-0 rounded-[4px] cursor-pointer hover:bg-accent/10 hover:border-accent/30 transition-colors"
+                              iconSize="w-3 h-3"
+                            />
                             <span className="font-['Roboto_Mono'] text-foreground flex-1 truncate">{task.title}</span>
                             {task.task_type && (
                               <span className="font-['Roboto_Mono'] text-[9px] text-muted-foreground bg-secondary px-[6px] py-[1px] rounded">{task.task_type}</span>

@@ -35,6 +35,8 @@ export default function TaskGanttChart({ projectId }: TaskGanttChartProps) {
   const [taskDialogMode, setTaskDialogMode] = useState<"add" | "edit">("add");
   const [draggedTask, setDraggedTask] = useState<TaskWithDates | null>(null);
   const [newTaskDate, setNewTaskDate] = useState<string | null>(null);
+  const [resizing, setResizing] = useState<{ taskId: number; edge: "left" | "right"; deltaDays: number } | null>(null);
+  const resizeRef = useRef<{ taskId: number; edge: "left" | "right"; startX: number; pxPerDay: number; deltaDays: number } | null>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
 
   const tasks = getTasksByProject(projectId) as TaskWithDates[];
@@ -104,8 +106,19 @@ export default function TaskGanttChart({ projectId }: TaskGanttChartProps) {
     if (days.length === 0) return { left: "0%", width: "4%" };
 
     const timelineStart = days[0].date;
-    const startOffset = Math.max(0, daysBetween(timelineStart, taskStart(task)));
-    const endOffset = Math.max(startOffset + 1, daysBetween(timelineStart, task.dueDate) + 1);
+    let startOffset = Math.max(0, daysBetween(timelineStart, taskStart(task)));
+    let endOffset = Math.max(startOffset + 1, daysBetween(timelineStart, task.dueDate) + 1);
+
+    // Live preview while a resize handle is being dragged, before the change
+    // is committed to the DB on mouseup.
+    if (resizing && resizing.taskId === task.id) {
+      if (resizing.edge === "left") {
+        startOffset = Math.min(endOffset - 1, Math.max(0, startOffset + resizing.deltaDays));
+      } else {
+        endOffset = Math.max(startOffset + 1, endOffset + resizing.deltaDays);
+      }
+    }
+
     const duration = endOffset - startOffset;
 
     return {
@@ -114,14 +127,68 @@ export default function TaskGanttChart({ projectId }: TaskGanttChartProps) {
     };
   };
 
+  const handleResizeStart = (e: React.MouseEvent, task: TaskWithDates, edge: "left" | "right") => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!canEditThisTask(task)) return;
+    const timelineEl = timelineRef.current;
+    if (!timelineEl || days.length === 0) return;
+    const pxPerDay = timelineEl.getBoundingClientRect().width / days.length;
+    resizeRef.current = { taskId: task.id, edge, startX: e.clientX, pxPerDay, deltaDays: 0 };
+    setResizing({ taskId: task.id, edge, deltaDays: 0 });
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const r = resizeRef.current;
+      if (!r) return;
+      const dx = moveEvent.clientX - r.startX;
+      r.deltaDays = Math.round(dx / r.pxPerDay);
+      setResizing({ taskId: r.taskId, edge: r.edge, deltaDays: r.deltaDays });
+    };
+
+    const handleMouseUp = async () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+      const r = resizeRef.current;
+      resizeRef.current = null;
+      setResizing(null);
+      if (!r || r.deltaDays === 0) return;
+
+      const t = tasks.find((x) => x.id === r.taskId);
+      if (!t) return;
+      const start = taskStart(t);
+      const due = t.dueDate;
+
+      try {
+        if (r.edge === "left") {
+          const newStart = addDays(start, r.deltaDays);
+          if (daysBetween(newStart, due) < 1) return;
+          await updateTask(t.id, { start_date: newStart } as Partial<Task>);
+          toast.success(`Task now starts ${new Date(newStart).toLocaleDateString()}`);
+        } else {
+          const newDue = addDays(due, r.deltaDays);
+          if (daysBetween(start, newDue) < 1) return;
+          await updateTask(t.id, { dueDate: newDue });
+          toast.success(`Task now due ${new Date(newDue).toLocaleDateString()}`);
+        }
+      } catch (error) {
+        toast.error("Failed to resize task");
+      }
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+  };
+
   const getStatusColor = (status: Task["status"]) => {
     switch (status) {
       case "Completed":
         return "bg-success";
       case "In Progress":
         return "bg-primary";
-      case "Review":
+      case "Under Review":
         return "bg-warning";
+      case "Pending QC":
+        return "bg-accent";
       default:
         return "bg-muted";
     }
@@ -385,10 +452,26 @@ export default function TaskGanttChart({ projectId }: TaskGanttChartProps) {
                             onDragStart={(e) => handleDragStart(e, task)}
                             title={`${task.title} - ${task.status}${!canEdit ? " (assigned to someone else)" : ""}`}
                           >
+                            {canEdit && (
+                              <div
+                                draggable={false}
+                                onMouseDown={(e) => handleResizeStart(e, task, "left")}
+                                className="absolute left-0 top-0 bottom-0 w-[6px] cursor-ew-resize hover:bg-white/30 rounded-l"
+                                title="Drag to change start date"
+                              />
+                            )}
                             <GripHorizontal className="w-3 h-3 text-white/70 shrink-0" />
                             <span className="text-white small-text truncate flex-1">
                               {task.title}
                             </span>
+                            {canEdit && (
+                              <div
+                                draggable={false}
+                                onMouseDown={(e) => handleResizeStart(e, task, "right")}
+                                className="absolute right-0 top-0 bottom-0 w-[6px] cursor-ew-resize hover:bg-white/30 rounded-r"
+                                title="Drag to change due date"
+                              />
+                            )}
                           </div>
                         </div>
                       </div>
