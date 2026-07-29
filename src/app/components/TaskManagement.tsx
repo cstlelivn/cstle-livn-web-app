@@ -369,7 +369,10 @@ export default function TaskManagement() {
                         <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
                           {canEdit ? (
                             <Select value={task.status} onValueChange={(value) => handleStatusChange(value as Task["status"])}>
-                              <SelectTrigger className="w-[36px] h-[28px] p-0 justify-center border-none bg-transparent shadow-none [&>svg]:hidden">
+                              <SelectTrigger
+                                className="w-[36px] h-[28px] p-0 justify-center border border-transparent bg-transparent shadow-none [&>svg]:hidden rounded-[6px] cursor-pointer hover:bg-accent/10 hover:border-accent/30 transition-colors"
+                                title="Click to change status"
+                              >
                                 {getStatusIcon(task.status)}
                               </SelectTrigger>
                               <SelectContent>

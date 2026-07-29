@@ -380,7 +380,10 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
         <div className="flex items-center gap-[12px] flex-1 min-w-0">
           {canEdit ? (
             <Select value={task.status} onValueChange={(value) => handleStatusChange(value as AppTask["status"])}>
-              <SelectTrigger className="w-[40px] h-[32px] p-0 justify-center border-none bg-transparent shadow-none [&>svg]:hidden">
+              <SelectTrigger
+                className="w-[40px] h-[32px] p-0 justify-center border border-transparent bg-transparent shadow-none [&>svg]:hidden rounded-[6px] cursor-pointer hover:bg-accent/10 hover:border-accent/30 transition-colors"
+                title="Click to change status"
+              >
                 {getStatusIcon(task.status)}
               </SelectTrigger>
               <SelectContent>
@@ -406,7 +409,10 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
         <div className="flex items-center gap-[16px] shrink-0">
           {isManagerOrAdmin ? (
             <Select value={String(task.assignee || "")} onValueChange={handleAssigneeChange}>
-              <SelectTrigger className="w-[110px] h-[28px] px-[6px] gap-[6px] border-none bg-transparent shadow-none text-[11px]">
+              <SelectTrigger
+                className="w-[110px] h-[28px] px-[6px] gap-[6px] border border-transparent bg-transparent shadow-none text-[11px] rounded-[6px] cursor-pointer hover:bg-accent/10 hover:border-accent/30 transition-colors"
+                title="Click to reassign"
+              >
                 <User className="w-3 h-3 text-muted-foreground shrink-0" />
                 <span className="truncate">{assignee?.name || "Unassigned"}</span>
               </SelectTrigger>
@@ -520,7 +526,10 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
           <div className="flex items-start gap-[8px] flex-1">
             {canEdit ? (
               <Select value={task.status} onValueChange={(value) => handleStatusChange(value as AppTask["status"])}>
-                <SelectTrigger className="w-[28px] h-[28px] p-0 justify-center border-none bg-transparent shadow-none [&>svg]:hidden shrink-0">
+                <SelectTrigger
+                  className="w-[28px] h-[28px] p-0 justify-center border border-transparent bg-transparent shadow-none [&>svg]:hidden shrink-0 rounded-[6px] cursor-pointer hover:bg-accent/10 hover:border-accent/30 transition-colors"
+                  title="Click to change status"
+                >
                   {getStatusIcon(task.status)}
                 </SelectTrigger>
                 <SelectContent>
@@ -558,7 +567,10 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
         <div className="space-y-[8px] mb-[12px]">
           {isManagerOrAdmin ? (
             <Select value={String(task.assignee || "")} onValueChange={handleAssigneeChange}>
-              <SelectTrigger className="w-full h-[24px] px-[2px] gap-[6px] border-none bg-transparent shadow-none text-[11px] justify-start">
+              <SelectTrigger
+                className="w-full h-[24px] px-[2px] gap-[6px] border border-transparent bg-transparent shadow-none text-[11px] justify-start rounded-[6px] cursor-pointer hover:bg-accent/10 hover:border-accent/30 transition-colors"
+                title="Click to reassign"
+              >
                 <User className="w-3 h-3 text-muted-foreground shrink-0" />
                 <span className="truncate">{assignee?.name || "Unassigned"}</span>
               </SelectTrigger>

@@ -154,9 +154,15 @@ function AppContent() {
     setOpenProjectDialog(false);
     
     // Handle navigation to specific sub-views or IDs
-    if (view === "project-details" && typeof subViewOrId === "number") {
-      // Navigate to a specific project
-      setSelectedProjectId(subViewOrId);
+    if (view === "project-details" && subViewOrId !== undefined && subViewOrId !== null) {
+      // Project ids are UUID strings, not numbers -- this guard used to check
+      // `typeof subViewOrId === "number"`, which is never true for a UUID, so
+      // this branch silently never ran: dashboard cards, global search, and
+      // notifications all called onNavigate("project-details", id) and it
+      // did nothing (the card's own CSS press animation was the only visible
+      // reaction, which is exactly why it looked like a click that "does
+      // nothing").
+      setSelectedProjectId(subViewOrId as any);
       setCurrentView("projects");
     } else if (view === "projects") {
       setSelectedProjectId(null);
