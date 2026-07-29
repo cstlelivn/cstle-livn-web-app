@@ -2,7 +2,9 @@
  * Gallery API — sync website galleries from Google Drive
  */
 
-import { supabase } from '../../../lib/supabase';
+import { createClient } from '../../../utils/supabase/client.tsx';
+
+const supabase = createClient();
 
 export async function triggerGallerySyncWorkflow(): Promise<void> {
   // Get access token from Supabase session
