@@ -207,7 +207,7 @@ export default function Dashboard({ onNavigate, onNewProject }: DashboardProps) 
   return (
     <div className="flex flex-col gap-[29px] w-full px-[0px] py-[32px]">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-[16px]">
         <div>
           <h1 className="font-['Anybody'] leading-[1.64] text-[15px] tracking-[-0.6px]" style={{ fontVariationSettings: "'wdth' 137", fontWeight: 700 }}>
             Welcome Back
@@ -216,10 +216,10 @@ export default function Dashboard({ onNavigate, onNewProject }: DashboardProps) 
             Here's what's happening with your projects today
           </p>
         </div>
-        <div className="flex items-center gap-[12px]">
+        <div className="flex items-center gap-[8px] md:gap-[12px] overflow-x-auto -mx-[16px] px-[16px] md:mx-0 md:px-0">
           <button
             onClick={onNewProject}
-            className="flex items-center gap-[8px] px-[20px] py-[10px] bg-accent text-white rounded-[6px] hover:opacity-90 transition-opacity shadow-sm"
+            className="flex items-center gap-[8px] px-[16px] md:px-[20px] py-[10px] bg-accent text-white rounded-[6px] hover:opacity-90 transition-opacity shadow-sm shrink-0"
           >
             <FolderKanban className="w-4 h-4" />
             <p className="font-['Roboto_Mono'] text-[10px]">
@@ -230,7 +230,7 @@ export default function Dashboard({ onNavigate, onNewProject }: DashboardProps) 
             <button
               onClick={handleSyncGallery}
               disabled={syncingGallery}
-              className="flex items-center gap-[8px] px-[16px] py-[8px] bg-background border border-border rounded-[6px] hover:bg-card transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              className="flex items-center gap-[8px] px-[16px] py-[8px] bg-background border border-border rounded-[6px] hover:bg-card transition-colors disabled:opacity-60 disabled:cursor-not-allowed shrink-0"
               title="Trigger website gallery sync from Google Drive"
             >
               <RefreshCw className={`w-4 h-4 text-foreground ${syncingGallery ? "animate-spin" : ""}`} />
@@ -241,7 +241,7 @@ export default function Dashboard({ onNavigate, onNewProject }: DashboardProps) 
           )}
           <button
             onClick={() => window.open(googleReviewsUrl, "_blank")}
-            className="flex items-center gap-[8px] px-[16px] py-[8px] bg-background border border-border rounded-[6px] hover:bg-card transition-colors"
+            className="flex items-center gap-[8px] px-[16px] py-[8px] bg-background border border-border rounded-[6px] hover:bg-card transition-colors shrink-0"
           >
             <ExternalLink className="w-4 h-4 text-foreground" />
             <p className="font-['Roboto_Mono'] text-[10px] text-foreground">
@@ -251,8 +251,11 @@ export default function Dashboard({ onNavigate, onNewProject }: DashboardProps) 
         </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="content-stretch flex gap-[16px] items-stretch">
+      {/* Stats Grid -- on mobile these become a horizontally swipeable strip
+          with a fixed card width (there's no room to fit 5 equal-width cards
+          on a phone screen without them collapsing into overlapping text);
+          from md up it's the original equal-width flex row. */}
+      <div className="content-stretch flex gap-[12px] md:gap-[16px] items-stretch overflow-x-auto -mx-[16px] px-[16px] md:mx-0 md:px-0 md:overflow-visible snap-x snap-mandatory md:snap-none">
         {stats.map((stat, index) => {
           const iconPath =
             stat?.iconType === "folder" ? svgPaths?.p281b8900 :
@@ -266,7 +269,7 @@ export default function Dashboard({ onNavigate, onNewProject }: DashboardProps) 
             <button
               key={index}
               onClick={stat.onClick}
-              className="basis-0 grow min-h-px min-w-px rounded-[20px] shrink-0 cursor-pointer bg-card border border-border hover:border-accent/40 hover:shadow-sm transition-all text-left"
+              className="w-[160px] shrink-0 snap-start md:basis-0 md:grow md:w-auto md:min-h-px md:min-w-px rounded-[20px] cursor-pointer bg-card border border-border hover:border-accent/40 hover:shadow-sm transition-all text-left"
             >
               <div className="box-border content-stretch flex flex-col gap-[14px] items-start p-[18px] relative w-full h-full">
                 <div className="content-stretch flex items-center justify-between relative shrink-0 w-full">

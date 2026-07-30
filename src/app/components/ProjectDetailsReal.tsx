@@ -383,103 +383,158 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
       }
     };
 
-    // Fixed-width grid columns instead of flex+min-w -- min-w is only a
-    // floor, so a wider status pill ("In Progress") vs a narrower one
-    // ("To Do") on different rows still shifted every column after it out
-    // of alignment. A shared grid template keeps every row's columns lined
-    // up regardless of what each cell's own content measures.
-    return (
+    const assigneeControl = isManagerOrAdmin ? (
+      <Select value={String(task.assignee || "")} onValueChange={handleAssigneeChange}>
+        <SelectTrigger
+          className="h-[28px] px-[6px] gap-[6px] border border-transparent bg-transparent shadow-none text-[11px] rounded-[6px] cursor-pointer hover:bg-accent/10 hover:border-accent/30 transition-colors"
+          title="Click to reassign"
+        >
+          <User className="w-3 h-3 text-muted-foreground shrink-0" />
+          <span className="truncate">{assignee?.name || "Unassigned"}</span>
+        </SelectTrigger>
+        <SelectContent>
+          {teamMembers.map((m: any) => (
+            <SelectItem key={m.id} value={String(m.id)}>
+              {m.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    ) : (
+      <div className="flex items-center gap-[6px] min-w-0" title="Only Managers/Super Admins can reassign tasks">
+        <User className="w-3 h-3 text-muted-foreground shrink-0" />
+        <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground truncate">
+          {assignee?.name}
+        </p>
+      </div>
+    );
+
+    const editDeleteButtons = (
+      <>
+        <button
+          onClick={() => onEdit(task)}
+          className="p-[6px] rounded-[4px] hover:bg-accent/10 transition-colors"
+          title="Edit task"
+        >
+          <Edit2 className="w-3 h-3 text-muted-foreground hover:text-accent" />
+        </button>
+
+        <button
+          onClick={() => handleDeleteTask(task.id)}
+          className="p-[6px] rounded-[4px] hover:bg-destructive/10 transition-colors"
+          title="Delete task"
+        >
+          <Trash2 className="w-3 h-3 text-destructive" />
+        </button>
+      </>
+    );
+
+    const priorityPill = (
       <div
-        className="grid items-center gap-[12px] p-[16px] bg-card border border-border rounded-[8px] hover:shadow-sm transition-all group"
-        style={{ gridTemplateColumns: "1fr 130px 140px 110px 50px 90px 68px" }}
+        className={`px-[12px] py-[4px] rounded-full text-[10px] font-['Roboto_Mono'] font-medium text-center shrink-0 ${getPriorityColor(
+          task.priority
+        )}`}
       >
-        <div className="min-w-0">
-          <h4 className="font-['Roboto_Mono'] font-bold text-[14px] text-foreground mb-[4px] truncate">
-            {task.title}
-          </h4>
-          <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground truncate">
-            {task.description}
-          </p>
+        {task.priority}
+      </div>
+    );
+
+    const dueDateRow = (
+      <div className="flex items-center gap-[6px] min-w-0">
+        <CalendarIcon className="w-3 h-3 text-muted-foreground shrink-0" />
+        <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground truncate">
+          {task.dueDate ? formatDate(task.dueDate) : "No due date"}
+        </p>
+      </div>
+    );
+
+    const durationRow = durationDays !== null && (
+      <div className="flex items-center gap-[6px]" title="Expected duration">
+        <Clock className="w-3 h-3 text-muted-foreground shrink-0" />
+        <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground">
+          {durationDays}d
+        </p>
+      </div>
+    );
+
+    return (
+      <>
+        {/* Mobile card: task title leads, everything else stacks below it --
+            the fixed-px desktop grid columns below have no room on a phone
+            screen and were pushing the title itself off-screen. */}
+        <div className="md:hidden flex flex-col gap-[10px] p-[16px] bg-card border border-border rounded-[8px] hover:shadow-sm transition-all">
+          <div className="flex items-start justify-between gap-[8px]">
+            <div className="min-w-0 flex-1">
+              <h4 className="font-['Roboto_Mono'] font-bold text-[14px] text-foreground mb-[2px] break-words">
+                {task.title}
+              </h4>
+              {task.description && (
+                <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground truncate">
+                  {task.description}
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-[2px] shrink-0">{editDeleteButtons}</div>
+          </div>
+
+          <div className="flex items-center flex-wrap gap-[8px]">
+            <TaskStatusControl
+              status={task.status}
+              canEdit={canEdit}
+              canApproveQC={canApproveQC}
+              onChange={(status) => updateTask(task.id, { status })}
+              showLabel
+            />
+            {priorityPill}
+          </div>
+
+          <div className="flex items-center flex-wrap gap-x-[16px] gap-y-[6px]">
+            {assigneeControl}
+            {dueDateRow}
+            {durationRow}
+          </div>
         </div>
 
-        <TaskStatusControl
-          status={task.status}
-          canEdit={canEdit}
-          canApproveQC={canApproveQC}
-          onChange={(status) => updateTask(task.id, { status })}
-          showLabel
-        />
-
-        {isManagerOrAdmin ? (
-          <Select value={String(task.assignee || "")} onValueChange={handleAssigneeChange}>
-            <SelectTrigger
-              className="w-full h-[28px] px-[6px] gap-[6px] border border-transparent bg-transparent shadow-none text-[11px] rounded-[6px] cursor-pointer hover:bg-accent/10 hover:border-accent/30 transition-colors"
-              title="Click to reassign"
-            >
-              <User className="w-3 h-3 text-muted-foreground shrink-0" />
-              <span className="truncate">{assignee?.name || "Unassigned"}</span>
-            </SelectTrigger>
-            <SelectContent>
-              {teamMembers.map((m: any) => (
-                <SelectItem key={m.id} value={String(m.id)}>
-                  {m.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        ) : (
-          <div className="flex items-center gap-[6px] min-w-0" title="Only Managers/Super Admins can reassign tasks">
-            <User className="w-3 h-3 text-muted-foreground shrink-0" />
+        {/* Desktop row: fixed-width grid columns instead of flex+min-w --
+            min-w is only a floor, so a wider status pill ("In Progress") vs
+            a narrower one ("To Do") on different rows still shifted every
+            column after it out of alignment. A shared grid template keeps
+            every row's columns lined up regardless of what each cell's own
+            content measures. */}
+        <div
+          className="hidden md:grid items-center gap-[12px] p-[16px] bg-card border border-border rounded-[8px] hover:shadow-sm transition-all group"
+          style={{ gridTemplateColumns: "1fr 130px 140px 110px 50px 90px 68px" }}
+        >
+          <div className="min-w-0">
+            <h4 className="font-['Roboto_Mono'] font-bold text-[14px] text-foreground mb-[4px] truncate">
+              {task.title}
+            </h4>
             <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground truncate">
-              {assignee?.name}
+              {task.description}
             </p>
           </div>
-        )}
 
-        <div className="flex items-center gap-[6px] min-w-0">
-          <CalendarIcon className="w-3 h-3 text-muted-foreground shrink-0" />
-          <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground truncate">
-            {task.dueDate ? formatDate(task.dueDate) : "No due date"}
-          </p>
+          <TaskStatusControl
+            status={task.status}
+            canEdit={canEdit}
+            canApproveQC={canApproveQC}
+            onChange={(status) => updateTask(task.id, { status })}
+            showLabel
+          />
+
+          <div className="w-full">{assigneeControl}</div>
+
+          {dueDateRow}
+
+          {durationRow}
+
+          {priorityPill}
+
+          <div className="flex items-center justify-end gap-[4px]">
+            {editDeleteButtons}
+          </div>
         </div>
-
-        <div className="flex items-center gap-[6px]" title="Expected duration">
-          {durationDays !== null && (
-            <>
-              <Clock className="w-3 h-3 text-muted-foreground shrink-0" />
-              <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground">
-                {durationDays}d
-              </p>
-            </>
-          )}
-        </div>
-
-        <div
-          className={`px-[12px] py-[4px] rounded-full text-[10px] font-['Roboto_Mono'] font-medium text-center ${getPriorityColor(
-            task.priority
-          )}`}
-        >
-          {task.priority}
-        </div>
-
-        <div className="flex items-center justify-end gap-[4px]">
-          <button
-            onClick={() => onEdit(task)}
-            className="p-[6px] rounded-[4px] hover:bg-accent/10 transition-colors"
-            title="Edit task"
-          >
-            <Edit2 className="w-3 h-3 text-muted-foreground hover:text-accent" />
-          </button>
-
-          <button
-            onClick={() => handleDeleteTask(task.id)}
-            className="p-[6px] rounded-[4px] hover:bg-destructive/10 transition-colors"
-            title="Delete task"
-          >
-            <Trash2 className="w-3 h-3 text-destructive" />
-          </button>
-        </div>
-      </div>
+      </>
     );
   };
 
@@ -608,32 +663,32 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
   );
 
   return (
-    <div className="flex flex-col gap-[29px] w-full p-[32px]">
+    <div className="flex flex-col gap-[20px] md:gap-[29px] w-full p-[16px] md:p-[32px]">
       {/* Header */}
-      <div className="flex items-start justify-between">
-        <div className="flex items-start gap-[16px]">
+      <div className="flex flex-col md:flex-row md:items-start justify-between gap-[16px]">
+        <div className="flex items-start gap-[12px] md:gap-[16px] min-w-0">
           <button
             onClick={onBack}
-            className="p-[8px] hover:bg-card rounded-[6px] transition-colors mt-1"
+            className="p-[8px] hover:bg-card rounded-[6px] transition-colors mt-1 shrink-0"
           >
             <ArrowLeft className="w-5 h-5 text-foreground" />
           </button>
-          <div>
-            <h1 style={{ fontVariationSettings: "'wdth' 137", fontWeight: 700 }}>
+          <div className="min-w-0">
+            <h1 className="break-words" style={{ fontVariationSettings: "'wdth' 137", fontWeight: 700 }}>
               {project.title}
             </h1>
-            <div className="flex items-center gap-[12px]">
+            <div className="flex items-center flex-wrap gap-x-[12px] gap-y-[2px]">
               <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground">
                 Client: {project.client}
               </p>
-              <span className="text-muted-foreground">•</span>
+              <span className="hidden sm:inline text-muted-foreground">•</span>
               <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground">
                 {project.location}
               </p>
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-[12px]">
+        <div className="flex items-center gap-[12px] flex-wrap">
           <div
             className={`px-[16px] py-[8px] rounded-full text-[11px] font-['Roboto_Mono'] font-medium ${
               project.status === "In Progress"
@@ -864,9 +919,9 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
         
         <TabsContent value="tasks" className="mt-0 space-y-[20px]">
         {/* Filters and View Toggle */}
-        <div className="flex items-center justify-between gap-[16px]">
-          <div className="flex items-center gap-[12px] flex-1">
-            <div className="relative flex-1 max-w-[300px]">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-[12px] md:gap-[16px]">
+          <div className="flex flex-wrap items-center gap-[8px] md:gap-[12px] flex-1">
+            <div className="relative flex-1 min-w-[160px] md:max-w-[300px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <input
                 type="text"
@@ -911,7 +966,7 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
             </select>
           </div>
 
-          <div className="flex items-center gap-[8px] bg-card border border-border rounded-[6px] p-[4px]">
+          <div className="flex items-center gap-[8px] bg-card border border-border rounded-[6px] p-[4px] self-start md:self-auto">
             <button
               onClick={() => setTaskView("list")}
               className={`p-[8px] rounded-[4px] transition-colors ${

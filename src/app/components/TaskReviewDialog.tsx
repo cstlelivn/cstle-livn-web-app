@@ -317,22 +317,24 @@ export default function TaskReviewDialog({
                 </div>
               )}
 
-              {/* Action Buttons */}
-              <div className="flex gap-[12px] justify-end pt-[16px] border-t border-border">
+              {/* Action Buttons -- stacked full-width on mobile (gloved
+                  thumbs need bigger, unambiguous targets more than a
+                  visually compact row), a normal inline row from sm up. */}
+              <div className="flex flex-col-reverse sm:flex-row gap-[8px] sm:gap-[12px] sm:justify-end pt-[16px] border-t border-border">
                 <button
                   type="button"
                   onClick={resetDialog}
-                  className="px-[16px] py-[8px] bg-background border border-border rounded-[6px] hover:bg-card transition-colors text-foreground font-['Roboto_Mono'] text-[11px]"
+                  className="w-full sm:w-auto justify-center px-[16px] py-[10px] sm:py-[8px] bg-background border border-border rounded-[6px] hover:bg-card transition-colors text-foreground font-['Roboto_Mono'] text-[11px] flex items-center"
                 >
                   Cancel
                 </button>
-                
+
                 {!showRejectInput ? (
                   <>
                     <button
                       type="button"
                       onClick={handleRequestChanges}
-                      className="flex items-center gap-[8px] px-[16px] py-[8px] bg-transparent border border-destructive/40 text-destructive rounded-[6px] hover:bg-destructive/5 transition-colors font-['Roboto_Mono'] text-[11px]"
+                      className="w-full sm:w-auto justify-center flex items-center gap-[8px] px-[16px] py-[10px] sm:py-[8px] bg-transparent border border-destructive/40 text-destructive rounded-[6px] hover:bg-destructive/5 transition-colors font-['Roboto_Mono'] text-[11px]"
                     >
                       <XCircle className="w-[14px] h-[14px]" />
                       Request Changes
@@ -340,7 +342,7 @@ export default function TaskReviewDialog({
                     <button
                       type="button"
                       onClick={handleApproveClick}
-                      className="flex items-center gap-[8px] px-[16px] py-[8px] bg-accent text-white rounded-[6px] hover:opacity-90 transition-opacity font-['Roboto_Mono'] text-[11px]"
+                      className="w-full sm:w-auto justify-center flex items-center gap-[8px] px-[16px] py-[10px] sm:py-[8px] bg-accent text-white rounded-[6px] hover:opacity-90 transition-opacity font-['Roboto_Mono'] text-[11px]"
                       style={{ backgroundColor: "var(--accent)" }}
                     >
                       <CheckCircle className="w-[14px] h-[14px]" />
@@ -355,7 +357,7 @@ export default function TaskReviewDialog({
                         setShowRejectInput(false);
                         setRejectFeedback("");
                       }}
-                      className="px-[16px] py-[8px] bg-background border border-border rounded-[6px] hover:bg-card transition-colors text-foreground font-['Roboto_Mono'] text-[11px]"
+                      className="w-full sm:w-auto justify-center px-[16px] py-[10px] sm:py-[8px] bg-background border border-border rounded-[6px] hover:bg-card transition-colors text-foreground font-['Roboto_Mono'] text-[11px] flex items-center"
                     >
                       Back
                     </button>
@@ -363,7 +365,7 @@ export default function TaskReviewDialog({
                       type="button"
                       onClick={handleSubmitRejection}
                       disabled={!rejectFeedback.trim()}
-                      className="flex items-center gap-[8px] px-[16px] py-[8px] bg-destructive text-white rounded-[6px] hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed font-['Roboto_Mono'] text-[11px]"
+                      className="w-full sm:w-auto justify-center flex items-center gap-[8px] px-[16px] py-[10px] sm:py-[8px] bg-destructive text-white rounded-[6px] hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed font-['Roboto_Mono'] text-[11px]"
                     >
                       <XCircle className="w-[14px] h-[14px]" />
                       Send Back for Corrections
@@ -429,7 +431,7 @@ export default function TaskReviewDialog({
                 <Label className="text-foreground uppercase tracking-wider font-['Roboto_Mono'] text-[11px] font-bold mb-[12px] block">
                   DELIVERY SPEED
                 </Label>
-                <div className="grid grid-cols-3 gap-[12px]">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-[12px]">
                   {[
                     { value: "fast" as const, label: "Fast", desc: "Ahead of deadline" },
                     { value: "on-time" as const, label: "On-Time", desc: "Met deadline" },
@@ -465,7 +467,7 @@ export default function TaskReviewDialog({
                 <Label className="text-foreground uppercase tracking-wider font-['Roboto_Mono'] text-[11px] font-bold mb-[12px] block">
                   QUALITY & CORRECTIONS
                 </Label>
-                <div className="grid grid-cols-3 gap-[12px]">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-[12px]">
                   {[
                     { value: "none" as const, label: "No Corrections", desc: "Perfect quality" },
                     { value: "minor" as const, label: "Minor Corrections", desc: "Small fixes needed" },
@@ -499,7 +501,7 @@ export default function TaskReviewDialog({
               {/* Calculated Rating */}
               {speed && corrections && (
                 <div className="p-[16px] bg-secondary rounded-[8px]">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-[8px]">
                     <div className="flex items-center gap-[12px]">
                       <div className="flex items-center gap-[4px]">
                         {[1, 2, 3, 4, 5].map((star) => (
@@ -539,11 +541,11 @@ export default function TaskReviewDialog({
               </div>
 
               {/* Action Buttons */}
-              <div className="flex gap-[12px] justify-end pt-[16px] border-t border-border">
+              <div className="flex flex-col-reverse sm:flex-row gap-[8px] sm:gap-[12px] sm:justify-end pt-[16px] border-t border-border">
                 <button
                   type="button"
                   onClick={() => setStep("review")}
-                  className="px-[16px] py-[8px] bg-background border border-border rounded-[6px] hover:bg-card transition-colors text-foreground font-['Roboto_Mono'] text-[11px]"
+                  className="w-full sm:w-auto justify-center flex items-center px-[16px] py-[10px] sm:py-[8px] bg-background border border-border rounded-[6px] hover:bg-card transition-colors text-foreground font-['Roboto_Mono'] text-[11px]"
                 >
                   Back
                 </button>
@@ -551,7 +553,7 @@ export default function TaskReviewDialog({
                   type="button"
                   onClick={handleSubmitRating}
                   disabled={!speed || !corrections}
-                  className="flex items-center gap-[8px] px-[16px] py-[8px] bg-accent text-white rounded-[6px] hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed font-['Roboto_Mono'] text-[11px]"
+                  className="w-full sm:w-auto justify-center flex items-center gap-[8px] px-[16px] py-[10px] sm:py-[8px] bg-accent text-white rounded-[6px] hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed font-['Roboto_Mono'] text-[11px]"
                   style={{ backgroundColor: "var(--accent)" }}
                 >
                   <CheckCircle className="w-[14px] h-[14px]" />

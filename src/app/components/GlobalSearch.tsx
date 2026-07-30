@@ -264,13 +264,14 @@ export default function GlobalSearch({ onNavigate }: GlobalSearchProps) {
       {/* Search Trigger Button */}
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-[8px] px-[12px] py-[6px] bg-card rounded-[8px] border border-border hover:bg-accent/5 transition-colors min-w-[280px]"
+        className="flex items-center gap-[8px] px-[8px] py-[6px] md:px-[12px] bg-card rounded-[8px] border border-border hover:bg-accent/5 transition-colors md:min-w-[280px]"
+        aria-label="Search"
       >
-        <Search className="w-[14px] h-[14px] text-muted-foreground" />
-        <span className="flex-1 text-left font-['Roboto_Mono'] text-[11px] text-muted-foreground">
+        <Search className="w-[14px] h-[14px] text-muted-foreground shrink-0" />
+        <span className="hidden md:block flex-1 text-left font-['Roboto_Mono'] text-[11px] text-muted-foreground">
           Search...
         </span>
-        <kbd className="pointer-events-none inline-flex h-[18px] select-none items-center gap-[2px] rounded-[4px] border border-border bg-muted px-[6px] font-['Roboto_Mono'] text-[9px] text-muted-foreground">
+        <kbd className="hidden md:inline-flex pointer-events-none select-none items-center gap-[2px] rounded-[4px] border border-border bg-muted px-[6px] h-[18px] font-['Roboto_Mono'] text-[9px] text-muted-foreground">
           <span>⌘</span>K
         </kbd>
       </button>

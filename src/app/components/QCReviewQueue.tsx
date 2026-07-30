@@ -433,9 +433,9 @@ export default function QCReviewQueue() {
               return (
                 <div
                   key={task.id}
-                  className="bg-card border border-border rounded-[12px] p-[20px] hover:shadow-sm transition-all"
+                  className="bg-card border border-border rounded-[12px] p-[16px] md:p-[20px] hover:shadow-sm transition-all"
                 >
-                  <div className="flex items-start justify-between gap-[16px]">
+                  <div className="flex flex-col md:flex-row md:items-start justify-between gap-[16px]">
                     {/* Left side - Task info */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start gap-[12px]">
@@ -493,7 +493,7 @@ export default function QCReviewQueue() {
                     {task.status === "Under Review" ? (
                       <button
                         onClick={() => handleUnblockTask(task)}
-                        className="px-[16px] py-[8px] bg-warning text-white rounded-[6px] hover:opacity-90 transition-opacity font-['Roboto_Mono'] font-medium text-[11px] flex items-center gap-[6px] shrink-0"
+                        className="w-full md:w-auto justify-center px-[16px] py-[8px] bg-warning text-white rounded-[6px] hover:opacity-90 transition-opacity font-['Roboto_Mono'] font-medium text-[11px] flex items-center gap-[6px] md:shrink-0"
                       >
                         <CheckCircle className="w-4 h-4" />
                         Unblock
@@ -501,7 +501,7 @@ export default function QCReviewQueue() {
                     ) : (
                       <button
                         onClick={() => handleReviewTask(task)}
-                        className="px-[16px] py-[8px] bg-accent text-white rounded-[6px] hover:bg-accent/90 transition-colors font-['Roboto_Mono'] font-medium text-[11px] flex items-center gap-[6px] shrink-0"
+                        className="w-full md:w-auto justify-center px-[16px] py-[8px] bg-accent text-white rounded-[6px] hover:bg-accent/90 transition-colors font-['Roboto_Mono'] font-medium text-[11px] flex items-center gap-[6px] md:shrink-0"
                         style={{ backgroundColor: "var(--accent)" }}
                       >
                         <CheckCircle className="w-4 h-4" />

@@ -368,10 +368,10 @@ function ProjectListItem({ project, onViewProject, onDeleteClick, canViewFinance
     <div className="relative group">
       <button
         onClick={() => onViewProject(project.id)}
-        className="w-full flex items-center gap-[16px] p-[16px] bg-card border border-border rounded-[8px] hover:shadow-md transition-all text-left"
+        className="w-full flex items-start md:items-center gap-[12px] md:gap-[16px] p-[16px] bg-card border border-border rounded-[8px] hover:shadow-md transition-all text-left"
       >
         <div
-          className={`w-[4px] h-[60px] rounded-full shrink-0 ${
+          className={`w-[4px] self-stretch md:h-[60px] rounded-full shrink-0 ${
             project.status === "In Progress"
               ? "bg-accent"
               : project.status === "Delayed"
@@ -381,82 +381,90 @@ function ProjectListItem({ project, onViewProject, onDeleteClick, canViewFinance
               : "bg-muted"
           }`}
         />
-        <div className="flex-1 min-w-0 grid grid-cols-12 gap-[16px] items-center">
-        <div className="col-span-3">
-          <h4 className="font-['Roboto_Mono'] font-bold text-[14px] text-foreground mb-[4px]">
+        {/* Below md this stacks into a single readable column; from md up
+            it becomes the original 12-col row -- a 12-col grid has no room
+            to breathe on a phone screen, so name/client/location/etc would
+            otherwise get crushed into truncated, overlapping fragments. */}
+        <div className="flex-1 min-w-0 flex flex-col gap-[8px] md:grid md:grid-cols-12 md:gap-[16px] md:items-center">
+        <div className="md:col-span-3 min-w-0 pr-[32px] md:pr-0">
+          <h4 className="font-['Roboto_Mono'] font-bold text-[14px] text-foreground mb-[4px] break-words">
             {project.title}
           </h4>
           <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground">
             {project.client}
           </p>
         </div>
-        <div className="col-span-2">
-          <div className="flex items-center gap-[6px]">
-            <MapPin className="w-3 h-3 text-muted-foreground" />
-            <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground truncate">
-              {project.location}
-            </p>
-          </div>
-        </div>
-        {canViewFinance && (
-          <div className="col-span-2">
+        <div className="flex flex-wrap items-center gap-x-[16px] gap-y-[6px] md:contents">
+          <div className="md:col-span-2">
             <div className="flex items-center gap-[6px]">
-              <DollarSign className="w-3 h-3 text-muted-foreground" />
-              <p className="font-['Roboto_Mono'] font-normal text-[11px] text-foreground">
-                ${(project.spent / 1000).toFixed(0)}K / ${(project.budget / 1000).toFixed(0)}K
+              <MapPin className="w-3 h-3 text-muted-foreground shrink-0" />
+              <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground truncate">
+                {project.location}
               </p>
             </div>
           </div>
-        )}
-        <div className="col-span-2">
-          <div className="flex items-center gap-[6px]">
-            <Clock className="w-3 h-3 text-muted-foreground" />
-            <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground">
-              {project.endDate ? formatDate(project.endDate) : "—"}
-            </p>
-          </div>
-        </div>
-        <div className="col-span-2">
-          <div
-            className={`px-[12px] py-[4px] rounded-full text-[10px] font-['Roboto_Mono'] font-medium text-center ${
-              project.status === "In Progress"
-                ? "bg-accent/10 text-accent"
-                : project.status === "Delayed"
-                ? "bg-destructive/10 text-destructive"
-                : project.status === "Completed"
-                ? "bg-success/10 text-success"
-                : "bg-muted/10 text-muted"
-            }`}
-          >
-            {project.status}
-          </div>
-        </div>
-        <div className="col-span-1">
-          <div className="flex items-center justify-center">
-            <div className="relative w-[40px] h-[40px]">
-              <svg className="w-full h-full transform -rotate-90">
-                <circle
-                  cx="20"
-                  cy="20"
-                  r="16"
-                  fill="none"
-                  stroke="var(--secondary)"
-                  strokeWidth="4"
-                />
-                <circle
-                  cx="20"
-                  cy="20"
-                  r="16"
-                  fill="none"
-                  stroke="var(--accent)"
-                  strokeWidth="4"
-                  strokeDasharray={`${(project.progress / 100) * 100.53} 100.53`}
-                  strokeLinecap="round"
-                />
-              </svg>
-              <p className="absolute inset-0 flex items-center justify-center font-['Roboto_Mono'] font-bold text-[10px] text-foreground">
-                {project.progress}%
+          {canViewFinance && (
+            <div className="md:col-span-2">
+              <div className="flex items-center gap-[6px]">
+                <DollarSign className="w-3 h-3 text-muted-foreground shrink-0" />
+                <p className="font-['Roboto_Mono'] font-normal text-[11px] text-foreground">
+                  ${(project.spent / 1000).toFixed(0)}K / ${(project.budget / 1000).toFixed(0)}K
+                </p>
+              </div>
+            </div>
+          )}
+          <div className="md:col-span-2">
+            <div className="flex items-center gap-[6px]">
+              <Clock className="w-3 h-3 text-muted-foreground shrink-0" />
+              <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground">
+                {project.endDate ? formatDate(project.endDate) : "—"}
               </p>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center justify-between md:contents">
+          <div className="md:col-span-2">
+            <div
+              className={`inline-block md:block px-[12px] py-[4px] rounded-full text-[10px] font-['Roboto_Mono'] font-medium text-center ${
+                project.status === "In Progress"
+                  ? "bg-accent/10 text-accent"
+                  : project.status === "Delayed"
+                  ? "bg-destructive/10 text-destructive"
+                  : project.status === "Completed"
+                  ? "bg-success/10 text-success"
+                  : "bg-muted/10 text-muted"
+              }`}
+            >
+              {project.status}
+            </div>
+          </div>
+          <div className="md:col-span-1">
+            <div className="flex items-center justify-center">
+              <div className="relative w-[40px] h-[40px]">
+                <svg className="w-full h-full transform -rotate-90">
+                  <circle
+                    cx="20"
+                    cy="20"
+                    r="16"
+                    fill="none"
+                    stroke="var(--secondary)"
+                    strokeWidth="4"
+                  />
+                  <circle
+                    cx="20"
+                    cy="20"
+                    r="16"
+                    fill="none"
+                    stroke="var(--accent)"
+                    strokeWidth="4"
+                    strokeDasharray={`${(project.progress / 100) * 100.53} 100.53`}
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <p className="absolute inset-0 flex items-center justify-center font-['Roboto_Mono'] font-bold text-[10px] text-foreground">
+                  {project.progress}%
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -465,7 +473,7 @@ function ProjectListItem({ project, onViewProject, onDeleteClick, canViewFinance
       {canDeleteProjects && (
         <button
           onClick={(e) => onDeleteClick(project.id, e)}
-          className="absolute right-[16px] top-1/2 -translate-y-1/2 p-[8px] rounded-[6px] bg-background border border-border hover:bg-destructive hover:border-destructive hover:text-white transition-colors opacity-0 group-hover:opacity-100"
+          className="absolute right-[16px] top-[16px] md:top-1/2 md:-translate-y-1/2 p-[8px] rounded-[6px] bg-background border border-border hover:bg-destructive hover:border-destructive hover:text-white transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100"
         >
           <Trash2 className="w-4 h-4" />
         </button>

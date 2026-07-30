@@ -19,6 +19,8 @@ import {
   CheckSquare,
   ClipboardCheck,
   LayoutTemplate,
+  Menu,
+  X,
 } from "lucide-react";
 import { AppProvider, useApp } from "./components/AppContext";
 import { AuthProvider, useAuth } from "./components/AuthContext";
@@ -85,6 +87,8 @@ function AppContent() {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [hoverTimeout, setHoverTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
 
   // Run DB migrations once on app boot via edge function
   useEffect(() => {
@@ -153,6 +157,7 @@ function AppContent() {
 
   const handleNavigate = (view: string, subViewOrId?: string | number) => {
     setOpenProjectDialog(false);
+    setMobileMenuOpen(false);
     
     // Handle navigation to specific sub-views or IDs
     if (view === "project-details" && subViewOrId !== undefined && subViewOrId !== null) {
@@ -334,11 +339,117 @@ function AppContent() {
     }
   };
 
+  // Shared menu-item list markup used by both the desktop hover sidebar and
+  // the mobile slide-in drawer, so nav items/permissions never drift between
+  // the two -- `collapsed` only ever applies to the desktop rail; the
+  // mobile drawer always renders expanded (it has the whole screen width).
+  const renderMenuItems = (collapsed: boolean, onItemClick: () => void) =>
+    menuItems.map((item) => {
+      const Icon = item.icon;
+      const hasNotifications = item.id === "projects" && pendingQCCount > 0 && hasPermission("canViewProjects");
+
+      return (
+        <button
+          key={item.id}
+          onClick={() => {
+            setCurrentView(item.id as ViewType);
+            onItemClick();
+          }}
+          className={`w-full flex items-center px-[8px] py-[6px] transition-colors relative ${
+            currentView === item.id
+              ? "bg-sidebar-accent"
+              : "hover:bg-sidebar-accent/50"
+          }`}
+        >
+          <div className={`flex items-center h-[32px] pl-[8px] rounded-[6px] ${collapsed ? 'justify-center w-[32px] pl-0' : 'gap-[8px] w-full'}`}>
+            <div className="relative">
+              <Icon className="w-[16px] h-[16px] text-sidebar-foreground shrink-0" />
+              {hasNotifications && (
+                <div className="absolute -top-[4px] -right-[4px] w-[8px] h-[8px] bg-destructive rounded-full animate-pulse" />
+              )}
+            </div>
+            {!collapsed && (
+              <>
+                <p className="font-['Roboto_Mono'] text-[14px] text-sidebar-foreground leading-[20px] flex-1">
+                  {item.label}
+                </p>
+                {hasNotifications && (
+                  <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-[6px] bg-destructive text-white rounded-full font-['Roboto_Mono']" style={{ fontSize: '10px' }}>
+                    {pendingQCCount}
+                  </span>
+                )}
+              </>
+            )}
+          </div>
+        </button>
+      );
+    });
+
   return (
     <div className="flex min-h-screen w-full bg-background">
-      {/* Sidebar */}
-      <div 
-        className={`bg-sidebar border-r border-sidebar-border flex flex-col shrink-0 transition-all duration-300 h-screen sticky top-0 ${
+      {/* Mobile nav drawer -- hidden entirely above the md breakpoint, where
+          the hover sidebar below takes over. Backdrop tap or picking an item
+          closes it. */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+          <div className="absolute inset-y-0 left-0 w-[240px] bg-sidebar border-r border-sidebar-border flex flex-col">
+            <div className="h-[60px] border-b border-sidebar-border flex items-center justify-between px-[16px] shrink-0">
+              <CollapsedLogo />
+              <button
+                onClick={() => setMobileMenuOpen(false)}
+                className="p-[4px] hover:bg-sidebar-accent/50 rounded-[4px] transition-colors"
+                aria-label="Close menu"
+              >
+                <X className="w-[18px] h-[18px] text-sidebar-foreground" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto py-[16px]">
+              {renderMenuItems(false, () => setMobileMenuOpen(false))}
+            </div>
+            <div className="border-t border-sidebar-border px-[16px] py-[16px]">
+              <div className="flex items-center gap-[8px]">
+                <button
+                  onClick={() => {
+                    setCurrentView("profile");
+                    setMobileMenuOpen(false);
+                  }}
+                  className="flex items-center gap-[8px] flex-1 min-w-0 hover:bg-sidebar-accent/50 transition-colors cursor-pointer rounded-[6px] p-[4px] -ml-[4px]"
+                >
+                  <div className="w-[32px] h-[32px] rounded-full bg-accent flex items-center justify-center shrink-0">
+                    <UserCircle className="w-[20px] h-[20px] text-accent-foreground" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-['Roboto_Mono'] text-[11px] text-sidebar-foreground truncate text-left">
+                      {currentUser.name}
+                    </p>
+                    <p className="font-['Roboto_Mono'] text-[10px] text-sidebar-foreground/60 truncate text-left">
+                      {currentUser.role}
+                    </p>
+                  </div>
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    signOut();
+                  }}
+                  className="p-[4px] hover:bg-sidebar-accent rounded-[4px] transition-colors shrink-0"
+                  title="Sign Out"
+                >
+                  <LogOut className="w-[14px] h-[14px] text-sidebar-foreground/60" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sidebar (desktop only) */}
+      <div
+        className={`hidden md:flex bg-sidebar border-r border-sidebar-border flex-col shrink-0 transition-all duration-300 h-screen sticky top-0 ${
           sidebarCollapsed ? "w-[64px]" : "w-[200px]"
         }`}
         onMouseEnter={handleSidebarMouseEnter}
@@ -358,43 +469,7 @@ function AppContent() {
 
         {/* Sidebar Menu */}
         <div className="flex-1 overflow-y-auto py-[16px]">
-          {menuItems.map((item) => {
-            const Icon = item.icon;
-            const hasNotifications = item.id === "projects" && pendingQCCount > 0 && hasPermission("canViewProjects");
-            
-            return (
-              <button
-                key={item.id}
-                onClick={() => setCurrentView(item.id as ViewType)}
-                className={`w-full flex items-center px-[8px] py-[6px] transition-colors relative ${
-                  currentView === item.id
-                    ? "bg-sidebar-accent"
-                    : "hover:bg-sidebar-accent/50"
-                }`}
-              >
-                <div className={`flex items-center h-[32px] pl-[8px] rounded-[6px] ${sidebarCollapsed ? 'justify-center w-[32px] pl-0' : 'gap-[8px] w-full'}`}>
-                  <div className="relative">
-                    <Icon className="w-[16px] h-[16px] text-sidebar-foreground shrink-0" />
-                    {hasNotifications && (
-                      <div className="absolute -top-[4px] -right-[4px] w-[8px] h-[8px] bg-destructive rounded-full animate-pulse" />
-                    )}
-                  </div>
-                  {!sidebarCollapsed && (
-                    <>
-                      <p className="font-['Roboto_Mono'] text-[14px] text-sidebar-foreground leading-[20px] flex-1">
-                        {item.label}
-                      </p>
-                      {hasNotifications && (
-                        <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-[6px] bg-destructive text-white rounded-full font-['Roboto_Mono']" style={{ fontSize: '10px' }}>
-                          {pendingQCCount}
-                        </span>
-                      )}
-                    </>
-                  )}
-                </div>
-              </button>
-            );
-          })}
+          {renderMenuItems(sidebarCollapsed, () => {})}
         </div>
 
         {/* User Info / Sign Out */}
@@ -443,31 +518,38 @@ function AppContent() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Bar */}
-        <div className="h-[60px] border-b border-border bg-background px-[32px] flex items-center justify-between shrink-0">
-          <div>
-            <h2 className="font-['Anybody'] text-[15px] tracking-[-0.6px] text-foreground leading-[1.64]" style={{ fontVariationSettings: "'wdth' 137", fontWeight: 800 }}>
-              {selectedProjectId 
-                ? "Project Details" 
+        <div className="h-[60px] border-b border-border bg-background px-[12px] md:px-[32px] flex items-center justify-between gap-[8px] shrink-0">
+          <div className="flex items-center gap-[8px] min-w-0">
+            <button
+              onClick={() => setMobileMenuOpen(true)}
+              className="md:hidden p-[6px] -ml-[4px] hover:bg-accent/10 rounded-[6px] transition-colors shrink-0"
+              aria-label="Open menu"
+            >
+              <Menu className="w-[20px] h-[20px] text-foreground" />
+            </button>
+            <h2 className="font-['Anybody'] text-[14px] md:text-[15px] tracking-[-0.6px] text-foreground leading-[1.64] truncate" style={{ fontVariationSettings: "'wdth' 137", fontWeight: 800 }}>
+              {selectedProjectId
+                ? "Project Details"
                 : menuItems.find((item) => item.id === currentView)?.label || "Dashboard"}
             </h2>
           </div>
-          <div className="flex items-center gap-[12px]">
+          <div className="flex items-center gap-[6px] md:gap-[12px] shrink-0">
             <GlobalSearch onNavigate={handleNavigate} />
             <NotificationBell onNavigate={handleNavigate} />
             <button
               onClick={handleRefreshRole}
               disabled={isRefreshing}
-              className="flex items-center gap-[8px] px-[12px] py-[6px] bg-card rounded-[6px] border border-border hover:bg-accent/10 transition-colors disabled:opacity-50"
+              className="flex items-center gap-[8px] px-[8px] py-[6px] md:px-[12px] bg-card rounded-[6px] border border-border hover:bg-accent/10 transition-colors disabled:opacity-50"
               title="Refresh permissions"
             >
               <RefreshCw className={`w-[12px] h-[12px] text-foreground ${isRefreshing ? 'animate-spin' : ''}`} />
               {!sidebarCollapsed && (
-                <p className="font-['Roboto_Mono'] text-[10px] text-foreground">
+                <p className="hidden md:block font-['Roboto_Mono'] text-[10px] text-foreground">
                   Refresh
                 </p>
               )}
             </button>
-            <div className="flex items-center gap-[8px] px-[12px] py-[6px] bg-card rounded-[6px] border border-border">
+            <div className="hidden sm:flex items-center gap-[8px] px-[12px] py-[6px] bg-card rounded-[6px] border border-border">
               <div className="w-[8px] h-[8px] rounded-full bg-success"></div>
               <p className="font-['Roboto_Mono'] text-[10px] text-foreground">
                 Active
@@ -477,7 +559,7 @@ function AppContent() {
         </div>
 
         {/* Page Content */}
-         <div className="flex-1 overflow-y-auto bg-background mx-auto w-full p-[32px]">
+         <div className="flex-1 overflow-y-auto bg-background mx-auto w-full p-[16px] md:p-[32px]">
           <ErrorBoundary key={currentView}>
             {renderView()}
           </ErrorBoundary>

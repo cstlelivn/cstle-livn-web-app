@@ -226,7 +226,7 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[400px] p-0" align="end">
+      <PopoverContent className="w-[calc(100vw-24px)] max-w-[400px] p-0" align="end">
         <div className="p-[16px] border-b border-border">
           <div className="flex items-center justify-between">
             <h3 className="font-['Anybody'] text-[14px]" style={{ fontVariationSettings: "'wdth' 137", fontWeight: 700 }}>

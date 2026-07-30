@@ -171,7 +171,7 @@ export default function TaskManagement() {
   return (
     <div className="w-full space-y-[24px]">
       {/* Header Stats */}
-      <div className="grid grid-cols-5 gap-[16px]">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-[12px] md:gap-[16px]">
         <div className="bg-card border border-border rounded-[12px] p-[16px]">
           <p className="font-['Roboto_Mono'] text-[10px] text-muted-foreground mb-[8px]">Total Tasks</p>
           <p className="font-['Anybody'] text-[24px]" style={{ fontVariationSettings: "'wdth' 137", fontWeight: 800 }}>
@@ -223,8 +223,8 @@ export default function TaskManagement() {
         </div>
 
         {/* Filters */}
-        <div className="grid grid-cols-7 gap-[12px]">
-          <div className="col-span-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-[12px]">
+          <div className="sm:col-span-2 lg:col-span-2">
             <div className="relative">
               <Search className="absolute left-[12px] top-1/2 -translate-y-1/2 w-[14px] h-[14px] text-muted-foreground" />
               <Input
@@ -336,12 +336,102 @@ export default function TaskManagement() {
                     const canEdit = canEditTask({ task, currentUserId: currentUser?.id, isManagerOrAdmin, teamMembers });
                     const canApproveQC = hasPermission("canApproveTaskQC");
 
+                    const rowMenu = hasPermission("canEditProjects") && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                          <button className="p-[6px] md:opacity-0 md:group-hover:opacity-100 hover:bg-accent/10 rounded-[4px] transition-all">
+                            <MoreVertical className="w-[14px] h-[14px] text-muted-foreground" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleEditTask(task)}>
+                            <Edit2 className="w-[12px] h-[12px] mr-[8px]" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={(e) => handleDeleteTask(task.id, e as any)}
+                            className="text-destructive"
+                          >
+                            <Trash2 className="w-[12px] h-[12px] mr-[8px]" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    );
+
+                    const dueDateText = task.dueDate ? (
+                      <p
+                        className={`font-['Roboto_Mono'] text-[10px] ${
+                          overdue
+                            ? "text-destructive font-bold"
+                            : task.status !== "Completed" && daysUntil(task.dueDate) <= 3
+                            ? "text-warning font-bold"
+                            : "text-muted-foreground"
+                        }`}
+                      >
+                        {overdue ? "Overdue · " : ""}
+                        {formatDate(task.dueDate)}
+                      </p>
+                    ) : (
+                      <p className="font-['Roboto_Mono'] text-[10px] text-muted-foreground">No due date</p>
+                    );
+
                     return (
                       <div
                         key={task.id}
-                        className="flex items-center gap-[16px] p-[16px] bg-background border border-border rounded-[8px] hover:shadow-sm transition-all cursor-pointer group"
+                        className="p-[16px] bg-background border border-border rounded-[8px] hover:shadow-sm transition-all cursor-pointer group"
                         onClick={() => handleEditTask(task)}
                       >
+                        {/* Mobile: stacked card so the title isn't crushed
+                            into a narrow grid column */}
+                        <div className="md:hidden flex flex-col gap-[8px]">
+                          <div className="flex items-start justify-between gap-[8px]">
+                            <div className="min-w-0 flex-1">
+                              <h4 className="font-['Roboto_Mono'] font-bold text-[12px] text-foreground mb-[2px] break-words">
+                                {task.title}
+                              </h4>
+                              {project && (
+                                <p className="font-['Roboto_Mono'] text-[10px] text-muted-foreground">
+                                  {project.title}
+                                </p>
+                              )}
+                            </div>
+                            {rowMenu}
+                          </div>
+                          <div className="flex items-center flex-wrap gap-[8px]" onClick={(e) => e.stopPropagation()}>
+                            <TaskStatusControl
+                              status={task.status}
+                              canEdit={canEdit}
+                              canApproveQC={canApproveQC}
+                              onChange={(status) => updateTask(task.id, { status })}
+                              showLabel
+                              triggerClassName="w-fit h-[24px] px-[8px] gap-[4px] border border-border bg-secondary/40 shadow-none rounded-full cursor-pointer hover:bg-accent/10 hover:border-accent/30 transition-colors [&>svg:last-child]:hidden"
+                              iconSize="w-3 h-3"
+                            />
+                            <Badge className={`${getPriorityColor(task.priority)} font-['Roboto_Mono'] text-[9px] px-[8px] py-[2px]`}>
+                              {task.priority}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center flex-wrap gap-x-[16px] gap-y-[4px]">
+                            {assignee && (
+                              <div className="flex items-center gap-[6px]">
+                                <div className="w-[20px] h-[20px] rounded-full bg-accent/20 flex items-center justify-center shrink-0">
+                                  <span className="font-['Roboto_Mono'] text-[8px] text-accent">
+                                    {assignee.name.split(" ").map(n => n[0]).join("")}
+                                  </span>
+                                </div>
+                                <p className="font-['Roboto_Mono'] text-[10px] text-muted-foreground truncate">
+                                  {assignee.name}
+                                </p>
+                              </div>
+                            )}
+                            {dueDateText}
+                          </div>
+                        </div>
+
+                        {/* Desktop: proportional 12-col row */}
+                        <div className="hidden md:flex items-center gap-[16px]">
                         <div className="flex-1 min-w-0 grid grid-cols-12 gap-[16px] items-center">
                           <div className="col-span-3">
                             <h4 className="font-['Roboto_Mono'] font-bold text-[11px] text-foreground mb-[4px]">
@@ -396,48 +486,12 @@ export default function TaskManagement() {
                           </div>
 
                           <div className="col-span-2">
-                            {task.dueDate ? (
-                              <p
-                                className={`font-['Roboto_Mono'] text-[10px] ${
-                                  overdue
-                                    ? "text-destructive font-bold"
-                                    : task.status !== "Completed" && daysUntil(task.dueDate) <= 3
-                                    ? "text-warning font-bold"
-                                    : "text-muted-foreground"
-                                }`}
-                              >
-                                {overdue ? "Overdue · " : ""}
-                                {formatDate(task.dueDate)}
-                              </p>
-                            ) : (
-                              <p className="font-['Roboto_Mono'] text-[10px] text-muted-foreground">No due date</p>
-                            )}
+                            {dueDateText}
                           </div>
                         </div>
 
-                        {hasPermission("canEditProjects") && (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                              <button className="p-[6px] opacity-0 group-hover:opacity-100 hover:bg-accent/10 rounded-[4px] transition-all">
-                                <MoreVertical className="w-[14px] h-[14px] text-muted-foreground" />
-                              </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => handleEditTask(task)}>
-                                <Edit2 className="w-[12px] h-[12px] mr-[8px]" />
-                                Edit
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                onClick={(e) => handleDeleteTask(task.id, e as any)}
-                                className="text-destructive"
-                              >
-                                <Trash2 className="w-[12px] h-[12px] mr-[8px]" />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
+                        {rowMenu}
+                        </div>
                       </div>
                     );
                   })
