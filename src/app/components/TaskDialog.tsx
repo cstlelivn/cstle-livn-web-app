@@ -65,14 +65,14 @@ export default function TaskDialog({
   useEffect(() => {
     if (task) {
       setFormData({
-        title: task.title,
-        description: task.description,
-        status: task.status,
-        priority: task.priority,
+        title: task.title || "",
+        description: task.description || "",
+        status: task.status || "To Do",
+        priority: task.priority || "Medium",
         assignee: task.assignee && task.assignee !== "" ? task.assignee.toString() : "unassigned",
-        dueDate: task.dueDate,
+        dueDate: task.dueDate || "",
         startDate: (task as any).start_date || "",
-        tags: task.tags.join(", "),
+        tags: (task.tags || []).join(", "),
         phase: task.phase || "",
         task_type: (task as any).task_type || "Administrative",
       });

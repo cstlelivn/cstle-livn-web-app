@@ -40,6 +40,7 @@ import GlobalSearch from "./components/GlobalSearch";
 import NotificationBell from "./components/NotificationBell";
 import ProjectClientDiagnostic from "./components/ProjectClientDiagnostic";
 import TemplateBuilder from "./components/TemplateBuilder";
+import ErrorBoundary from "./components/ErrorBoundary";
 import svgPaths from "./imports/svg-ydinhr03gq";
 
 type ViewType =
@@ -477,7 +478,9 @@ function AppContent() {
 
         {/* Page Content */}
          <div className="flex-1 overflow-y-auto bg-background mx-auto w-full p-[32px]">
-          {renderView()}
+          <ErrorBoundary key={currentView}>
+            {renderView()}
+          </ErrorBoundary>
         </div>
       </div>
     </div>

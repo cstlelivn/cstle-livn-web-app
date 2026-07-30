@@ -37,9 +37,9 @@ export default function QCReviewQueue() {
     const assignee = getTeamMember(task.assignee);
     
     const matchesSearch =
-      task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      project?.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      assignee?.name.toLowerCase().includes(searchQuery.toLowerCase());
+      (task.title || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (project?.title || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (assignee?.name || "").toLowerCase().includes(searchQuery.toLowerCase());
     
     const matchesProject = projectFilter === "all" || task.projectId.toString() === projectFilter;
     const matchesWorker = workerFilter === "all" || task.assignee.toString() === workerFilter;

@@ -235,11 +235,14 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
         try {
           const freshPhases = await listProjectPhases(String(projectId));
           const sorted = [...freshPhases].sort((a: any, b: any) => a.position - b.position);
-          const nextIncomplete = sorted.find((p: any) => p.id !== phaseId && p.status !== "Completed");
+          const nextIncomplete = sorted.find((p: any) => p.status !== "Completed");
           const project = getProject(projectId);
           if (nextIncomplete && project?.phase !== nextIncomplete.name) {
             await updateProject(projectId, { phase: nextIncomplete.name });
           }
+          // If nothing is left incomplete, the Phase summary card falls back
+          // to "Project Complete" on its own (derived from phase statuses),
+          // so there's nothing further to write here.
         } catch (advanceError) {
           console.error("Failed to advance current phase:", advanceError);
         }

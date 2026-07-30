@@ -232,6 +232,44 @@ export default function TaskReviewDialog({
                 </div>
               </div>
 
+                {/* Timing -- when this task was started/submitted and how long it took,
+                    so the reviewer can factor delivery speed into their QC decision. */}
+                {(task.startedAt || task.submittedAt) && (
+                  <div className="p-[16px] bg-secondary/20 border border-border rounded-[8px] space-y-[6px]">
+                    <p className="font-['Roboto_Mono'] font-bold text-[10px] text-muted-foreground uppercase tracking-wide">
+                      Timing
+                    </p>
+                    <div className="grid grid-cols-2 gap-[8px] font-['Roboto_Mono'] text-[11px]">
+                      {task.startedAt && (
+                        <p className="text-muted-foreground">Started: <span className="text-foreground">{new Date(task.startedAt).toLocaleString()}</span></p>
+                      )}
+                      {task.submittedAt && (
+                        <p className="text-muted-foreground">Submitted for QC: <span className="text-foreground">{new Date(task.submittedAt).toLocaleString()}</span></p>
+                      )}
+                      {task.startedAt && task.submittedAt && (
+                        <p className="text-muted-foreground">
+                          Total time: <span className="text-foreground">
+                            {(() => {
+                              const ms = new Date(task.submittedAt).getTime() - new Date(task.startedAt).getTime();
+                              const hours = ms / 3600000;
+                              return hours < 24 ? `${hours.toFixed(1)}h` : `${(hours / 24).toFixed(1)}d`;
+                            })()}
+                          </span>
+                        </p>
+                      )}
+                    </div>
+                    {task.submittedAt && task.dueDate && (
+                      <span className={`inline-block px-[8px] py-[2px] rounded-full text-[9px] font-['Roboto_Mono'] font-medium ${
+                        new Date(task.submittedAt) <= new Date(task.dueDate)
+                          ? "bg-success/10 text-success"
+                          : "bg-destructive/10 text-destructive"
+                      }`}>
+                        {new Date(task.submittedAt) <= new Date(task.dueDate) ? "Submitted on time" : "Submitted late"}
+                      </span>
+                    )}
+                  </div>
+                )}
+
               {/* QC Guidelines */}
               <div className="p-[16px] bg-secondary rounded-[8px]">
                 <div className="flex items-start gap-[12px]">

@@ -181,6 +181,10 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
 
   const incompletePhaseCount = normalizedPhases.filter((p: any) => p.status !== "Completed").length;
   const allPhasesComplete = normalizedPhases.length > 0 && incompletePhaseCount === 0;
+  // Once every phase is done, the card should read "Project Complete" at
+  // 100% instead of whatever the last active phase's name happened to be.
+  const phaseCardLabel = allPhasesComplete ? "Project Complete" : project?.phase;
+  const phaseCardProgress = allPhasesComplete ? 100 : currentPhaseProgress;
   const canForceComplete = hasPermission("canForceCompleteProjects");
 
   const handleMarkComplete = async () => {
@@ -256,8 +260,8 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
   const filteredTasks = projectTasks.filter((task) => {
     const assigneeName = getTeamMember(task.assignee)?.name || "";
     const matchesSearch =
-      task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      task.description.toLowerCase().includes(searchQuery.toLowerCase());
+      (task.title || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (task.description || "").toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = filterStatus === "all" || task.status === filterStatus;
     const matchesPriority = filterPriority === "all" || task.priority === filterPriority;
     const matchesAssignee = filterAssignee === "all" || assigneeName === filterAssignee;
@@ -762,7 +766,7 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
                 </p>
                 {!isEditingPhase ? (
                   <h4 className="font-['Roboto_Mono'] font-bold text-[15px] text-foreground mt-[2px]">
-                    {project.phase}
+                    {phaseCardLabel}
                   </h4>
                 ) : (
                   <Select
@@ -814,13 +818,13 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
             <div className="flex items-center justify-between text-[11px]">
               <p className="font-['Roboto_Mono'] font-normal text-muted-foreground">Progress</p>
               <p className="font-['Roboto_Mono'] font-bold text-foreground">
-                {currentPhaseProgress}%
+                {phaseCardProgress}%
               </p>
             </div>
             <div className="h-[6px] bg-secondary rounded-full overflow-hidden">
               <div
                 className="h-full bg-accent transition-all"
-                style={{ width: `${currentPhaseProgress}%` }}
+                style={{ width: `${phaseCardProgress}%` }}
               />
             </div>
           </div>

@@ -52,8 +52,8 @@ export default function TaskManagement() {
   // completed task being "overdue" isn't something anyone needs to act on
   const filteredTasks = visibleTasks.filter((task) => {
     const matchesSearch =
-      task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      task.description.toLowerCase().includes(searchQuery.toLowerCase());
+      (task.title || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (task.description || "").toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = filterStatus === "all" || task.status === filterStatus;
     const matchesPriority = filterPriority === "all" || task.priority === filterPriority;
     const matchesProject = filterProject === "all" || task.projectId.toString() === filterProject;
