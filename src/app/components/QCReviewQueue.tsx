@@ -15,11 +15,18 @@ export default function QCReviewQueue() {
   const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
 
   // ✅ WEBSOCKET-ONLY: Filter tasks from real-time data (no API calls)
+  // Surfaces both statuses that need a QC-capable person's action -- "Pending
+  // QC" (assignee's work is done, needs approve/reject-with-rating) and
+  // "Under Review" (assignee is blocked mid-work, needs unblocking). These
+  // were previously entirely separate concepts in the UI, so a blocked task
+  // was invisible here even though only a QC-capable role can clear it --
+  // same underlying "needs QC attention" queue either way, just a different
+  // action once you open it.
   const tasksAwaitingReview = useMemo(() => {
     if (!hasPermission("canViewQCReviewQueue")) {
       return [];
     }
-    return tasks.filter((t) => t.status === "Pending QC");
+    return tasks.filter((t) => t.status === "Pending QC" || t.status === "Under Review");
   }, [tasks, hasPermission]);
 
   // Get unique projects and workers from tasks awaiting review
@@ -92,6 +99,18 @@ export default function QCReviewQueue() {
   const handleReviewTask = (task: Task) => {
     setSelectedTask(task);
     setIsReviewDialogOpen(true);
+  };
+
+  // "Under Review" means the assignee is blocked mid-work, not that their
+  // work is done -- clearing it sends the task back to In Progress rather
+  // than through the approve/reject-with-rating flow Pending QC uses.
+  const handleUnblockTask = async (task: Task) => {
+    try {
+      await updateTask(task.id, { status: "In Progress" } as any);
+      toast.success("Task unblocked -- back to In Progress");
+    } catch {
+      toast.error("Failed to unblock task");
+    }
   };
 
   const handleApproveTask = async (
@@ -460,6 +479,13 @@ export default function QCReviewQueue() {
                                 {task.phase}
                               </span>
                             )}
+                            <span className={`px-[8px] py-[2px] rounded font-['Roboto_Mono'] text-[10px] font-medium ${
+                              task.status === "Under Review"
+                                ? "bg-destructive/10 text-destructive"
+                                : "bg-primary/10 text-primary"
+                            }`}>
+                              {task.status === "Under Review" ? "Blocked — needs unblocking" : "Awaiting QC approval"}
+                            </span>
                             {task.priority === "Urgent" && (
                               <span className="px-[8px] py-[2px] bg-destructive/10 text-destructive rounded font-['Roboto_Mono'] text-[10px] font-medium">
                                 Urgent
@@ -471,14 +497,24 @@ export default function QCReviewQueue() {
                     </div>
                     
                     {/* Right side - Action button */}
-                    <button
-                      onClick={() => handleReviewTask(task)}
-                      className="px-[16px] py-[8px] bg-accent text-white rounded-[6px] hover:bg-accent/90 transition-colors font-['Roboto_Mono'] font-medium text-[11px] flex items-center gap-[6px] shrink-0"
-                      style={{ backgroundColor: "var(--accent)" }}
-                    >
-                      <CheckCircle className="w-4 h-4" />
-                      Review & Rate
-                    </button>
+                    {task.status === "Under Review" ? (
+                      <button
+                        onClick={() => handleUnblockTask(task)}
+                        className="px-[16px] py-[8px] bg-warning text-white rounded-[6px] hover:opacity-90 transition-opacity font-['Roboto_Mono'] font-medium text-[11px] flex items-center gap-[6px] shrink-0"
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                        Unblock
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleReviewTask(task)}
+                        className="px-[16px] py-[8px] bg-accent text-white rounded-[6px] hover:bg-accent/90 transition-colors font-['Roboto_Mono'] font-medium text-[11px] flex items-center gap-[6px] shrink-0"
+                        style={{ backgroundColor: "var(--accent)" }}
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                        Review & Rate
+                      </button>
+                    )}
                   </div>
                 </div>
               );

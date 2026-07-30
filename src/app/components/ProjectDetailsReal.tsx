@@ -218,7 +218,11 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
     );
   }
 
-  const projectTeam = project.team.map((id) => getTeamMember(id)).filter(Boolean);
+  // Live from actual task assignees, not project.team -- that array is only
+  // ever initialized empty at project creation and nothing writes to it
+  // afterward, so it never reflected who was really assigned to work here.
+  const assignedTeamIds = [...new Set(projectTasks.map((t: any) => t.assignee).filter(Boolean))];
+  const projectTeam = assignedTeamIds.map((id) => getTeamMember(id)).filter(Boolean);
 
   // Load client email when project loads
   useEffect(() => {
@@ -368,10 +372,18 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
       }
     };
 
+    // Fixed-width grid columns instead of flex+min-w -- min-w is only a
+    // floor, so a wider status pill ("In Progress") vs a narrower one
+    // ("To Do") on different rows still shifted every column after it out
+    // of alignment. A shared grid template keeps every row's columns lined
+    // up regardless of what each cell's own content measures.
     return (
-      <div className="flex items-center gap-[16px] p-[16px] bg-card border border-border rounded-[8px] hover:shadow-sm transition-all group">
-        <div className="flex-1 min-w-0">
-          <h4 className="font-['Roboto_Mono'] font-bold text-[14px] text-foreground mb-[4px]">
+      <div
+        className="grid items-center gap-[12px] p-[16px] bg-card border border-border rounded-[8px] hover:shadow-sm transition-all group"
+        style={{ gridTemplateColumns: "1fr 130px 140px 110px 50px 90px 68px" }}
+      >
+        <div className="min-w-0">
+          <h4 className="font-['Roboto_Mono'] font-bold text-[14px] text-foreground mb-[4px] truncate">
             {task.title}
           </h4>
           <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground truncate">
@@ -379,77 +391,67 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
           </p>
         </div>
 
-        <div className="flex items-center gap-[16px] shrink-0">
-          <TaskStatusControl
-            status={task.status}
-            canEdit={canEdit}
-            canApproveQC={canApproveQC}
-            onChange={(status) => updateTask(task.id, { status })}
-            showLabel
-          />
+        <TaskStatusControl
+          status={task.status}
+          canEdit={canEdit}
+          canApproveQC={canApproveQC}
+          onChange={(status) => updateTask(task.id, { status })}
+          showLabel
+        />
 
-          {isManagerOrAdmin ? (
-            <Select value={String(task.assignee || "")} onValueChange={handleAssigneeChange}>
-              <SelectTrigger
-                className="w-[110px] h-[28px] px-[6px] gap-[6px] border border-transparent bg-transparent shadow-none text-[11px] rounded-[6px] cursor-pointer hover:bg-accent/10 hover:border-accent/30 transition-colors"
-                title="Click to reassign"
-              >
-                <User className="w-3 h-3 text-muted-foreground shrink-0" />
-                <span className="truncate">{assignee?.name || "Unassigned"}</span>
-              </SelectTrigger>
-              <SelectContent>
-                {teamMembers.map((m: any) => (
-                  <SelectItem key={m.id} value={String(m.id)}>
-                    {m.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : (
-            <div className="flex items-center gap-[6px] min-w-[100px]" title="Only Managers/Super Admins can reassign tasks">
-              <User className="w-3 h-3 text-muted-foreground" />
-              <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground truncate">
-                {assignee?.name}
-              </p>
-            </div>
-          )}
-
-          <div className="flex items-center gap-[6px] min-w-[90px]">
-            <CalendarIcon className="w-3 h-3 text-muted-foreground" />
-            <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground">
-              {task.dueDate ? formatDate(task.dueDate) : "No due date"}
+        {isManagerOrAdmin ? (
+          <Select value={String(task.assignee || "")} onValueChange={handleAssigneeChange}>
+            <SelectTrigger
+              className="w-full h-[28px] px-[6px] gap-[6px] border border-transparent bg-transparent shadow-none text-[11px] rounded-[6px] cursor-pointer hover:bg-accent/10 hover:border-accent/30 transition-colors"
+              title="Click to reassign"
+            >
+              <User className="w-3 h-3 text-muted-foreground shrink-0" />
+              <span className="truncate">{assignee?.name || "Unassigned"}</span>
+            </SelectTrigger>
+            <SelectContent>
+              {teamMembers.map((m: any) => (
+                <SelectItem key={m.id} value={String(m.id)}>
+                  {m.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <div className="flex items-center gap-[6px] min-w-0" title="Only Managers/Super Admins can reassign tasks">
+            <User className="w-3 h-3 text-muted-foreground shrink-0" />
+            <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground truncate">
+              {assignee?.name}
             </p>
           </div>
+        )}
 
+        <div className="flex items-center gap-[6px] min-w-0">
+          <CalendarIcon className="w-3 h-3 text-muted-foreground shrink-0" />
+          <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground truncate">
+            {task.dueDate ? formatDate(task.dueDate) : "No due date"}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-[6px]" title="Expected duration">
           {durationDays !== null && (
-            <div className="flex items-center gap-[6px] min-w-[50px]" title="Expected duration">
-              <Clock className="w-3 h-3 text-muted-foreground" />
+            <>
+              <Clock className="w-3 h-3 text-muted-foreground shrink-0" />
               <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground">
                 {durationDays}d
               </p>
-            </div>
+            </>
           )}
+        </div>
 
-          <div
-            className={`px-[12px] py-[4px] rounded-full text-[10px] font-['Roboto_Mono'] font-medium min-w-[70px] text-center ${getPriorityColor(
-              task.priority
-            )}`}
-          >
-            {task.priority}
-          </div>
+        <div
+          className={`px-[12px] py-[4px] rounded-full text-[10px] font-['Roboto_Mono'] font-medium text-center ${getPriorityColor(
+            task.priority
+          )}`}
+        >
+          {task.priority}
+        </div>
 
-          <div className="flex items-center gap-[8px] min-w-[80px]">
-            <div className="flex-1 h-[6px] bg-secondary rounded-full overflow-hidden">
-              <div
-                className="h-full bg-accent transition-all"
-                style={{ width: `${task.progress}%` }}
-              />
-            </div>
-            <p className="font-['Roboto_Mono'] font-bold text-[10px] text-foreground min-w-[30px]">
-              {task.progress}%
-            </p>
-          </div>
-
+        <div className="flex items-center justify-end gap-[4px]">
           <button
             onClick={() => onEdit(task)}
             className="p-[6px] rounded-[4px] hover:bg-accent/10 transition-colors"
@@ -566,23 +568,6 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
             >
               {task.priority}
             </div>
-          </div>
-        </div>
-
-        <div className="space-y-[6px]">
-          <div className="flex items-center justify-between">
-            <p className="font-['Roboto_Mono'] font-normal text-[10px] text-muted-foreground">
-              Progress
-            </p>
-            <p className="font-['Roboto_Mono'] font-bold text-[11px] text-foreground">
-              {task.progress}%
-            </p>
-          </div>
-          <div className="h-[6px] bg-secondary rounded-full overflow-hidden">
-            <div
-              className="h-full bg-accent transition-all"
-              style={{ width: `${task.progress}%` }}
-            />
           </div>
         </div>
 

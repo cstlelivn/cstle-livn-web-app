@@ -23,6 +23,7 @@ import {
   updateProjectPhase,
   deleteProjectPhase,
   reorderProjectPhases,
+  listProjectPhases,
 } from "../src/features/projectPhases/api";
 import {
   submitPhaseQC,
@@ -74,7 +75,7 @@ interface PhaseViewProps {
 }
 
 export default function PhaseView({ projectId }: PhaseViewProps) {
-  const { getTasksByProject, teamMembers, getTeamMember, updateTask, getProject } = useApp();
+  const { getTasksByProject, teamMembers, getTeamMember, updateTask, getProject, updateProject } = useApp();
   const { currentUser, hasPermission } = useAuth();
   const isManagerOrAdmin = hasPermission("canEditProjects");
   const canApproveQC = hasPermission("canApproveTaskQC");
@@ -218,9 +219,25 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
       loadPhaseDetails(phaseId);
       refresh();
 
-      // Approval completes the phase -- offer to notify the owner/client.
-      // Never auto-sends: this only opens the editable preview.
+      // Approval completes the phase -- advance the project's "current
+      // phase" indicator to the next incomplete phase. Nothing did this
+      // automatically before, so the Phase summary card just stayed on
+      // whatever phase was current at project creation forever.
       if (qcResult === "Approved" || qcResult === "Approved with Conditions") {
+        try {
+          const freshPhases = await listProjectPhases(String(projectId));
+          const sorted = [...freshPhases].sort((a: any, b: any) => a.position - b.position);
+          const nextIncomplete = sorted.find((p: any) => p.id !== phaseId && p.status !== "Completed");
+          const project = getProject(projectId);
+          if (nextIncomplete && project?.phase !== nextIncomplete.name) {
+            await updateProject(projectId, { phase: nextIncomplete.name });
+          }
+        } catch (advanceError) {
+          console.error("Failed to advance current phase:", advanceError);
+        }
+
+        // Offer to notify the owner/client. Never auto-sends: this only
+        // opens the editable preview.
         openNotifyModal(phaseId);
       }
     } catch (e: any) {
