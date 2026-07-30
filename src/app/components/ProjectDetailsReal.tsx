@@ -52,6 +52,7 @@ import { markProjectComplete } from "../src/features/projects/api";
 import { formatDate } from "../src/lib/dates";
 import { canEditTask } from "../src/features/tasks/permissions";
 import { ALL_TASK_STATUSES, getEmployeeActions } from "../src/features/tasks/statusWorkflow";
+import { calculateCompletion } from "../src/lib/progress";
 import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuSeparator } from "./ui/context-menu";
 
 // Task type definition
@@ -91,11 +92,12 @@ function getProjectPhases(): PhaseWithDuration[] {
   return saved ? JSON.parse(saved) : DEFAULT_PHASES;
 }
 
-// Calculate project progress from task completion (task-based, not time-based)
-function calculateProgressFromTasks(tasks: { progress: number }[]): number {
-  if (tasks.length === 0) return 0;
-  const total = tasks.reduce((sum, t) => sum + (t.progress ?? 0), 0);
-  return Math.round(total / tasks.length);
+// Calculate project progress from task completion (task-based, not time-based).
+// Delegates to the shared utility -- task.progress is a separate field that
+// nothing ever updates when status changes, so averaging it was permanently
+// stuck near 0 regardless of how many tasks were actually completed.
+function calculateProgressFromTasks(tasks: { status?: string }[]): number {
+  return calculateCompletion(tasks).percent;
 }
 
 interface ProjectDetailsProps {
@@ -160,6 +162,15 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
     ? project.phases
     : getProjectPhases();
   const projectTasks = getTasksByProject(projectId);
+
+  // The "Phase" summary card shows THIS phase's own completion, not the
+  // whole project's -- match by phase_id first (normalized), falling back to
+  // the legacy phase-name string field, same pairing PhaseView.tsx uses.
+  const currentPhaseEntry = normalizedPhases.find((p: any) => p.name === project?.phase);
+  const currentPhaseTasks = projectTasks.filter((t: any) =>
+    currentPhaseEntry ? t.phase_id === currentPhaseEntry.id : t.phase === project?.phase
+  );
+  const currentPhaseProgress = calculateCompletion(currentPhaseTasks).percent;
 
   const incompletePhaseCount = normalizedPhases.filter((p: any) => p.status !== "Completed").length;
   const allPhasesComplete = normalizedPhases.length > 0 && incompletePhaseCount === 0;
@@ -743,7 +754,7 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
             </div>
           </div>
           <p className="font-['Roboto_Mono'] font-normal text-[10px] text-muted-foreground truncate">
-            {projectTeam.map((m) => m.name).join(", ")}
+            {projectTeam.length > 0 ? projectTeam.map((m) => m.name).join(", ") : "No team members assigned"}
           </p>
         </div>
 
@@ -811,13 +822,13 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
             <div className="flex items-center justify-between text-[11px]">
               <p className="font-['Roboto_Mono'] font-normal text-muted-foreground">Progress</p>
               <p className="font-['Roboto_Mono'] font-bold text-foreground">
-                {project.progress}%
+                {currentPhaseProgress}%
               </p>
             </div>
             <div className="h-[6px] bg-secondary rounded-full overflow-hidden">
               <div
                 className="h-full bg-accent transition-all"
-                style={{ width: `${project.progress}%` }}
+                style={{ width: `${currentPhaseProgress}%` }}
               />
             </div>
           </div>

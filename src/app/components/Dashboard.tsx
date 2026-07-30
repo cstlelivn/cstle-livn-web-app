@@ -3,6 +3,7 @@ import { useAuth } from "./AuthContext";
 import { formatDate } from "../src/lib/dates";
 import { FolderKanban, ExternalLink, Clock, RefreshCw } from "lucide-react";
 import { triggerGallerySyncWorkflow } from "../src/features/gallery/api";
+import { calculateCompletion } from "../src/lib/progress";
 import { toast } from "sonner";
 import svgPaths from "../imports/svg-kds79s2oqf";
 import RecentTasksWidget from "./RecentTasksWidget";
@@ -299,7 +300,16 @@ export default function Dashboard({ onNavigate, onNewProject }: DashboardProps) 
             </button>
           </div>
           <div className="space-y-[12px]">
-            {activeProjectsList.map((project) => (
+            {activeProjectsList.map((project) => {
+              // Live from this project's tasks, not the stored project.progress
+              // column -- that column only updates when someone manually saves
+              // the phase-name field, so it goes stale the moment a task's
+              // status changes any other way (which is how tasks are normally
+              // completed).
+              const projectProgress = calculateCompletion(
+                tasks.filter((t) => t.projectId === project.id)
+              ).percent;
+              return (
               <button
                 key={project.id}
                 onClick={(e) => {
@@ -339,13 +349,13 @@ export default function Dashboard({ onNavigate, onNewProject }: DashboardProps) 
                       Progress
                     </p>
                     <p className="font-['Roboto_Mono'] font-bold text-[11px] text-foreground">
-                      {project.progress}%
+                      {projectProgress}%
                     </p>
                   </div>
                   <div className="w-full h-[6px] bg-secondary rounded-full overflow-hidden">
                     <div
                       className="h-full bg-accent transition-all"
-                      style={{ width: `${project.progress}%` }}
+                      style={{ width: `${projectProgress}%` }}
                     />
                   </div>
                   <div className="flex items-center justify-between text-[10px]">
@@ -364,7 +374,8 @@ export default function Dashboard({ onNavigate, onNewProject }: DashboardProps) 
                   </div>
                 </div>
               </button>
-            ))}
+              );
+            })}
           </div>
         </div>
 

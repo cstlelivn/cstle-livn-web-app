@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { useApp } from "./AppContext";
 import { useAuth } from "./AuthContext";
 import { canEditTask } from "../src/features/tasks/permissions";
+import { calculateCompletion } from "../src/lib/progress";
 import TaskStatusControl from "./TaskStatusControl";
 import { useProjectPhases } from "../src/features/projectPhases/useProjectPhases";
 import {
@@ -268,6 +269,10 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
         const phaseTasks = allTasks.filter((t: any) => t.phase_id === phase.id || t.phase === phase.name);
         const requiredTasks = phaseTasks.filter((t: any) => t.is_required !== false);
         const completedRequired = requiredTasks.filter((t: any) => t.status === "Completed");
+        // Live from phaseTasks, not the phase.progress DB column -- that
+        // column is only ever written by an explicit recalculate call, so it
+        // goes stale the moment a task's status changes without one.
+        const phaseProgress = calculateCompletion(phaseTasks).percent;
         const isExpanded = expandedPhases.has(phase.id);
         const procurement = phaseProcurement[phase.id] ?? [];
         const qc = phaseQC[phase.id];
@@ -328,10 +333,10 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
                 <div className="w-[80px]">
                   <div className="flex items-center justify-between mb-[2px]">
                     <span className="font-['Roboto_Mono'] text-[9px] text-muted-foreground">Progress</span>
-                    <span className="font-['Roboto_Mono'] font-bold text-[9px] text-foreground">{phase.progress ?? 0}%</span>
+                    <span className="font-['Roboto_Mono'] font-bold text-[9px] text-foreground">{phaseProgress}%</span>
                   </div>
                   <div className="h-[4px] bg-secondary rounded-full overflow-hidden">
-                    <div className="h-full bg-accent transition-all" style={{ width: `${phase.progress ?? 0}%` }} />
+                    <div className="h-full bg-accent transition-all" style={{ width: `${phaseProgress}%` }} />
                   </div>
                 </div>
 
