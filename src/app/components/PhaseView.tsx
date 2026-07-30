@@ -35,6 +35,8 @@ import {
   updateProcurementItem,
 } from "../src/features/procurement/api";
 import { createClient } from "../utils/supabase/client.tsx";
+import PhaseCompletionEmailModal from "./PhaseCompletionEmailModal";
+import { getClient } from "../src/features/clients/api";
 
 const supabase = createClient();
 
@@ -72,7 +74,7 @@ interface PhaseViewProps {
 }
 
 export default function PhaseView({ projectId }: PhaseViewProps) {
-  const { getTasksByProject, teamMembers, getTeamMember, updateTask } = useApp();
+  const { getTasksByProject, teamMembers, getTeamMember, updateTask, getProject } = useApp();
   const { currentUser, hasPermission } = useAuth();
   const isManagerOrAdmin = hasPermission("canEditProjects");
   const canApproveQC = hasPermission("canApproveTaskQC");
@@ -92,6 +94,12 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
   const [qcResult, setQcResult] = useState<string>("Approved");
   const [qcRejectionReason, setQcRejectionReason] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // Phase-completion client/owner notification -- opened automatically right
+  // after a QC approval completes a phase, and also available on demand from
+  // the QC Gate section afterward (not a one-shot popup).
+  const [notifyPhaseId, setNotifyPhaseId] = useState<string | null>(null);
+  const [notifyClientEmail, setNotifyClientEmail] = useState<string>("");
 
   const allTasks = getTasksByProject(projectId);
 
@@ -209,10 +217,31 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
       toast.success(`QC ${qcResult}`);
       loadPhaseDetails(phaseId);
       refresh();
+
+      // Approval completes the phase -- offer to notify the owner/client.
+      // Never auto-sends: this only opens the editable preview.
+      if (qcResult === "Approved" || qcResult === "Approved with Conditions") {
+        openNotifyModal(phaseId);
+      }
     } catch (e: any) {
       toast.error(e.message || "Failed to record QC review");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const openNotifyModal = async (phaseId: string) => {
+    setNotifyPhaseId(phaseId);
+    setNotifyClientEmail("");
+    const project = getProject(projectId);
+    if (project?.clientId) {
+      try {
+        const client = await getClient(String(project.clientId));
+        if (client?.email) setNotifyClientEmail(client.email);
+      } catch {
+        // No client email on file -- the modal still opens with an empty
+        // recipient list the user can fill in manually.
+      }
     }
   };
 
@@ -470,6 +499,17 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
                       </button>
                     )}
 
+                    {/* Notify owner/client -- also available on demand after
+                        completion, not just the one-time prompt on approval */}
+                    {canEditPhases && phase.status === 'Completed' && (
+                      <button
+                        onClick={() => openNotifyModal(phase.id)}
+                        className="px-[10px] py-[4px] border border-border rounded-[6px] font-['Roboto_Mono'] text-[10px] hover:bg-accent/10"
+                      >
+                        Notify Owner/Client
+                      </button>
+                    )}
+
                     {qc?.notes && (
                       <p className="font-['Roboto_Mono'] text-[9px] text-muted-foreground italic">"{qc.notes}"</p>
                     )}
@@ -630,6 +670,43 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Phase-completion notification -- editable preview, never auto-sent */}
+      {notifyPhaseId && (() => {
+        const notifyPhase = phases.find((p) => p.id === notifyPhaseId);
+        if (!notifyPhase) return null;
+        const notifyIdx = phases.findIndex((p) => p.id === notifyPhaseId);
+        const previousPhaseObj = notifyIdx > 0 ? phases[notifyIdx - 1] : undefined;
+        const nextPhaseObj = notifyIdx >= 0 && notifyIdx < phases.length - 1 ? phases[notifyIdx + 1] : undefined;
+        const notifyPhaseTasks = allTasks.filter(
+          (t: any) => t.phase_id === notifyPhase.id || t.phase === notifyPhase.name
+        );
+        const completedTaskTitles = notifyPhaseTasks
+          .filter((t: any) => t.status === "Completed")
+          .map((t: any) => t.title);
+        const outstandingTasks = notifyPhaseTasks.filter((t: any) => t.status !== "Completed");
+        const outstandingIssues = outstandingTasks.length > 0
+          ? outstandingTasks.map((t: any) => t.title).join(", ")
+          : "";
+        const project = getProject(projectId);
+
+        return (
+          <PhaseCompletionEmailModal
+            open={!!notifyPhaseId}
+            onOpenChange={(open) => { if (!open) setNotifyPhaseId(null); }}
+            projectName={project?.title ?? ""}
+            projectLocation={project?.location}
+            phaseName={notifyPhase.name}
+            previousPhase={previousPhaseObj?.name}
+            nextPhaseName={nextPhaseObj?.name}
+            completedTaskTitles={completedTaskTitles}
+            outstandingIssues={outstandingIssues}
+            clientEmail={notifyClientEmail}
+            projectId={projectId}
+            currentUserId={currentUser?.id ? String(currentUser.id) : undefined}
+          />
+        );
+      })()}
     </div>
   );
 }
