@@ -408,6 +408,11 @@ export default function CreateProjectDialog({
         endDateObj.setDate(endDateObj.getDate() + totalTemplateDays);
         const endDate = endDateObj.toISOString().split('T')[0];
 
+        // Every task must have an assignee, and every project needs a
+        // supervisor (default assignee + the person notified when work in
+        // this project needs QC) -- default both to whoever is creating it.
+        const currentMember = (teamMembers as any[]).find((m) => String(m.authUserId) === String(user?.id));
+
         const projectPayload: any = {
           title: formData.title,
           location: formData.location,
@@ -422,6 +427,7 @@ export default function CreateProjectDialog({
           color: "#748B7B",
           description: formData.description,
           team: formData.team,
+          supervisorId: currentMember?.id,
         };
         if (formData.client && formData.client.trim() !== "") {
           projectPayload.client = formData.client;
@@ -429,10 +435,6 @@ export default function CreateProjectDialog({
 
         const created = await createProject(projectPayload);
         if (!created) throw new Error("Project creation returned no data");
-
-        // Every task must have an assignee -- default template-cloned tasks
-        // to whoever is creating the project until they're reassigned.
-        const currentMember = (teamMembers as any[]).find((m) => String(m.authUserId) === String(user?.id));
 
         await applyTemplateToProject(String(created.id), selectedProjectTemplateId, {
           enabledPhaseTemplateIds: Array.from(enabledPhaseIds),
@@ -464,6 +466,8 @@ export default function CreateProjectDialog({
           totalDays: 30,
         };
 
+    const currentMemberLegacy = (teamMembers as any[]).find((m) => String(m.authUserId) === String(user?.id));
+
     const projectPayload: any = {
       title: formData.title,
       location: formData.location,
@@ -478,6 +482,7 @@ export default function CreateProjectDialog({
       color: "#748B7B",
       description: formData.description,
       team: formData.team,
+      supervisorId: currentMemberLegacy?.id,
     };
 
     if (formData.client && formData.client.trim() !== "") {

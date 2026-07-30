@@ -507,15 +507,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Task methods
   const addTask = async (task: Omit<Task, "id" | "createdAt">) => {
     try {
-      // Every task must have an assignee -- default to the current user
-      // rather than leaving it unassigned when no one picked someone.
+      // Every task must have an assignee -- default to the project's
+      // supervisor (the person who owns QC/oversight for this project)
+      // rather than leaving it unassigned, and rather than defaulting to
+      // whoever happens to be creating the task (which could be anyone with
+      // task-creation access, not necessarily who should own unassigned work).
       // Callers pass either `assignee` or `assignee_id`, so both need to be
       // covered here or the raw one gets picked up downstream over this default.
       const rawAssignee = (task as any).assignee_id ?? task.assignee;
       let assignee = rawAssignee;
       if (!assignee || assignee === "" || assignee === "unassigned") {
-        const currentMember = (realtimeTeam as any[]).find((m) => String(m.authUserId) === String(user?.id));
-        assignee = currentMember ? String(currentMember.id) : assignee;
+        const project = realtimeProjects.find((p: any) => p.id === task.projectId);
+        if (project?.supervisorId) {
+          assignee = String(project.supervisorId);
+        } else {
+          const currentMember = (realtimeTeam as any[]).find((m) => String(m.authUserId) === String(user?.id));
+          assignee = currentMember ? String(currentMember.id) : assignee;
+        }
       }
 
       const result = await tasksAPI.createTask({

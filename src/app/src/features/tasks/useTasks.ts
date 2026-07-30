@@ -12,6 +12,8 @@ function transformTaskRow(dbTask: any) {
     assignee: dbTask.assignee_id || dbTask.assignee || '',
     dueDate: dbTask.due_date || dbTask.dueDate || '',
     completedDate: dbTask.completed_date || dbTask.completedDate || '',
+    startedAt: dbTask.started_at || dbTask.startedAt || '',
+    submittedAt: dbTask.submitted_at || dbTask.submittedAt || '',
     reviewFeedback: dbTask.review_feedback || dbTask.reviewFeedback || '',
     ratingMetrics: dbTask.rating_metrics || dbTask.ratingMetrics,
     createdAt: dbTask.created_at || dbTask.createdAt,

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Bell, Phone, Mail, Calendar, Clock, Check, Trash2, X, ClipboardCheck, AlertCircle } from "lucide-react";
 import { useApp, type Reminder } from "./AppContext";
 import { usePendingQCCount } from "./QCReviewQueue";
+import { useTasksAwaitingReview } from "../src/features/tasks/useTasksAwaitingReview";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { Badge } from "./ui/badge";
@@ -13,14 +14,15 @@ interface NotificationBellProps {
 }
 
 export default function NotificationBell({ onNavigate }: NotificationBellProps) {
-  const { reminders, completeReminder, deleteReminder, tasks } = useApp();
+  const { reminders, completeReminder, deleteReminder } = useApp();
   const [isOpen, setIsOpen] = useState(false);
   const pendingQCCount = usePendingQCCount();
-  
-  // Get tasks needing attention
-  const tasksNeedingAttention = tasks.filter(
-    (t) => t.status === "Under Review" || t.status === "Pending QC"
-  );
+
+  // Same scoped list QCReviewQueue uses -- gated by canViewQCReviewQueue and
+  // limited to projects this person supervises, so Associates (and Managers
+  // who don't supervise a given project) never see these, only whoever the
+  // actual QC reviewer for that project is.
+  const tasksNeedingAttention = useTasksAwaitingReview();
 
   // Filter for active (incomplete) reminders
   const activeReminders = reminders.filter((r) => !r.completed);

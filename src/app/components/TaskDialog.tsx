@@ -269,6 +269,47 @@ export default function TaskDialog({
             />
           </div>
 
+          {/* Timing -- when this task was actually started/submitted/
+              completed, total time spent, and whether it landed on time. */}
+          {task && (task.startedAt || task.submittedAt || task.completedDate) && (
+            <div className="p-[16px] bg-secondary/20 border border-border rounded-[8px] space-y-[6px]">
+              <p className="font-['Roboto_Mono'] font-bold text-[10px] text-muted-foreground uppercase tracking-wide">
+                Timing
+              </p>
+              <div className="grid grid-cols-2 gap-[8px] font-['Roboto_Mono'] text-[11px]">
+                {task.startedAt && (
+                  <p className="text-muted-foreground">Started: <span className="text-foreground">{new Date(task.startedAt).toLocaleString()}</span></p>
+                )}
+                {task.submittedAt && (
+                  <p className="text-muted-foreground">Submitted: <span className="text-foreground">{new Date(task.submittedAt).toLocaleString()}</span></p>
+                )}
+                {task.completedDate && (
+                  <p className="text-muted-foreground">Completed: <span className="text-foreground">{new Date(task.completedDate).toLocaleString()}</span></p>
+                )}
+                {task.startedAt && task.completedDate && (
+                  <p className="text-muted-foreground">
+                    Total time: <span className="text-foreground">
+                      {(() => {
+                        const ms = new Date(task.completedDate).getTime() - new Date(task.startedAt).getTime();
+                        const hours = ms / 3600000;
+                        return hours < 24 ? `${hours.toFixed(1)}h` : `${(hours / 24).toFixed(1)}d`;
+                      })()}
+                    </span>
+                  </p>
+                )}
+              </div>
+              {task.completedDate && task.dueDate && (
+                <span className={`inline-block px-[8px] py-[2px] rounded-full text-[9px] font-['Roboto_Mono'] font-medium ${
+                  new Date(task.completedDate) <= new Date(task.dueDate)
+                    ? "bg-success/10 text-success"
+                    : "bg-destructive/10 text-destructive"
+                }`}>
+                  {new Date(task.completedDate) <= new Date(task.dueDate) ? "Completed on time" : "Completed late"}
+                </span>
+              )}
+            </div>
+          )}
+
           {/* QC Review Feedback - Show when task has been sent back for revision */}
           {task && task.reviewFeedback && task.status !== "Completed" && (
             <div style={{ 

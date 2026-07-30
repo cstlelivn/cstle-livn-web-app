@@ -46,6 +46,7 @@ function transformProject(dbProject: any) {
     ...dbProject,
     startDate: dbProject.start_date,
     endDate: dbProject.end_date,
+    supervisorId: dbProject.supervisor_id,
   };
 }
 
@@ -174,6 +175,17 @@ export async function createProject(input: ProjectInput) {
     dbInput.created_by = input.created_by;
   }
 
+  // Default the project's supervisor (default task assignee + QC reviewer
+  // for this project) to whoever's creating it, unless the caller specified
+  // someone else -- a project needs a supervisor from the moment it exists,
+  // not just once someone remembers to set one.
+  const supervisorId = (input as any).supervisorId ?? (input as any).supervisor_id;
+  if (supervisorId) {
+    dbInput.supervisor_id = supervisorId;
+  } else if (input.created_by) {
+    dbInput.supervisor_id = input.created_by;
+  }
+
   const { data, error } = await supabase
     .from('projects')
     .insert(dbInput)
@@ -212,7 +224,9 @@ export async function updateProject(id: string, updates: ProjectUpdate) {
   if (updates.description !== undefined) dbUpdates.description = updates.description;
   if (updates.team !== undefined) dbUpdates.team = updates.team;
   if (updates.color !== undefined) dbUpdates.color = updates.color;
-  
+  if ((updates as any).supervisorId !== undefined) dbUpdates.supervisor_id = (updates as any).supervisorId;
+  if ((updates as any).supervisor_id !== undefined) dbUpdates.supervisor_id = (updates as any).supervisor_id;
+
   dbUpdates.updated_at = now();
 
   console.log('📤 API updateProject - Sending to DB:', dbUpdates);

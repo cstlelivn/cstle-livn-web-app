@@ -21,6 +21,8 @@ function transformTask(dbTask: any) {
     assignee: dbTask.assignee_id || dbTask.assignee || '',
     dueDate: dbTask.due_date || '',
     completedDate: dbTask.completed_date || '',
+    startedAt: dbTask.started_at || '',
+    submittedAt: dbTask.submitted_at || '',
     reviewFeedback: dbTask.review_feedback || '',
     ratingMetrics: dbTask.rating_metrics,
     createdAt: dbTask.created_at,
@@ -153,7 +155,19 @@ export async function updateTask(id: string | number, updates: TaskUpdate) {
   
   if (updates.title !== undefined) dbUpdates.title = updates.title;
   if (updates.description !== undefined) dbUpdates.description = updates.description;
-  if (updates.status !== undefined) dbUpdates.status = updates.status;
+  if (updates.status !== undefined) {
+    dbUpdates.status = updates.status;
+    // Stamp workflow timing centrally, here, so every status-change path in
+    // the app (list/grid/kanban/calendar/gantt/phase view/QC queue) gets
+    // this for free instead of each needing its own copy of this logic.
+    if (updates.status === 'In Progress') {
+      dbUpdates.started_at = now();
+    } else if (updates.status === 'Pending QC') {
+      dbUpdates.submitted_at = now();
+    } else if (updates.status === 'Completed') {
+      dbUpdates.completed_date = now();
+    }
+  }
   if (updates.priority !== undefined) dbUpdates.priority = updates.priority;
   
   // Handle assignee with proper UUID validation

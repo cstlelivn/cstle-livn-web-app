@@ -161,7 +161,14 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
   const projectPhases = project?.phases && project.phases.length > 0
     ? project.phases
     : getProjectPhases();
-  const projectTasks = getTasksByProject(projectId);
+  const allProjectTasks = getTasksByProject(projectId);
+  // Associates (no canViewAllProjects) only see their own tasks within a
+  // project they're part of -- previously every role saw the project's
+  // entire task list once they had access to the project at all.
+  const myTeamMember = teamMembers.find((m: any) => String(m.authUserId) === String(currentUser?.id));
+  const projectTasks = hasPermission("canViewAllProjects")
+    ? allProjectTasks
+    : allProjectTasks.filter((t: any) => myTeamMember && String(t.assignee) === String(myTeamMember.id));
 
   // The "Phase" summary card shows THIS phase's own completion, not the
   // whole project's -- match by phase_id first (normalized), falling back to
@@ -887,6 +894,16 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
               <option value="Medium">Medium</option>
               <option value="High">High</option>
               <option value="Urgent">Urgent</option>
+            </select>
+            <select
+              value={filterAssignee}
+              onChange={(e) => setFilterAssignee(e.target.value)}
+              className="px-[12px] py-[8px] bg-background border border-border rounded-[6px] font-['Roboto_Mono'] font-normal text-[12px] text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="all">All Assignees</option>
+              {projectTeam.map((m: any) => (
+                <option key={m.id} value={m.name}>{m.name}</option>
+              ))}
             </select>
           </div>
 

@@ -4,6 +4,7 @@ import { type Task, useApp } from "./AppContext";
 import { useAuth } from "./AuthContext";
 import { toast } from "sonner";
 import TaskReviewDialog from "./TaskReviewDialog";
+import { useTasksAwaitingReview } from "../src/features/tasks/useTasksAwaitingReview";
 
 export default function QCReviewQueue() {
   const { projects, tasks, teamMembers, getTeamMember, updateTask, updateTeamMember, refreshTasks, refreshTeam } = useApp();
@@ -14,20 +15,12 @@ export default function QCReviewQueue() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
 
-  // ✅ WEBSOCKET-ONLY: Filter tasks from real-time data (no API calls)
   // Surfaces both statuses that need a QC-capable person's action -- "Pending
   // QC" (assignee's work is done, needs approve/reject-with-rating) and
-  // "Under Review" (assignee is blocked mid-work, needs unblocking). These
-  // were previously entirely separate concepts in the UI, so a blocked task
-  // was invisible here even though only a QC-capable role can clear it --
-  // same underlying "needs QC attention" queue either way, just a different
-  // action once you open it.
-  const tasksAwaitingReview = useMemo(() => {
-    if (!hasPermission("canViewQCReviewQueue")) {
-      return [];
-    }
-    return tasks.filter((t) => t.status === "Pending QC" || t.status === "Under Review");
-  }, [tasks, hasPermission]);
+  // "Under Review" (assignee is blocked mid-work, needs unblocking), scoped
+  // to the projects this person actually supervises (Super Admin sees all).
+  // Shared with the notification bell so the two can never disagree.
+  const tasksAwaitingReview = useTasksAwaitingReview();
 
   // Get unique projects and workers from tasks awaiting review
   const uniqueProjects = Array.from(new Set(tasksAwaitingReview.map(t => t.projectId)))
@@ -542,16 +535,9 @@ export default function QCReviewQueue() {
   );
 }
 
-// ✅ WEBSOCKET-ONLY: Export a hook to get pending count for notifications
+// Badge count for the QC Review tab and notification bell -- same scoped
+// list useTasksAwaitingReview computes, so it can never disagree with what
+// the queue itself shows.
 export function usePendingQCCount() {
-  const { tasks } = useApp();
-  const { hasPermission } = useAuth();
-
-  // Simple memoized count from real-time WebSocket data (no API calls)
-  return useMemo(() => {
-    if (!hasPermission("canViewQCReviewQueue")) {
-      return 0;
-    }
-    return tasks.filter((t) => t.status === "Pending QC").length;
-  }, [tasks, hasPermission]);
+  return useTasksAwaitingReview().length;
 }

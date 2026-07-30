@@ -102,7 +102,15 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
   const [notifyPhaseId, setNotifyPhaseId] = useState<string | null>(null);
   const [notifyClientEmail, setNotifyClientEmail] = useState<string>("");
 
-  const allTasks = getTasksByProject(projectId);
+  // Associates (no canViewAllProjects) only see their own tasks/phases within
+  // a project -- a phase with none of their tasks is hidden entirely, and
+  // a phase with some of their tasks only lists those, not everyone else's.
+  const allProjectTasks = getTasksByProject(projectId);
+  const myTeamMember = teamMembers.find((m: any) => String(m.authUserId) === String(currentUser?.id));
+  const canSeeAllTasks = hasPermission("canViewAllProjects");
+  const allTasks = canSeeAllTasks
+    ? allProjectTasks
+    : allProjectTasks.filter((t: any) => myTeamMember && String(t.assignee) === String(myTeamMember.id));
 
   // Load procurement and QC data for expanded phases
   const loadPhaseDetails = useCallback(async (phaseId: string) => {
@@ -310,8 +318,15 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
         </div>
       )}
 
-      {/* Phase list */}
-      {phases.map((phase, idx) => {
+      {/* Phase list -- Associates only see phases that actually contain one
+          of their own tasks; a phase with none of their work is hidden
+          entirely rather than shown empty. */}
+      {(canSeeAllTasks
+        ? phases
+        : phases.filter((phase: any) =>
+            allTasks.some((t: any) => t.phase_id === phase.id || t.phase === phase.name)
+          )
+      ).map((phase, idx) => {
         const phaseTasks = allTasks.filter((t: any) => t.phase_id === phase.id || t.phase === phase.name);
         const requiredTasks = phaseTasks.filter((t: any) => t.is_required !== false);
         const completedRequired = requiredTasks.filter((t: any) => t.status === "Completed");
