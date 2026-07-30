@@ -109,9 +109,23 @@ export function useTasks(enabled = true) {
       }
     })();
 
+    // Safety net: postgres_changes broadcasts are usually near-instant, but
+    // aren't guaranteed delivery -- a dropped/delayed message on Supabase's
+    // side (separate from this socket's own connected/disconnected state,
+    // which gives no signal when a message is silently missed) would
+    // otherwise leave this tab showing stale task status/QC state
+    // indefinitely, with no visible way to know something changed
+    // elsewhere. This is the app's only correctness backstop for that --
+    // it's a background re-fetch, not the primary update path, so it stays
+    // infrequent enough to not matter for load.
+    const poll = setInterval(() => {
+      listTasks().then(setRows).catch(() => {});
+    }, 30000);
+
     return () => {
       off();
       if (raf.current) cancelAnimationFrame(raf.current);
+      clearInterval(poll);
     };
   }, [flush, enabled]);
 
