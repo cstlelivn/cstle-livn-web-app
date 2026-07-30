@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Edit2, Plus, ArrowRight } from "lucide-react";
 import { useApp, type Task } from "./AppContext";
+import { useAuth } from "./AuthContext";
 import TaskDialog from "./TaskDialog";
 import { getTaskStatusIcon } from "./TaskStatusControl";
 import { formatDate } from "../src/lib/dates";
@@ -10,13 +11,23 @@ interface RecentTasksWidgetProps {
 }
 
 export default function RecentTasksWidget({ onNavigateToProjects }: RecentTasksWidgetProps) {
-  const { tasks, getTeamMember, projects, getProject } = useApp();
+  const { tasks, teamMembers, getTeamMember, projects, getProject } = useApp();
+  const { hasPermission, currentUser } = useAuth();
   const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | undefined>(undefined);
   const [taskDialogMode, setTaskDialogMode] = useState<"add" | "edit">("add");
 
+  // Without canViewAllProjects (Associates), only show this person's own
+  // tasks -- otherwise everyone saw every open task company-wide here.
+  const visibleTasks = useMemo(() => {
+    if (hasPermission("canViewAllProjects")) return tasks;
+    const myMember = teamMembers.find((m: any) => String(m.authUserId) === String(currentUser?.id));
+    if (!myMember) return [];
+    return tasks.filter((t: any) => String(t.assignee) === String(myMember.id));
+  }, [tasks, teamMembers, currentUser, hasPermission]);
+
   // Get recent incomplete tasks (sorted by due date)
-  const recentTasks = tasks
+  const recentTasks = visibleTasks
     .filter((t) => t.status !== "Completed")
     .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
     .slice(0, 5);

@@ -93,7 +93,8 @@ const rolePermissions: Record<UserRole, Permission[]> = {
   ],
   // Distinct from Super Admin -- same day-to-day operational scope as
   // Manager, but kept as its own tier rather than merged with Super Admin
-  // or Manager, per explicit product decision.
+  // or Manager, per explicit product decision. Sees most of the app, but
+  // NOT finance -- that's Accountant/Super Admin territory.
   Admin: [
     "canViewDashboard",
     "canViewProjects",
@@ -107,8 +108,6 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "canEditCRM",
     "canViewInventory",
     "canEditInventory",
-    "canViewFinance",
-    "canEditFinance",
     "canViewAnalytics",
     "canViewProposals",
     "canEditProposals",
@@ -160,28 +159,37 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "canApproveTaskQC",
     "canViewAnalytics",
   ],
-  // Finance-focused role: full financial visibility (budget + actual client
-  // billing/income), but no project/team/CRM editing powers.
+  // Sees everything in the app (full financial visibility plus every other
+  // module) but cannot change settings/permissions or edit most non-finance
+  // areas -- broad visibility for bookkeeping/oversight, not an operator.
   Accountant: [
     "canViewDashboard",
     "canViewProjects",
     "canViewAllProjects",
+    "canViewVendors",
+    "canViewTeam",
+    "canViewCRM",
+    "canViewInventory",
     "canViewFinance",
     "canEditFinance",
     "canViewClientBilling",
     "canViewAnalytics",
+    "canViewProposals",
+    "canViewQCReviewQueue",
+    "canViewPhaseQCReviewQueue",
   ],
   Contractor: [
     "canViewDashboard",
     "canViewProjects",
     "canViewInventory",
   ],
+  // Narrowest role: only their own profile and the tasks assigned to them --
+  // no team roster, no vendors, no inventory. canViewAllProjects is
+  // deliberately absent so "Projects" only ever shows projects they actually
+  // have tasks in, not the whole company's project list.
   Associate: [
     "canViewDashboard",
     "canViewProjects",
-    "canViewVendors",
-    "canViewTeam",
-    "canViewInventory",
   ],
 };
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Plus,
   Trash2,
@@ -55,10 +55,24 @@ interface ProjectManagementProps {
 }
 
 export default function ProjectManagement({ onViewProject, openCreateDialog = false, onDialogOpenChange }: ProjectManagementProps) {
-  const { projects, clients, teamMembers, addProject, deleteProject, getTeamMember, addClient } = useApp();
-  const { hasPermission } = useAuth();
+  const { projects: allProjects, tasks, clients, teamMembers, addProject, deleteProject, getTeamMember, addClient } = useApp();
+  const { hasPermission, currentUser } = useAuth();
   const canViewFinance = hasPermission("canViewFinance");
   const canDeleteProjects = hasPermission("canEditProjects");
+
+  // Without canViewAllProjects (e.g. Associates), only show projects where
+  // the current person actually has a task assigned -- otherwise everyone
+  // saw every project in the company regardless of role, since nothing
+  // previously read this permission at all.
+  const projects = useMemo(() => {
+    if (hasPermission("canViewAllProjects")) return allProjects;
+    const myMember = teamMembers.find((m: any) => String(m.authUserId) === String(currentUser?.id));
+    if (!myMember) return [];
+    const myProjectIds = new Set(
+      tasks.filter((t: any) => String(t.assignee) === String(myMember.id)).map((t: any) => t.projectId)
+    );
+    return allProjects.filter((p) => myProjectIds.has(p.id));
+  }, [allProjects, tasks, teamMembers, currentUser, hasPermission]);
   const [view, setView] = useState<"list" | "grid" | "gantt">("list");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isNewClientDialogOpen, setIsNewClientDialogOpen] = useState(false);

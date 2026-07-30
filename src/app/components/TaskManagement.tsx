@@ -40,9 +40,17 @@ export default function TaskManagement() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<number | null>(null);
 
+  // Without canViewAllProjects (Associates), this view is scoped to just
+  // the current person's own tasks -- their whole reason to be here.
+  const canViewAllProjects = hasPermission("canViewAllProjects");
+  const myMember = teamMembers.find((m: any) => String(m.authUserId) === String(currentUser?.id));
+  const visibleTasks = canViewAllProjects
+    ? tasks
+    : tasks.filter((t: any) => myMember && String(t.assignee) === String(myMember.id));
+
   // Filter tasks -- incomplete tasks only for time-frame filtering, since a
   // completed task being "overdue" isn't something anyone needs to act on
-  const filteredTasks = tasks.filter((task) => {
+  const filteredTasks = visibleTasks.filter((task) => {
     const matchesSearch =
       task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       task.description.toLowerCase().includes(searchQuery.toLowerCase());

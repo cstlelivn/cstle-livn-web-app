@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import svgPaths from "../imports/svg-kds79s2oqf";
 import RecentTasksWidget from "./RecentTasksWidget";
 import AIInsightsWidget from "./AIInsightsWidget";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 
 interface DashboardProps {
   onNavigate: (view: string, id?: number) => void;
@@ -17,7 +17,7 @@ interface DashboardProps {
 
 export default function Dashboard({ onNavigate, onNewProject }: DashboardProps) {
   const {
-    projects,
+    projects: allProjects,
     tasks,
     teamMembers,
     transactions,
@@ -25,14 +25,27 @@ export default function Dashboard({ onNavigate, onNewProject }: DashboardProps) 
     getTeamMember,
     googleReviewsUrl,
   } = useApp();
-  
-  const { hasPermission } = useAuth();
+
+  const { hasPermission, currentUser } = useAuth();
   const [syncingGallery, setSyncingGallery] = useState(false);
 
   // Check permissions
   const canViewFinance = hasPermission("canViewFinance");
   const canViewTeam = hasPermission("canViewTeam");
   const isSuperAdmin = hasPermission("canForceCompleteProjects");
+
+  // Without canViewAllProjects, only count/list projects the current person
+  // actually has a task in -- otherwise the dashboard showed the whole
+  // company's project count and list to every role, Associates included.
+  const projects = useMemo(() => {
+    if (hasPermission("canViewAllProjects")) return allProjects;
+    const myMember = teamMembers.find((m: any) => String(m.authUserId) === String(currentUser?.id));
+    if (!myMember) return [];
+    const myProjectIds = new Set(
+      tasks.filter((t: any) => String(t.assignee) === String(myMember.id)).map((t: any) => t.projectId)
+    );
+    return allProjects.filter((p) => myProjectIds.has(p.id));
+  }, [allProjects, tasks, teamMembers, currentUser, hasPermission]);
 
   // Handle gallery sync
   const handleSyncGallery = async () => {

@@ -341,11 +341,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     refresh: refreshTasksHook,
   } = useTasksRealtime(hasPermission("canViewProjects"));
 
+  // Always enabled, regardless of canViewTeam: every signed-in person needs
+  // their own team_member record loaded for basic self-identification (task
+  // ownership matching, "who am I" lookups) even when they can't see the
+  // full Team management page. Gating this fetch on canViewTeam broke task
+  // ownership resolution for any role without that permission -- their own
+  // assigned tasks/projects silently vanished everywhere in the app, not
+  // just on the Team page (which has its own separate visibility gate).
   const {
     teamMembers: realtimeTeam,
     loading: isLoadingTeam,
     refresh: refreshTeamHook,
-  } = useTeamRealtime(hasPermission("canViewTeam"));
+  } = useTeamRealtime(true);
 
   const {
     vendors: realtimeVendors,

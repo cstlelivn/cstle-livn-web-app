@@ -6,6 +6,7 @@ import TaskManagement from "./TaskManagement";
 import QCReviewQueue, { usePendingQCCount } from "./QCReviewQueue";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Badge } from "./ui/badge";
+import { useAuth } from "./AuthContext";
 
 interface ProjectsGroupProps {
   initialTab?: "projects" | "tasks" | "qc-review";
@@ -23,6 +24,8 @@ export default function ProjectsGroup({
   onDialogOpenChange
 }: ProjectsGroupProps) {
   const [activeTab, setActiveTab] = useState<"projects" | "tasks" | "qc-review">(initialTab);
+  const { hasPermission } = useAuth();
+  const canViewQC = hasPermission("canViewQCReviewQueue");
 
   // Count phases needing QC review
   const pendingQCCount = usePendingQCCount();
@@ -67,25 +70,27 @@ export default function ProjectsGroup({
             <CheckSquare className="w-[14px] h-[14px]" />
             Tasks
           </TabsTrigger>
-          <TabsTrigger
-            value="qc-review"
-            className="flex items-center gap-[8px] px-[16px] py-[10px] data-[state=active]:bg-accent data-[state=active]:text-accent-foreground rounded-[8px] transition-colors font-['Roboto_Mono'] text-[11px] relative"
-          >
-            <ClipboardCheck className="w-[14px] h-[14px]" />
-            QC Review
-            {pendingQCCount > 0 && (
-              <Badge 
-                variant="destructive" 
-                className="ml-[4px] h-[18px] min-w-[18px] flex items-center justify-center px-[6px] font-['Roboto_Mono'] text-[10px]"
-              >
-                {pendingQCCount}
-              </Badge>
-            )}
-          </TabsTrigger>
+          {canViewQC && (
+            <TabsTrigger
+              value="qc-review"
+              className="flex items-center gap-[8px] px-[16px] py-[10px] data-[state=active]:bg-accent data-[state=active]:text-accent-foreground rounded-[8px] transition-colors font-['Roboto_Mono'] text-[11px] relative"
+            >
+              <ClipboardCheck className="w-[14px] h-[14px]" />
+              QC Review
+              {pendingQCCount > 0 && (
+                <Badge
+                  variant="destructive"
+                  className="ml-[4px] h-[18px] min-w-[18px] flex items-center justify-center px-[6px] font-['Roboto_Mono'] text-[10px]"
+                >
+                  {pendingQCCount}
+                </Badge>
+              )}
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="projects" className="mt-0">
-          <ProjectManagement 
+          <ProjectManagement
             onViewProject={handleViewProject}
             openCreateDialog={openCreateDialog}
             onDialogOpenChange={onDialogOpenChange}
@@ -96,9 +101,11 @@ export default function ProjectsGroup({
           <TaskManagement />
         </TabsContent>
 
-        <TabsContent value="qc-review" className="mt-0">
-          <QCReviewQueue />
-        </TabsContent>
+        {canViewQC && (
+          <TabsContent value="qc-review" className="mt-0">
+            <QCReviewQueue />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );
