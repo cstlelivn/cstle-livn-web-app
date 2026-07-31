@@ -2,143 +2,172 @@
 
 :root {
   --font-size: 16px;
-  /* Typography sizes */
-  --text-h1: 39px;
-  --text-h2: 24px;
-  --text-h3: 15px;
-  --text-h4: 11px;
-  --text-base: 14px;
-  --text-label: 11px;
-  --text-small: 7px;
-  --text-copyright: 12px;
-  
-  /* Font families */
+
+  /* ===== Cstle Livn Design System v1 (July 2026) ===== */
+
+  /* Brand ramps */
+  --grey-900: #1c1c1a;
+  --grey-700: #4a4a47;
+  --grey-500: #848580;
+  --grey-300: #b8b9b4;
+  --grey-100: #dcdcd9;
+  --grey-50: #f2f2f0;
+
+  --green-900: #1d231a;
+  --green-700: #2a3226;
+  --green-500: #364132;
+  --green-300: #7c8a75;
+  --green-100: #c9d0c4;
+
+  --olive-700: #6f7657;
+  --olive-500: #9ca07c;
+  --olive-300: #c4c8ab;
+  --olive-100: #e8e9dd;
+
+  --vermillion-700: #a34305;
+  --vermillion-500: #e65906;
+  --vermillion-300: #f0a367;
+  --vermillion-100: #fbdfc7;
+
+  /* Typography sizes (mobile -> desktop handled via clamp at component level) */
+  --text-h1: 44px;
+  --text-h2: 36px;
+  --text-h3: 28px;
+  --text-h4: 28px;
+  --text-h5: 22px;
+  --text-h6: 18px;
+  --text-body-lg: 18px;
+  --text-base: 16px;
+  --text-button: 15px;
+  --text-copyright: 13px;
+  --text-label: 12px;
+  --text-small: 12px;
+
+  /* Font families -- Anybody (display, 137%/700/-4% tracking always) + Roboto Mono (functional) */
   --font-family-heading: 'Anybody', sans-serif;
   --font-family-body: 'Roboto Mono', monospace;
-  --font-family-copyright: 'Inter', sans-serif;
-  
+  --font-family-copyright: 'Roboto Mono', monospace;
+
   /* Font weights */
-  --font-weight-extrabold: 800;
+  --font-weight-extrabold: 700;
   --font-weight-bold: 700;
   --font-weight-medium: 500;
   --font-weight-normal: 400;
-  
-  /* The default background color for the application. */
-  --background: rgba(255, 255, 255, 1);
-  /* The default color for elements or text that appears on top of the background. */
-  --foreground: rgba(17, 17, 17, 1);
-  /* The background color for cards, modals, and other containers. */
-  --card: rgba(247, 247, 247, 1);
-  /* The default color for text or elements that appear on top of cards, modals and other background containers. */
-  --card-foreground: rgba(17, 17, 17, 1);
-  /* The background color for dropdowns and tooltips. */
-  --popover: rgba(245, 247, 248, 1);
-  /* The default color for text or elements that appear on top of dropdowns and tooltips. */
-  --popover-foreground: rgba(17, 17, 17, 1);
-  /* The primary color used for buttons, links, and other interactive elements. */
-  --primary: rgba(132, 133, 128, 1);
-  /* The default color for text or elements that appear on top of primary colored elements. */
-  --primary-foreground: rgba(255, 255, 255, 1);
-  /* The secondary color used for secondary(but NOT-DESTRUCTIVE) buttons and interactive elements. */
-  --secondary: rgba(232, 232, 232, 1);
-  /* The default color for text or elements that appear on top of secondary colored elements. */
-  --secondary-foreground: rgba(17, 17, 17, 1);
-  /* The muted color used for less prominent elements, such as disabled buttons or disabled text. */
-  --muted: rgba(132, 133, 128, 1);
-  /* The default color for text or elements that appear on top of muted colored elements. */
-  --muted-foreground: rgba(153, 153, 153, 1);
-  /* The accent color used for highlights, links, and other interactive elements. */
-  --accent: rgba(116, 139, 123, 1);
-  /* The default color for text or elements that appear on top of accent colored elements. */
-  --accent-foreground: rgba(255, 255, 255, 1);
-  /* The color used for background in destructive actions, such as delete buttons or error messages. */
-  --destructive: rgba(220, 38, 38, 1);
-  /* The default color for text or elements that appear on top of destructive colored elements. */
-  --destructive-foreground: rgba(255, 255, 255, 1);
-  /* The default border color for elements such as inputs, buttons, and other containers. */
-  --border: rgba(133, 133, 133, 1);
-  /* The default background color for input fields once the text has been filled. Should be either transparent or match the input-background. */
-  --input: rgba(255, 255, 255, 1);
-  /* The default background color for input fields, text areas, and other input elements. */
-  --input-background: rgba(255, 255, 255, 1);
-  /* The color for focus rings, outlines, and other focus indicators. */
-  --ring: rgba(116, 139, 123, 1);
-  /* Shadow for small elevations, such as cards or modals. */
-  --elevation-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  /* Success/Go color for positive states */
-  --success: rgba(34, 197, 94, 1);
-  /* Warning color for warning states */
-  --warning: rgba(234, 179, 8, 1);
-  /* The color for chart elements, such as a bar or line in a chart. */
-  --chart-1: rgba(116, 139, 123, 1);
-  /* The color for another chart element, such as a bar or line in a chart. */
-  --chart-2: rgba(132, 133, 128, 1);
-  /* The color for another chart element, such as a bar or line in a chart. */
-  --chart-3: rgba(107, 114, 128, 1);
-  /* The color for another chart element, such as a bar or line in a chart. */
-  --chart-4: rgba(156, 163, 175, 1);
-  /* The color for another chart element, such as a bar or line in a chart. */
-  --chart-5: rgba(209, 213, 219, 1);
-  /* The default border radius for elements such as buttons, tooltip, and other containers. */
-  --radius: 8px;
-  /* Button radius for pill-shaped elements. */
-  --radius-button: 71px;
-  /* Card radius for container elements. */
-  --radius-card: 12px;
-  /* The background color for sidebars, navigation menus, and other persistent elements. */
-  --sidebar: rgba(0, 0, 0, 1);
-  /* The default color for text or elements that appear on top of sidebars, navigation menus, and other persistent elements. */
-  --sidebar-foreground: rgba(255, 255, 255, 1);
-  /* The primary color used for buttons, links, and other interactive elements in sidebars and navigation menus. */
-  --sidebar-primary: rgba(116, 139, 123, 1);
-  /* The default color for text or elements that appear on top of primary colored elements in sidebars and navigation menus. */
-  --sidebar-primary-foreground: rgba(255, 255, 255, 1);
-  /* The accent color used for highlights, links, and other interactive elements in sidebars and navigation menus. */
-  --sidebar-accent: rgba(116, 139, 123, 1);
-  /* The default color for text or elements that appear on top of accent colored elements in sidebars and navigation menus. */
-  --sidebar-accent-foreground: rgba(255, 255, 255, 1);
-  /* The default border color for elements in sidebars and navigation menus. */
-  --sidebar-border: rgba(64, 64, 64, 1);
-  /* The default color for focus rings, outlines, and other focus indicators in sidebars and navigation menus. */
-  --sidebar-ring: rgba(116, 139, 123, 1);
+
+  /* Semantic surfaces */
+  --background: var(--grey-50);
+  --foreground: var(--green-900);
+  --card: #ffffff;
+  --card-foreground: var(--green-900);
+  --popover: #ffffff;
+  --popover-foreground: var(--green-900);
+
+  /* Primary = CTA surface (dark green, hover darkens to green-700) */
+  --primary: var(--green-900);
+  --primary-foreground: var(--grey-50);
+
+  --secondary: var(--olive-100);
+  --secondary-foreground: var(--green-900);
+
+  --muted: var(--olive-100);
+  --muted-foreground: var(--grey-700);
+
+  /* Accent = vermillion, reserved strictly for CTA / one moment per screen */
+  --accent: var(--vermillion-500);
+  --accent-foreground: #ffffff;
+
+  --destructive: #b3261e;
+  --destructive-foreground: #ffffff;
+
+  --border: var(--grey-300);
+  --input: #ffffff;
+  --input-background: #ffffff;
+  --ring: var(--vermillion-500);
+
+  --elevation-sm: 0 1px 3px 0 rgba(29, 35, 26, 0.10);
+  --elevation-md: 0 6px 16px 0 rgba(29, 35, 26, 0.14);
+  --elevation-lg: 0 16px 32px 0 rgba(29, 35, 26, 0.18);
+
+  --success: #3f7a3a;
+  --warning: var(--vermillion-500);
+
+  --chart-1: var(--green-500);
+  --chart-2: var(--olive-500);
+  --chart-3: var(--vermillion-500);
+  --chart-4: var(--grey-500);
+  --chart-5: var(--green-300);
+
+  /* Radius scale -- 2px default, 8px in-between, 20px main cards, pill for buttons/badges only */
+  --radius: 2px;
+  --radius-sm: 2px;
+  --radius-md: 8px;
+  --radius-card: 20px;
+  --radius-button: 999px;
+
+  /* Spacing scale -- 4px base */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-24: 96px;
+  --space-32: 128px;
+
+  /* Motion -- slow reveals, understated hovers, no bounce/spring/scale-up */
+  --duration-fast: 150ms;
+  --duration-standard: 320ms;
+  --duration-slow: 600ms;
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+
+  --sidebar: var(--green-900);
+  --sidebar-foreground: var(--grey-50);
+  --sidebar-primary: var(--vermillion-500);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--green-700);
+  --sidebar-accent-foreground: var(--grey-50);
+  --sidebar-border: var(--green-700);
+  --sidebar-ring: var(--vermillion-500);
 }
 
 .dark {
-  --background: rgba(17, 17, 17, 1);
-  --foreground: rgba(255, 255, 255, 1);
-  --card: rgba(32, 32, 32, 1);
-  --card-foreground: rgba(255, 255, 255, 1);
-  --popover: rgba(32, 32, 32, 1);
-  --popover-foreground: rgba(255, 255, 255, 1);
-  --primary: rgba(132, 133, 128, 1);
-  --primary-foreground: rgba(255, 255, 255, 1);
-  --secondary: rgba(64, 64, 64, 1);
-  --secondary-foreground: rgba(255, 255, 255, 1);
-  --muted: rgba(64, 64, 64, 1);
-  --muted-foreground: rgba(153, 153, 153, 1);
-  --accent: rgba(116, 139, 123, 1);
-  --accent-foreground: rgba(255, 255, 255, 1);
-  --destructive: rgba(220, 38, 38, 1);
-  --destructive-foreground: rgba(255, 255, 255, 1);
-  --border: rgba(64, 64, 64, 1);
-  --input: rgba(32, 32, 32, 1);
-  --input-background: rgba(32, 32, 32, 1);
-  --ring: rgba(116, 139, 123, 1);
-  --success: rgba(34, 197, 94, 1);
-  --warning: rgba(234, 179, 8, 1);
-  --chart-1: rgba(116, 139, 123, 1);
-  --chart-2: rgba(132, 133, 128, 1);
-  --chart-3: rgba(107, 114, 128, 1);
-  --chart-4: rgba(156, 163, 175, 1);
-  --chart-5: rgba(209, 213, 219, 1);
-  --sidebar: rgba(0, 0, 0, 1);
-  --sidebar-foreground: rgba(255, 255, 255, 1);
-  --sidebar-primary: rgba(116, 139, 123, 1);
-  --sidebar-primary-foreground: rgba(255, 255, 255, 1);
-  --sidebar-accent: rgba(116, 139, 123, 1);
-  --sidebar-accent-foreground: rgba(255, 255, 255, 1);
-  --sidebar-border: rgba(64, 64, 64, 1);
-  --sidebar-ring: rgba(116, 139, 123, 1);
+  --background: var(--green-900);
+  --foreground: var(--grey-50);
+  --card: var(--green-700);
+  --card-foreground: var(--grey-50);
+  --popover: var(--green-700);
+  --popover-foreground: var(--grey-50);
+  --primary: var(--vermillion-500);
+  --primary-foreground: #ffffff;
+  --secondary: var(--green-500);
+  --secondary-foreground: var(--grey-50);
+  --muted: var(--green-500);
+  --muted-foreground: var(--olive-300);
+  --accent: var(--vermillion-500);
+  --accent-foreground: #ffffff;
+  --destructive: #e5837a;
+  --destructive-foreground: var(--green-900);
+  --border: var(--green-500);
+  --input: var(--green-700);
+  --input-background: var(--green-700);
+  --ring: var(--vermillion-500);
+  --success: #6fae68;
+  --warning: var(--vermillion-300);
+  --chart-1: var(--olive-500);
+  --chart-2: var(--vermillion-500);
+  --chart-3: var(--grey-300);
+  --chart-4: var(--olive-300);
+  --chart-5: var(--grey-500);
+  --sidebar: var(--green-900);
+  --sidebar-foreground: var(--grey-50);
+  --sidebar-primary: var(--vermillion-500);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--green-700);
+  --sidebar-accent-foreground: var(--grey-50);
+  --sidebar-border: var(--green-700);
+  --sidebar-ring: var(--vermillion-500);
 }
 
 @theme inline {
@@ -205,33 +234,37 @@
     h1 {
       font-family: var(--font-family-heading);
       font-size: var(--text-h1);
-      font-weight: var(--font-weight-extrabold);
+      font-weight: 700;
       font-stretch: 137%;
-      line-height: 1.5;
+      letter-spacing: -0.04em;
+      line-height: 1.15;
     }
 
     h2 {
       font-family: var(--font-family-heading);
       font-size: var(--text-h2);
-      font-weight: var(--font-weight-extrabold);
+      font-weight: 700;
       font-stretch: 137%;
-      line-height: 1.5;
+      letter-spacing: -0.04em;
+      line-height: 1.15;
     }
 
     h3 {
       font-family: var(--font-family-heading);
       font-size: var(--text-h3);
-      font-weight: var(--font-weight-extrabold);
+      font-weight: 700;
       font-stretch: 137%;
-      line-height: 1.5;
+      letter-spacing: -0.04em;
+      line-height: 1.2;
     }
 
     h4 {
       font-family: var(--font-family-heading);
       font-size: var(--text-h4);
-      font-weight: var(--font-weight-extrabold);
+      font-weight: 700;
       font-stretch: 137%;
-      line-height: 1.5;
+      letter-spacing: -0.04em;
+      line-height: 1.25;
     }
 
     p {
@@ -245,13 +278,17 @@
       font-family: var(--font-family-body);
       font-size: var(--text-label);
       font-weight: var(--font-weight-bold);
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
       line-height: 1.5;
     }
 
     button {
       font-family: var(--font-family-body);
-      font-size: var(--text-base);
-      font-weight: var(--font-weight-normal);
+      font-size: var(--text-button);
+      font-weight: var(--font-weight-bold);
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
       line-height: 1.5;
     }
 
