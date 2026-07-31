@@ -417,17 +417,23 @@ export default function TeamManagement() {
 
       {/* List View */}
       {viewMode === "list" && (
-        <div 
-          style={{ 
+        <div
+          style={{
             backgroundColor: 'var(--card)',
             border: '1px solid var(--border)',
             borderRadius: 'var(--radius-card)',
             overflow: 'hidden'
           }}
         >
+          {/* Fixed pixel column widths (below) don't fit narrower screens --
+              this used to just clip with overflow:hidden on the card above,
+              silently cutting off the Status/Actions columns. Scrolls
+              horizontally within the card instead. */}
+          <div style={{ overflowX: 'auto' }}>
+          <div style={{ minWidth: '900px' }}>
           {/* Table Header */}
-          <div 
-            style={{ 
+          <div
+            style={{
               backgroundColor: 'var(--secondary)',
               borderBottom: '1px solid var(--border)',
               padding: '14px 20px',
@@ -677,6 +683,8 @@ export default function TeamManagement() {
               );
             })
           )}
+          </div>
+          </div>
         </div>
       )}
 
