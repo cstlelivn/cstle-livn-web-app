@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { X, Save, Copy, Bookmark, Tag as TagIcon, Calendar as CalendarIcon, User, AlertCircle } from "lucide-react";
+import { X, Save, Copy, Bookmark, Tag as TagIcon, Calendar as CalendarIcon, User, Users, AlertCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "./ui/dialog";
 import { Label } from "./ui/label";
 import { Input } from "./ui/input";
@@ -8,6 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { useApp, type Task } from "./AppContext";
 import { useAuth } from "./AuthContext";
 import { canEditTask } from "../src/features/tasks/permissions";
+import { useTaskAssignees, assigneeIdsForTask } from "../src/features/taskAssignees/useTaskAssignees";
+import { assignTaskMember, unassignTaskMember } from "../src/features/taskAssignees/api";
+import WorkSessionTimer from "./WorkSessionTimer";
 import { toast } from "sonner";
 
 interface TaskDialogProps {
@@ -31,16 +34,21 @@ export default function TaskDialog({
 }: TaskDialogProps) {
   const { teamMembers, addTask, updateTask, taskTemplates, saveTaskTemplate, getProject } = useApp();
   const { hasPermission, currentUser } = useAuth();
+  const { taskAssignees } = useTaskAssignees(true);
 
   // Check if user is Manager/Admin
   const isManagerOrAdmin = hasPermission("canEditProjects");
   const canApproveQC = hasPermission("canApproveTaskQC");
 
+  const currentAssigneeIds = task ? assigneeIdsForTask(taskAssignees, task.id) : [];
+
   // Editing an existing task the current user doesn't own (and isn't a
   // manager/admin) should be view-only — mirrors the tasks_update RLS policy.
+  // Checks ALL active co-assignees, not just the single "primary" one, so a
+  // task's 2nd/3rd assignee gets edit access too.
   const isReadOnly =
     mode === "edit" &&
-    !canEditTask({ task, currentUserId: currentUser?.id, isManagerOrAdmin, teamMembers });
+    !canEditTask({ task, currentUserId: currentUser?.id, isManagerOrAdmin, teamMembers, assigneeIds: currentAssigneeIds });
 
   // Get project to access phases
   const project = getProject(projectId);
@@ -50,13 +58,15 @@ export default function TaskDialog({
     description: "",
     status: "To Do" as const,
     priority: "Medium" as const,
-    assignee: "unassigned",
     dueDate: "",
     startDate: "",
     tags: "",
     phase: "",
     task_type: "Administrative",
+    estimatedHours: "",
+    complexity: "",
   });
+  const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<string[]>([]);
 
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
   const [templateName, setTemplateName] = useState("");
@@ -69,12 +79,13 @@ export default function TaskDialog({
         description: task.description || "",
         status: task.status || "To Do",
         priority: task.priority || "Medium",
-        assignee: task.assignee && task.assignee !== "" ? task.assignee.toString() : "unassigned",
         dueDate: task.dueDate || "",
         startDate: (task as any).start_date || "",
         tags: (task.tags || []).join(", "),
         phase: task.phase || "",
         task_type: (task as any).task_type || "Administrative",
+        estimatedHours: (task as any).estimated_hours != null ? String((task as any).estimated_hours) : "",
+        complexity: (task as any).complexity || "",
       });
     } else {
       setFormData({
@@ -82,15 +93,35 @@ export default function TaskDialog({
         description: "",
         status: defaultStatus || "To Do",
         priority: "Medium",
-        assignee: "unassigned",
         dueDate: "",
         startDate: "",
         tags: "",
         phase: "",
         task_type: "Administrative",
+        estimatedHours: "",
+        complexity: "",
       });
     }
   }, [task, open, defaultStatus]);
+
+  // Assignee checklist starts empty for a brand-new task and re-syncs to the
+  // task's real active assignees whenever the dialog (re)opens on an
+  // existing one -- separate effect from the rest of formData since
+  // taskAssignees loads asynchronously and may arrive after the task prop.
+  useEffect(() => {
+    if (task) {
+      setSelectedAssigneeIds(assigneeIdsForTask(taskAssignees, task.id).map(String));
+    } else if (open) {
+      setSelectedAssigneeIds([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task?.id, open, taskAssignees.length]);
+
+  const toggleAssignee = (memberId: string) => {
+    setSelectedAssigneeIds((curr) =>
+      curr.includes(memberId) ? curr.filter((id) => id !== memberId) : [...curr, memberId]
+    );
+  };
 
   const handleLoadTemplate = (templateId: string) => {
     const template = taskTemplates.find((t) => t.id === templateId);
@@ -117,13 +148,12 @@ export default function TaskDialog({
       return;
     }
 
-    const taskData = {
+    const taskData: any = {
       projectId,
       title: formData.title,
       description: formData.description,
       status: formData.status,
       priority: formData.priority,
-      assignee_id: formData.assignee === "unassigned" ? "" : formData.assignee,
       dueDate: formData.dueDate,
       start_date: formData.startDate || undefined,
       tags: formData.tags
@@ -132,16 +162,54 @@ export default function TaskDialog({
         .filter((tag) => tag.length > 0),
       phase: formData.phase === "no-phase" ? "" : formData.phase,
       task_type: formData.task_type,
+      estimated_hours: formData.estimatedHours ? Number(formData.estimatedHours) : null,
+      complexity: formData.complexity || null,
     };
 
     try {
       if (mode === "edit" && task) {
+        // Assignee changes go exclusively through the assign/unassign RPCs
+        // (not a direct assignee_id write) so removing someone always
+        // properly finalizes their open session instead of silently
+        // orphaning it -- see unassign_task_member in 20240016.
         console.log('💾 Saving task update with data:', taskData);
         await updateTask(task.id, taskData);
+
+        const added = selectedAssigneeIds.filter((id) => !currentAssigneeIds.map(String).includes(id));
+        const removed = currentAssigneeIds.map(String).filter((id) => !selectedAssigneeIds.includes(id));
+        for (const memberId of added) {
+          try {
+            await assignTaskMember(String(task.id), memberId);
+          } catch (assignError) {
+            console.error('Failed to assign team member:', assignError);
+          }
+        }
+        for (const memberId of removed) {
+          try {
+            await unassignTaskMember(String(task.id), memberId);
+          } catch (unassignError) {
+            console.error('Failed to unassign team member:', unassignError);
+          }
+        }
         toast.success("Task updated successfully");
       } else {
+        // A brand-new task needs an initial assignee_id to seed the column
+        // (and addTask's "every task must have an assignee" default) --
+        // the first selected person becomes primary; the rest are added
+        // once the task exists, via the same RPC path as edit mode.
+        taskData.assignee_id = selectedAssigneeIds[0] || "";
         console.log('💾 Creating new task with data:', taskData);
-        await addTask(taskData);
+        const created = await addTask(taskData);
+        if (created?.id) {
+          const remaining = selectedAssigneeIds.slice(1);
+          for (const memberId of remaining) {
+            try {
+              await assignTaskMember(String(created.id), memberId);
+            } catch (assignError) {
+              console.error('Failed to assign additional team member:', assignError);
+            }
+          }
+        }
         toast.success("Task created successfully");
       }
 
@@ -486,33 +554,49 @@ export default function TaskDialog({
             </div>
           )}
 
-          {/* Assignee and Due Date */}
+          {/* Assignees (multi-person) and Due Date */}
           <div className="grid grid-cols-2 gap-[16px]">
             <div>
-              <Label htmlFor="assignee" className="text-[10px] flex items-center gap-[4px]">
-                <User className="w-3 h-3" />
-                Assignee
+              <Label className="text-[10px] flex items-center gap-[4px]">
+                <Users className="w-3 h-3" />
+                Assignees {selectedAssigneeIds.length > 0 && `(${selectedAssigneeIds.length})`}
               </Label>
-              <Select
-                value={formData.assignee}
-                onValueChange={(value) => setFormData({ ...formData, assignee: value })}
-              >
-                <SelectTrigger className="mt-[8px] text-[10px]">
-                  <SelectValue placeholder="Select assignee" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="unassigned" className="text-[10px]">
-                    Unassigned
-                  </SelectItem>
-                  {teamMembers
-                    .filter((member) => member.active)
-                    .map((member) => (
-                      <SelectItem key={member.id} value={member.id.toString()} className="text-[10px]">
-                        {member.name} - {member.role}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
+              <div className="mt-[8px] max-h-[160px] overflow-y-auto border border-border rounded-[6px] bg-background divide-y divide-border">
+                {teamMembers.filter((m) => m.active).length === 0 && (
+                  <p className="p-[10px] text-[10px] text-muted-foreground">No active team members</p>
+                )}
+                {teamMembers
+                  .filter((member) => member.active)
+                  .map((member) => {
+                    const memberId = member.id.toString();
+                    const checked = selectedAssigneeIds.includes(memberId);
+                    return (
+                      <label
+                        key={member.id}
+                        htmlFor={`assignee-${member.id}`}
+                        className={`flex items-center gap-[8px] px-[10px] py-[6px] text-[10px] ${
+                          isManagerOrAdmin ? "cursor-pointer hover:bg-accent/5" : "cursor-not-allowed opacity-70"
+                        }`}
+                      >
+                        <input
+                          id={`assignee-${member.id}`}
+                          type="checkbox"
+                          checked={checked}
+                          disabled={!isManagerOrAdmin}
+                          onChange={() => toggleAssignee(memberId)}
+                          className="w-3.5 h-3.5"
+                        />
+                        <User className="w-3 h-3 text-muted-foreground shrink-0" />
+                        <span className="truncate">{member.name} - {member.role}</span>
+                      </label>
+                    );
+                  })}
+              </div>
+              {!isManagerOrAdmin && (
+                <p className="text-[9px] text-muted-foreground mt-[4px]">
+                  Only Managers/Admins can change who's assigned
+                </p>
+              )}
             </div>
 
             <div>
@@ -527,8 +611,43 @@ export default function TaskDialog({
                 onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
                 className="mt-[8px] text-[10px]"
               />
+
+              <Label htmlFor="estimatedHours" className="text-[10px] flex items-center gap-[4px] mt-[16px]">
+                Estimated Hours
+              </Label>
+              <Input
+                id="estimatedHours"
+                type="number"
+                min="0"
+                step="0.5"
+                value={formData.estimatedHours}
+                onChange={(e) => setFormData({ ...formData, estimatedHours: e.target.value })}
+                placeholder="e.g. 4"
+                className="mt-[8px] text-[10px]"
+              />
             </div>
           </div>
+
+          {/* Complexity */}
+          <div>
+            <Label htmlFor="complexity" className="text-[10px]">Complexity</Label>
+            <Select value={formData.complexity || "unset"} onValueChange={(v) => setFormData({ ...formData, complexity: v === "unset" ? "" : v })}>
+              <SelectTrigger className="mt-[8px] text-[10px]"><SelectValue placeholder="Not set" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="unset" className="text-[10px]">Not set</SelectItem>
+                <SelectItem value="Low" className="text-[10px]">Low</SelectItem>
+                <SelectItem value="Medium" className="text-[10px]">Medium</SelectItem>
+                <SelectItem value="High" className="text-[10px]">High</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Work Session Timer -- per-assignee Start/Pause/Resume/Finish,
+              only shown once the task actually exists (needs a real task_id
+              for sessions to attach to). */}
+          {mode === "edit" && task && (
+            <WorkSessionTimer taskId={String(task.id)} projectId={String(projectId)} />
+          )}
 
           {/* Tags */}
           <div>

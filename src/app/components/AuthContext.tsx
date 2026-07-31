@@ -31,7 +31,8 @@ export type Permission =
   | "canEditPhases"
   | "canForceCompleteProjects"
   | "canManageTemplates"
-  | "canApproveTaskQC";
+  | "canApproveTaskQC"
+  | "canViewTeamPerformance";
 
 export interface User {
   id: string;
@@ -90,6 +91,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "canForceCompleteProjects",
     "canManageTemplates",
     "canApproveTaskQC",
+    "canViewTeamPerformance",
   ],
   // Distinct from Super Admin -- same day-to-day operational scope as
   // Manager, but kept as its own tier rather than merged with Super Admin
@@ -118,6 +120,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "canEditPhases",
     "canManageTemplates",
     "canApproveTaskQC",
+    "canViewTeamPerformance",
   ],
   Manager: [
     "canViewDashboard",
@@ -147,6 +150,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "canEditPhases",
     "canManageTemplates",
     "canApproveTaskQC",
+    "canViewTeamPerformance",
   ],
   // QC-focused role: can review and approve/reject task and phase QC across
   // every project, but has no project/team/CRM/finance editing powers.
@@ -177,6 +181,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "canViewProposals",
     "canViewQCReviewQueue",
     "canViewPhaseQCReviewQueue",
+    "canViewTeamPerformance",
   ],
   Contractor: [
     "canViewDashboard",

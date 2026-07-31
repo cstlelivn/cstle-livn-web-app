@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { useApp } from "./AppContext";
 import { useAuth } from "./AuthContext";
+import { useTaskAssignees, assigneeIdsForTask } from "../src/features/taskAssignees/useTaskAssignees";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "./ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
@@ -122,6 +123,7 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
   } = useApp();
 
   const { currentUser, hasPermission } = useAuth();
+  const { taskAssignees } = useTaskAssignees(true);
   const [forceCompleteOpen, setForceCompleteOpen] = useState(false);
   const [markingComplete, setMarkingComplete] = useState(false);
 
@@ -258,13 +260,18 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
 
   // Filter tasks
   const filteredTasks = projectTasks.filter((task) => {
-    const assigneeName = getTeamMember(task.assignee)?.name || "";
+    // Matches if the filtered person is ANY of the task's assignees, not
+    // just the single "primary" one -- a task assigned to both Demilade and
+    // MJ should show up when filtering by either name.
+    const taskAssigneeNames = assigneeIdsForTask(taskAssignees, task.id)
+      .map((id) => getTeamMember(id)?.name)
+      .filter(Boolean);
     const matchesSearch =
       (task.title || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
       (task.description || "").toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = filterStatus === "all" || task.status === filterStatus;
     const matchesPriority = filterPriority === "all" || task.priority === filterPriority;
-    const matchesAssignee = filterAssignee === "all" || assigneeName === filterAssignee;
+    const matchesAssignee = filterAssignee === "all" || taskAssigneeNames.includes(filterAssignee);
 
     return matchesSearch && matchesStatus && matchesPriority && matchesAssignee;
   }).sort((a, b) => {
@@ -364,11 +371,14 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
     const assignee = getTeamMember(task.assignee);
     const isManagerOrAdmin = hasPermission("canEditProjects");
     const canApproveQC = hasPermission("canApproveTaskQC");
+    const taskAssigneeIds = assigneeIdsForTask(taskAssignees, task.id);
+    const extraAssigneeCount = Math.max(0, taskAssigneeIds.length - 1);
     const canEdit = canEditTask({
       task,
       currentUserId: currentUser?.id,
       isManagerOrAdmin,
       teamMembers,
+      assigneeIds: taskAssigneeIds,
     });
     const durationDays = (task as any).start_date && task.dueDate
       ? Math.max(1, daysBetweenUTC((task as any).start_date, task.dueDate))
@@ -383,29 +393,41 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
       }
     };
 
-    const assigneeControl = isManagerOrAdmin ? (
-      <Select value={String(task.assignee || "")} onValueChange={handleAssigneeChange}>
-        <SelectTrigger
-          className="h-[28px] px-[6px] gap-[6px] border border-transparent bg-transparent shadow-none text-[11px] rounded-[6px] cursor-pointer hover:bg-accent/10 hover:border-accent/30 transition-colors"
-          title="Click to reassign"
-        >
-          <User className="w-3 h-3 text-muted-foreground shrink-0" />
-          <span className="truncate">{assignee?.name || "Unassigned"}</span>
-        </SelectTrigger>
-        <SelectContent>
-          {teamMembers.map((m: any) => (
-            <SelectItem key={m.id} value={String(m.id)}>
-              {m.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    ) : (
-      <div className="flex items-center gap-[6px] min-w-0" title="Only Managers/Super Admins can reassign tasks">
-        <User className="w-3 h-3 text-muted-foreground shrink-0" />
-        <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground truncate">
-          {assignee?.name}
-        </p>
+    const assigneeControl = (
+      <div className="flex items-center gap-[4px] min-w-0">
+        {isManagerOrAdmin ? (
+          <Select value={String(task.assignee || "")} onValueChange={handleAssigneeChange}>
+            <SelectTrigger
+              className="h-[28px] px-[6px] gap-[6px] border border-transparent bg-transparent shadow-none text-[11px] rounded-[6px] cursor-pointer hover:bg-accent/10 hover:border-accent/30 transition-colors"
+              title="Click to reassign (primary assignee) -- open the task to add/remove others"
+            >
+              <User className="w-3 h-3 text-muted-foreground shrink-0" />
+              <span className="truncate">{assignee?.name || "Unassigned"}</span>
+            </SelectTrigger>
+            <SelectContent>
+              {teamMembers.map((m: any) => (
+                <SelectItem key={m.id} value={String(m.id)}>
+                  {m.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <div className="flex items-center gap-[6px] min-w-0" title="Only Managers/Super Admins can reassign tasks">
+            <User className="w-3 h-3 text-muted-foreground shrink-0" />
+            <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground truncate">
+              {assignee?.name}
+            </p>
+          </div>
+        )}
+        {extraAssigneeCount > 0 && (
+          <span
+            className="shrink-0 px-[6px] py-[1px] rounded-full bg-accent/10 text-accent text-[9px] font-['Roboto_Mono'] font-medium"
+            title={`${extraAssigneeCount} more ${extraAssigneeCount === 1 ? "person" : "people"} assigned -- open the task to see everyone`}
+          >
+            +{extraAssigneeCount}
+          </span>
+        )}
       </div>
     );
 
@@ -542,11 +564,14 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
     const assignee = getTeamMember(task.assignee);
     const isManagerOrAdmin = hasPermission("canEditProjects");
     const canApproveQC = hasPermission("canApproveTaskQC");
+    const taskAssigneeIds = assigneeIdsForTask(taskAssignees, task.id);
+    const extraAssigneeCount = Math.max(0, taskAssigneeIds.length - 1);
     const canEdit = canEditTask({
       task,
       currentUserId: currentUser?.id,
       isManagerOrAdmin,
       teamMembers,
+      assigneeIds: taskAssigneeIds,
     });
     const durationDays = (task as any).start_date && task.dueDate
       ? Math.max(1, daysBetweenUTC((task as any).start_date, task.dueDate))
@@ -594,31 +619,41 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
             showLabel
           />
 
-          {isManagerOrAdmin ? (
-            <Select value={String(task.assignee || "")} onValueChange={handleAssigneeChange}>
-              <SelectTrigger
-                className="w-full h-[24px] px-[2px] gap-[6px] border border-transparent bg-transparent shadow-none text-[11px] justify-start rounded-[6px] cursor-pointer hover:bg-accent/10 hover:border-accent/30 transition-colors"
-                title="Click to reassign"
+          <div className="flex items-center gap-[4px]">
+            {isManagerOrAdmin ? (
+              <Select value={String(task.assignee || "")} onValueChange={handleAssigneeChange}>
+                <SelectTrigger
+                  className="flex-1 min-w-0 h-[24px] px-[2px] gap-[6px] border border-transparent bg-transparent shadow-none text-[11px] justify-start rounded-[6px] cursor-pointer hover:bg-accent/10 hover:border-accent/30 transition-colors"
+                  title="Click to reassign (primary assignee) -- open the task to add/remove others"
+                >
+                  <User className="w-3 h-3 text-muted-foreground shrink-0" />
+                  <span className="truncate">{assignee?.name || "Unassigned"}</span>
+                </SelectTrigger>
+                <SelectContent>
+                  {teamMembers.map((m: any) => (
+                    <SelectItem key={m.id} value={String(m.id)}>
+                      {m.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <div className="flex items-center gap-[6px]">
+                <User className="w-3 h-3 text-muted-foreground" />
+                <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground">
+                  {assignee?.name}
+                </p>
+              </div>
+            )}
+            {extraAssigneeCount > 0 && (
+              <span
+                className="shrink-0 px-[6px] py-[1px] rounded-full bg-accent/10 text-accent text-[9px] font-['Roboto_Mono'] font-medium"
+                title={`${extraAssigneeCount} more ${extraAssigneeCount === 1 ? "person" : "people"} assigned`}
               >
-                <User className="w-3 h-3 text-muted-foreground shrink-0" />
-                <span className="truncate">{assignee?.name || "Unassigned"}</span>
-              </SelectTrigger>
-              <SelectContent>
-                {teamMembers.map((m: any) => (
-                  <SelectItem key={m.id} value={String(m.id)}>
-                    {m.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : (
-            <div className="flex items-center gap-[6px]">
-              <User className="w-3 h-3 text-muted-foreground" />
-              <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground">
-                {assignee?.name}
-              </p>
-            </div>
-          )}
+                +{extraAssigneeCount}
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-[6px]">
             <CalendarIcon className="w-3 h-3 text-muted-foreground" />
             <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground">

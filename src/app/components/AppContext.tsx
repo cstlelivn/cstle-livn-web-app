@@ -270,7 +270,7 @@ interface AppContextType {
   getProject: (id: number) => Project | undefined;
 
   // Task methods
-  addTask: (task: Omit<Task, "id" | "createdAt">) => Promise<void>;
+  addTask: (task: Omit<Task, "id" | "createdAt">) => Promise<any>;
   updateTask: (id: number, updates: Partial<Task>) => Promise<void>;
   deleteTask: (id: number) => Promise<void>;
   getTasksByProject: (projectId: number) => Task[];
@@ -534,6 +534,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       } as any);
 
       // Realtime hook will automatically update the list
+      return result;
     } catch (error) {
       console.error('❌ Failed to create task:', error);
       throw error;

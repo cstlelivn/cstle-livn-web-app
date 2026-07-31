@@ -3029,4 +3029,218 @@ app.post("/make-server-bcab437c/gallery/sync", authMiddleware, async (c) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// AI Insights -- server-side only. The old client-side widgets read an
+// OpenAI key the USER pasted into localStorage and called OpenAI directly
+// from the browser; that can't be role-gated (the browser already has
+// whatever data it assembled) and the key lived in plaintext in the
+// browser. This route uses a key only the server knows (OPENAI_API_KEY,
+// a Supabase secret you configure separately -- never committed to code),
+// decides up front how much detail the CALLER is allowed to see, and only
+// ever includes that much in what gets sent to the model.
+//
+// Deliberately does NOT reuse the stale hasPermission() matrix above (it's
+// missing several roles entirely, e.g. Admin/Quality Control/Accountant --
+// see its comment). This checks against the same small allow-list as the
+// frontend's canViewTeamPerformance permission and the database's
+// can_view_team_performance() SQL function, kept manually in sync across
+// all three because each layer needs its own enforcement.
+// ---------------------------------------------------------------------------
+const TEAM_PERFORMANCE_ROLES = ["Super Admin", "Admin", "Manager", "Accountant"];
+
+app.post("/make-server-bcab437c/insights/generate", authMiddleware, async (c) => {
+  const userRole = c.get("userRole");
+  const userId = c.get("userId");
+  const canViewIndividual = TEAM_PERFORMANCE_ROLES.includes(userRole);
+
+  const openaiKey = Deno.env.get("OPENAI_API_KEY");
+  if (!openaiKey) {
+    return c.json(
+      { error: "AI insights aren't configured yet -- ask an admin to add the OpenAI API key in Supabase project settings." },
+      503
+    );
+  }
+
+  try {
+    const body = await c.req.json().catch(() => ({} as any));
+    const periodDays = Math.min(365, Math.max(7, Number(body?.periodDays) || 90));
+    const end = new Date();
+    const start = new Date(end.getTime() - periodDays * 86400000);
+    const startIso = start.toISOString();
+    const endIso = end.toISOString();
+
+    const [{ data: tasks }, { data: sessions }, { data: members }] = await Promise.all([
+      supabase
+        .from("tasks")
+        .select("id, title, status, task_type, complexity, estimated_hours, due_date, completed_date, project_id"),
+      supabase
+        .from("task_work_sessions")
+        .select("id, task_id, team_member_id, status, active_seconds, notes, delay_reason, blocker, qc_result, rework, completion_status, started_at, finished_at")
+        .gte("started_at", startIso)
+        .lte("started_at", endIso),
+      canViewIndividual
+        ? supabase.from("team_members").select("id, name, role")
+        : Promise.resolve({ data: [] as any[] }),
+    ]);
+
+    const taskById = new Map((tasks ?? []).map((t: any) => [t.id, t]));
+    const finishedSessions = (sessions ?? []).filter((s: any) => s.status === "finished");
+
+    // --- FACTS (measured, from real recorded sessions) ---
+    const totalActiveHours = finishedSessions.reduce((sum: number, s: any) => sum + (s.active_seconds || 0), 0) / 3600;
+    const delaysAndBlockers = finishedSessions
+      .filter((s: any) => s.delay_reason || s.blocker)
+      .map((s: any) => ({
+        task: taskById.get(s.task_id)?.title || "Unknown task",
+        delayReason: s.delay_reason || null,
+        blocker: s.blocker || null,
+      }))
+      .slice(0, 40); // cap prompt size -- this is a sample, not exhaustive
+    const qcApproved = finishedSessions.filter((s: any) => s.qc_result === "Approved" || s.qc_result === "Approved with Conditions").length;
+    const qcRejected = finishedSessions.filter((s: any) => s.qc_result === "Rejected").length;
+    const reworkCount = finishedSessions.filter((s: any) => s.rework).length;
+
+    // --- ESTIMATES (targets set by a person, not measured) vs ACTUAL, by task type/complexity ---
+    const byType: Record<string, { estimatedSum: number; estimatedCount: number; actualHours: number; sampleTasks: Set<string> }> = {};
+    for (const s of finishedSessions) {
+      const task = taskById.get(s.task_id);
+      if (!task) continue;
+      const key = `${task.task_type || "Unspecified"} / ${task.complexity || "complexity unknown"}`;
+      byType[key] ??= { estimatedSum: 0, estimatedCount: 0, actualHours: 0, sampleTasks: new Set() };
+      byType[key].actualHours += (s.active_seconds || 0) / 3600;
+      byType[key].sampleTasks.add(task.id);
+      if (task.estimated_hours && !byType[key].sampleTasks.has(`est:${task.id}`)) {
+        byType[key].estimatedSum += Number(task.estimated_hours);
+        byType[key].estimatedCount += 1;
+        byType[key].sampleTasks.add(`est:${task.id}`);
+      }
+    }
+    const estimateVsActual = Object.entries(byType).map(([type, v]) => ({
+      type,
+      sampleTasks: [...v.sampleTasks].filter((x) => typeof x === "string" && !x.startsWith("est:")).length,
+      avgEstimatedHours: v.estimatedCount > 0 ? Math.round((v.estimatedSum / v.estimatedCount) * 10) / 10 : null,
+      totalActualHours: Math.round(v.actualHours * 10) / 10,
+    }));
+
+    let individualSection = "";
+    if (canViewIndividual) {
+      const nameById = new Map((members ?? []).map((m: any) => [m.id, m.name]));
+      const perPerson: Record<string, { hours: number; sessions: number; qcApproved: number; qcRejected: number; rework: number }> = {};
+      for (const s of finishedSessions) {
+        const name = nameById.get(s.team_member_id) || "Unknown";
+        perPerson[name] ??= { hours: 0, sessions: 0, qcApproved: 0, qcRejected: 0, rework: 0 };
+        perPerson[name].hours += (s.active_seconds || 0) / 3600;
+        perPerson[name].sessions += 1;
+        if (s.qc_result === "Approved" || s.qc_result === "Approved with Conditions") perPerson[name].qcApproved += 1;
+        if (s.qc_result === "Rejected") perPerson[name].qcRejected += 1;
+        if (s.rework) perPerson[name].rework += 1;
+      }
+      individualSection = `\nPER-PERSON BREAKDOWN (facts, from recorded sessions -- you are viewing this because your role is authorized to see individual performance data):\n${Object.entries(
+        perPerson
+      )
+        .map(
+          ([name, v]) =>
+            `- ${name}: ${Math.round(v.hours * 10) / 10}h tracked across ${v.sessions} finished session(s), QC approved ${v.qcApproved}, QC rejected ${v.qcRejected}, rework ${v.rework}`
+        )
+        .join("\n")}`;
+    }
+
+    const systemPrompt = `You are a construction project-management analyst. You will be given FACTS (measured data from actual recorded work sessions) and ESTIMATES (targets someone set, not measurements). Always keep these clearly separate in your answer -- never state an estimate as if it were a measured fact, and say explicitly when there isn't enough data to conclude something rather than guessing. Factor in task complexity and any documented delays/blockers when judging whether a task ran long. Your job: recommend realistic timelines and staffing, identify bottlenecks, and recognize productivity patterns -- grounded only in the data provided, nothing invented. ${
+      canViewIndividual
+        ? "The caller is authorized to see individual performance data, which is included below."
+        : "The caller is NOT authorized to see individual performance data -- none was included below, and you must not speculate about specific individuals' performance."
+    } Keep the response concise: a few short sections with plain-language bullet points, not a long essay.`;
+
+    const userPrompt = `Reporting window: ${start.toISOString().slice(0, 10)} to ${end.toISOString().slice(0, 10)}.
+
+FACTS (measured):
+- Total tracked active hours across all finished work sessions: ${Math.round(totalActiveHours * 10) / 10}h
+- Finished sessions: ${finishedSessions.length}
+- QC results: ${qcApproved} approved, ${qcRejected} rejected (${qcApproved + qcRejected > 0 ? Math.round((qcApproved / (qcApproved + qcRejected)) * 100) : "n/a"}% pass rate)
+- Rework sessions: ${reworkCount}
+- Sample of documented delays/blockers (up to 40): ${JSON.stringify(delaysAndBlockers)}
+
+ESTIMATED vs ACTUAL by task type/complexity (estimated = target set by a person; actual = measured):
+${JSON.stringify(estimateVsActual, null, 2)}
+${individualSection}
+
+Based only on the above, provide: (1) realistic timeline/staffing recommendations, (2) bottlenecks you can identify from the delay/blocker data, (3) productivity patterns you can support with the numbers given. Explicitly flag anywhere the sample size is too small to conclude much.`;
+
+    const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${openaiKey}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        temperature: 0.3,
+      }),
+    });
+
+    if (!aiResponse.ok) {
+      const errText = await aiResponse.text();
+      console.error("OpenAI request failed:", aiResponse.status, errText);
+      return c.json({ error: "The AI provider request failed. Please try again." }, 502);
+    }
+
+    const aiJson = await aiResponse.json();
+    const content = aiJson?.choices?.[0]?.message?.content || "";
+
+    const { data: requester } = await supabase
+      .from("team_members")
+      .select("id")
+      .eq("auth_user_id", userId)
+      .maybeSingle();
+
+    const scopeTier = canViewIndividual ? "individual_detail" : "aggregate_only";
+    const { data: saved, error: saveError } = await supabase
+      .from("ai_insight_reports")
+      .insert({
+        requested_by: requester?.id ?? null,
+        scope_tier: scopeTier,
+        input_period_start: start.toISOString().slice(0, 10),
+        input_period_end: end.toISOString().slice(0, 10),
+        content,
+        model: "gpt-4o-mini",
+      })
+      .select()
+      .single();
+
+    if (saveError) {
+      console.error("Failed to persist AI insight report:", saveError);
+    }
+
+    return c.json({ content, scopeTier, id: saved?.id, createdAt: saved?.created_at });
+  } catch (err: any) {
+    console.error("Insights generation error:", err);
+    return c.json({ error: String(err?.message ?? err) }, 500);
+  }
+});
+
+app.get("/make-server-bcab437c/insights/history", authMiddleware, async (c) => {
+  const userRole = c.get("userRole");
+  if (!TEAM_PERFORMANCE_ROLES.includes(userRole)) {
+    // Mirrors ai_insight_reports_select RLS (is_manager_or_admin() OR
+    // can_view_team_performance() -- the former is a strict subset of the
+    // latter, so this one allow-list covers both) -- kept as an explicit
+    // check here too since this route uses the service-role client, which
+    // bypasses RLS entirely.
+    return c.json({ error: "You don't have permission to view saved insight reports." }, 403);
+  }
+  const { data, error } = await supabase
+    .from("ai_insight_reports")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(20);
+  if (error) {
+    return c.json({ error: error.message }, 500);
+  }
+  return c.json({ reports: data ?? [] });
+});
+
 Deno.serve(app.fetch);

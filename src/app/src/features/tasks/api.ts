@@ -157,16 +157,10 @@ export async function updateTask(id: string | number, updates: TaskUpdate) {
   if (updates.description !== undefined) dbUpdates.description = updates.description;
   if (updates.status !== undefined) {
     dbUpdates.status = updates.status;
-    // Stamp workflow timing centrally, here, so every status-change path in
-    // the app (list/grid/kanban/calendar/gantt/phase view/QC queue) gets
-    // this for free instead of each needing its own copy of this logic.
-    if (updates.status === 'In Progress') {
-      dbUpdates.started_at = now();
-    } else if (updates.status === 'Pending QC') {
-      dbUpdates.submitted_at = now();
-    } else if (updates.status === 'Completed') {
-      dbUpdates.completed_date = now();
-    }
+    // Workflow timing (started_at/submitted_at/completed_date) is stamped by
+    // a database trigger (trg_stamp_task_status_timing) so every write path
+    // -- this function, the work-session RPCs, anything else -- gets
+    // identical stamping from one place instead of each needing its own copy.
   }
   if (updates.priority !== undefined) dbUpdates.priority = updates.priority;
   

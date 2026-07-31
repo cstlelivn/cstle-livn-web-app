@@ -3,6 +3,7 @@ import { Sparkles, TrendingUp, AlertCircle, Lightbulb } from "lucide-react";
 import { Button } from "./ui/button";
 import { toast } from "sonner";
 import { useApp } from "./AppContext";
+import { generateInsights } from "../src/features/insights/api";
 
 interface Insight {
   type: "success" | "warning" | "info";
@@ -10,15 +11,19 @@ interface Insight {
   icon: "trend" | "alert" | "lightbulb";
 }
 
+// AI insights are generated server-side now (see the new /insights/generate
+// route on the make-server-bcab437c edge function) using a server-only
+// OpenAI key -- not a key pasted into this browser's localStorage, which
+// couldn't be role-gated at all. The server decides how much detail to
+// include based on the caller's real role before it ever reaches the model.
 export default function AIInsightsWidget() {
-  const { projects, tasks, teamMembers, clients, leads } = useApp();
+  const { projects, tasks, teamMembers, leads } = useApp();
   const [insights, setInsights] = useState<Insight[]>([]);
   const [loading, setLoading] = useState(false);
   const [lastGenerated, setLastGenerated] = useState<string | null>(
     localStorage.getItem("ai_insights_timestamp")
   );
 
-  // Auto-load insights on mount if they were generated recently
   useEffect(() => {
     const savedInsights = localStorage.getItem("ai_insights_dashboard");
     if (savedInsights) {
@@ -30,274 +35,47 @@ export default function AIInsightsWidget() {
     }
   }, []);
 
-  const generateQuickInsights = async () => {
-    const openAIKey = localStorage.getItem("openai_api_key");
+  const parseInsightText = (text: string): Insight[] => {
+    const lines = text
+      .split("\n")
+      .filter((line) => line.trim().length > 0)
+      .map((line) => line.replace(/^[\d\.\-\*\•#\s]+/, "").trim())
+      .filter((line) => line.length > 10)
+      .slice(0, 6);
 
-    if (!openAIKey) {
-      toast.error("Please add your OpenAI API key in Settings → API Keys");
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      // Prepare detailed, specific analytics data with names and numbers
-      const analyticsData = {
-        projects: {
-          total: projects.length,
-          active: projects.filter((p) => p.status === "In Progress").length,
-          delayed: projects.filter(
-            (p) => p.status === "Delayed" || p.status === "At Risk"
-          ).length,
-          completed: projects.filter((p) => p.status === "Completed").length,
-          totalBudget: projects.reduce(
-            (sum, p) => sum + (parseFloat(p.budget) || 0),
-            0
-          ),
-          totalSpent: projects.reduce(
-            (sum, p) => sum + (parseFloat(p.spent) || 0),
-            0
-          ),
-          avgProgress:
-            projects.length > 0
-              ? projects.reduce((sum, p) => sum + (p.progress || 0), 0) /
-                projects.length
-              : 0,
-          // Specific project details
-          delayedProjects: projects
-            .filter((p) => p.status === "Delayed" || p.status === "At Risk")
-            .map(p => ({
-              name: p.name,
-              budget: p.budget,
-              spent: p.spent,
-              progress: p.progress,
-              daysOverdue: p.endDate ? Math.floor((new Date().getTime() - new Date(p.endDate).getTime()) / (1000 * 60 * 60 * 24)) : 0
-            })),
-          overBudgetProjects: projects
-            .filter((p) => parseFloat(p.spent || '0') > parseFloat(p.budget || '0') * 0.9)
-            .map(p => ({
-              name: p.name,
-              budget: parseFloat(p.budget || '0'),
-              spent: parseFloat(p.spent || '0'),
-              overBy: parseFloat(p.spent || '0') - parseFloat(p.budget || '0'),
-              percentOver: ((parseFloat(p.spent || '0') / parseFloat(p.budget || '0') - 1) * 100).toFixed(1)
-            })),
-          topProjects: projects
-            .sort((a, b) => (parseFloat(b.budget) || 0) - (parseFloat(a.budget) || 0))
-            .slice(0, 3)
-            .map(p => ({
-              name: p.name,
-              budget: parseFloat(p.budget || '0'),
-              client: p.clientName,
-              status: p.status
-            }))
-        },
-        tasks: {
-          total: tasks.length,
-          overdue: tasks.filter(
-            (t) =>
-              t.status !== "Completed" && new Date(t.dueDate) < new Date()
-          ).length,
-          completed: tasks.filter((t) => t.status === "Completed").length,
-          // Specific overdue tasks
-          overdueTasksByProject: tasks
-            .filter((t) => t.status !== "Completed" && new Date(t.dueDate) < new Date())
-            .reduce((acc, task) => {
-              const projectName = task.projectName || "Unknown Project";
-              if (!acc[projectName]) acc[projectName] = 0;
-              acc[projectName]++;
-              return acc;
-            }, {} as Record<string, number>)
-        },
-        team: {
-          total: teamMembers.length,
-          active: teamMembers.filter((m) => m.active !== false).length,
-          avgAura:
-            teamMembers.length > 0
-              ? (
-                  teamMembers.reduce(
-                    (sum, m) => sum + (parseFloat(m.auraRating) || 0),
-                    0
-                  ) / teamMembers.length
-                ).toFixed(2)
-              : "0",
-          // Specific team member insights
-          topPerformers: teamMembers
-            .filter(m => m.auraRating && parseFloat(m.auraRating) >= 4.5)
-            .sort((a, b) => parseFloat(b.auraRating) - parseFloat(a.auraRating))
-            .slice(0, 3)
-            .map(m => ({
-              name: m.name,
-              rating: m.auraRating,
-              role: m.role
-            })),
-          lowPerformers: teamMembers
-            .filter(m => m.auraRating && parseFloat(m.auraRating) < 3.5)
-            .map(m => ({
-              name: m.name,
-              rating: m.auraRating,
-              role: m.role
-            })),
-          roleDistribution: teamMembers.reduce((acc, m) => {
-            acc[m.role] = (acc[m.role] || 0) + 1;
-            return acc;
-          }, {} as Record<string, number>)
-        },
-        crm: {
-          leads: leads.length,
-          clients: clients.length,
-          conversionRate:
-            leads.length + clients.length > 0
-              ? (
-                  (clients.length / (leads.length + clients.length)) *
-                  100
-                ).toFixed(1)
-              : "0",
-          // Specific lead pipeline details
-          leadsByStatus: leads.reduce((acc, lead) => {
-            acc[lead.status] = (acc[lead.status] || 0) + 1;
-            return acc;
-          }, {} as Record<string, number>),
-          staleLead: leads
-            .filter(l => {
-              const lastContact = new Date(l.lastContactDate || l.createdAt);
-              const daysSince = (new Date().getTime() - lastContact.getTime()) / (1000 * 60 * 60 * 24);
-              return daysSince > 14;
-            })
-            .length,
-          totalPipelineValue: leads.reduce((sum, l) => sum + (parseFloat(l.estimatedValue) || 0), 0)
-        },
-        financial: {
-          totalRevenue: projects.reduce((sum, p) => sum + (parseFloat(p.budget) || 0), 0),
-          totalSpent: projects.reduce((sum, p) => sum + (parseFloat(p.spent) || 0), 0),
-          estimatedProfit: projects.reduce((sum, p) => {
-            const budget = parseFloat(p.budget) || 0;
-            const spent = parseFloat(p.spent) || 0;
-            return sum + (budget - spent);
-          }, 0),
-          avgMargin: projects.length > 0 
-            ? ((1 - projects.reduce((sum, p) => sum + (parseFloat(p.spent) || 0), 0) / 
-                projects.reduce((sum, p) => sum + (parseFloat(p.budget) || 0), 0)) * 100).toFixed(1)
-            : 0
-        }
-      };
-
-      // Call OpenAI API
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${openAIKey}`,
-        },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          messages: [
-            {
-              role: "system",
-              content:
-                `You are a business optimization consultant for Cstle Livn, a finishing installer company (trims, doors, painting, flooring, handrailings, basement builds, ADUs).
-
-YOUR MISSION: Provide 3 ULTRA-SPECIFIC, DATA-DRIVEN insights with EXACT numbers, names, and dollar amounts.
-
-RULES - YOU MUST FOLLOW THESE:
-1. ✅ USE SPECIFIC PROJECT NAMES from the data (e.g., "Oak Street Renovation is $12,500 over budget")
-2. ✅ USE EXACT DOLLAR AMOUNTS (e.g., "$45,000 profit opportunity", "save $8,300 monthly")
-3. ✅ USE SPECIFIC TEAM MEMBER NAMES and ratings (e.g., "Sarah Chen (4.8 Aura) is outperforming")
-4. ✅ USE SPECIFIC PERCENTAGES from the actual data provided
-5. ✅ REFERENCE SPECIFIC NUMBERS (e.g., "3 projects", "15 overdue tasks", "$127K pipeline")
-6. ❌ NEVER use vague terms like "some projects", "several team members", "consider improving"
-7. ❌ NEVER give generic advice - every insight must be tied to SPECIFIC data points
-
-FOCUS AREAS (pick 3):
-- COST REDUCTION: Name specific projects/vendors wasting money with exact dollar amounts
-- REVENUE GROWTH: Identify specific opportunities with exact revenue potential
-- TEAM OPTIMIZATION: Name specific people to promote/coach/reallocate with their ratings
-
-FORMAT: Each insight = 1-2 sentences with SPECIFIC names and numbers, followed by ONE clear action.
-
-EXAMPLE GOOD INSIGHT: "Riverside Apartment project is $18,200 over budget (121% spent). Immediately review material costs with vendor ABC Supply and implement weekly budget checkpoints."
-
-EXAMPLE BAD INSIGHT: "Some projects are experiencing budget overruns. Consider implementing better tracking." ❌`,
-            },
-            {
-              role: "user",
-              content: `Generate 3 hyper-specific insights using THIS EXACT DATA:\n\n${JSON.stringify(
-                analyticsData,
-                null,
-                2
-              )}`,
-            },
-          ],
-          temperature: 0.7,
-          max_tokens: 350,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        
-        if (response.status === 429) {
-          throw new Error("Rate limit exceeded. Using fallback insights instead.");
-        } else if (response.status === 401) {
-          throw new Error("Invalid API key. Please check your key in Settings.");
-        } else if (response.status === 404) {
-          throw new Error("Model not found. Please check your OpenAI account access.");
-        } else {
-          throw new Error(`OpenAI API error: ${response.status}`);
-        }
+    return lines.map((lineText, index) => {
+      const lower = lineText.toLowerCase();
+      if (lower.includes("bottleneck") || lower.includes("risk") || lower.includes("delay") || lower.includes("overdue")) {
+        return { type: "warning" as const, text: lineText, icon: "alert" as const };
       }
+      if (index === 0 || lower.includes("recommend") || lower.includes("timeline") || lower.includes("staffing")) {
+        return { type: "success" as const, text: lineText, icon: "trend" as const };
+      }
+      return { type: "info" as const, text: lineText, icon: "lightbulb" as const };
+    });
+  };
 
-      const data = await response.json();
-      const aiResponse = data.choices[0]?.message?.content || "";
-
-      // Parse AI response into insights
-      const insightLines = aiResponse
-        .split("\n")
-        .filter((line) => line.trim().length > 0)
-        .map((line) => line.replace(/^[\d\.\-\*\•]\s*/, "").trim())
-        .filter((line) => line.length > 10)
-        .slice(0, 3);
-
-      const parsedInsights: Insight[] = insightLines.map((text, index) => {
-        // Categorize insights
-        if (
-          index === 0 ||
-          text.toLowerCase().includes("strong") ||
-          text.toLowerCase().includes("excellent") ||
-          text.toLowerCase().includes("performing well")
-        ) {
-          return { type: "success" as const, text, icon: "trend" as const };
-        } else if (
-          index === 1 ||
-          text.toLowerCase().includes("delayed") ||
-          text.toLowerCase().includes("overdue") ||
-          text.toLowerCase().includes("risk")
-        ) {
-          return { type: "warning" as const, text, icon: "alert" as const };
-        } else {
-          return { type: "info" as const, text, icon: "lightbulb" as const };
-        }
-      });
-
+  const generateQuickInsights = async () => {
+    setLoading(true);
+    try {
+      const result = await generateInsights(90);
+      const parsedInsights = parseInsightText(result.content);
       setInsights(parsedInsights);
       localStorage.setItem("ai_insights_dashboard", JSON.stringify(parsedInsights));
-      const timestamp = new Date().toISOString();
+      const timestamp = result.createdAt || new Date().toISOString();
       localStorage.setItem("ai_insights_timestamp", timestamp);
       setLastGenerated(timestamp);
       toast.success("AI Insights Generated!");
     } catch (error) {
-      // More specific error messages
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
-      
-      if (errorMessage.includes("Rate limit")) {
-        toast.error("OpenAI rate limit reached. Showing smart fallback insights.");
-      } else if (errorMessage.includes("Invalid API key")) {
-        toast.error("Invalid API key. Please update in Settings → API Keys");
+      if (errorMessage.includes("aren't configured yet")) {
+        toast.error(errorMessage);
       } else {
-        toast.error("AI temporarily unavailable. Showing data-driven insights.");
+        toast.error("AI temporarily unavailable. Showing data-driven insights instead.");
       }
 
-      // Fallback to rule-based insights
+      // Fallback to rule-based insights computed from data already in the
+      // browser -- not AI-generated, but still real and not fabricated.
       const fallbackInsights = generateFallbackInsights();
       setInsights(fallbackInsights);
       localStorage.setItem("ai_insights_dashboard", JSON.stringify(fallbackInsights));
@@ -312,10 +90,9 @@ EXAMPLE BAD INSIGHT: "Some projects are experiencing budget overruns. Consider i
   const generateFallbackInsights = (): Insight[] => {
     const insights: Insight[] = [];
 
-    // Positive insight
     const completedProjects = projects.filter((p) => p.status === "Completed").length;
     const activeProjects = projects.filter((p) => p.status === "In Progress").length;
-    
+
     if (activeProjects > 0) {
       insights.push({
         type: "success",
@@ -340,7 +117,6 @@ EXAMPLE BAD INSIGHT: "Some projects are experiencing budget overruns. Consider i
       });
     }
 
-    // Warning insight
     const overdueTasks = tasks.filter(
       (t) => t.status !== "Completed" && new Date(t.dueDate) < new Date()
     );
@@ -372,38 +148,16 @@ EXAMPLE BAD INSIGHT: "Some projects are experiencing budget overruns. Consider i
       });
     }
 
-    // Strategic suggestion
-    if (leads.length > clients.length * 2) {
+    if (teamMembers.length > 0) {
       insights.push({
         type: "info",
-        text: `${leads.length} active leads - consider adding sales resources to convert opportunities.`,
+        text: `${teamMembers.length} team member${teamMembers.length > 1 ? "s" : ""} across ${projects.length} project${projects.length === 1 ? "" : "s"} -- open Productivity for time and QC trends.`,
         icon: "lightbulb",
       });
-    } else if (teamMembers.length > 0) {
-      const avgAura =
-        teamMembers.reduce(
-          (sum, m) => sum + (parseFloat(m.auraRating) || 0),
-          0
-        ) / teamMembers.length;
-      if (avgAura >= 4.0) {
-        insights.push({
-          type: "info",
-          text: `Team Aura average is ${avgAura.toFixed(
-            1
-          )} - consider rewarding high performers.`,
-          icon: "lightbulb",
-        });
-      } else {
-        insights.push({
-          type: "info",
-          text: "Focus on team development and training to improve performance metrics.",
-          icon: "lightbulb",
-        });
-      }
-    } else {
+    } else if (leads.length > 0) {
       insights.push({
         type: "info",
-        text: "Build your team and start tracking performance with the Aura system.",
+        text: `${leads.length} active lead${leads.length > 1 ? "s" : ""} in the pipeline.`,
         icon: "lightbulb",
       });
     }

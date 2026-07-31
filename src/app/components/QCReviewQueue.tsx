@@ -5,6 +5,7 @@ import { useAuth } from "./AuthContext";
 import { toast } from "sonner";
 import TaskReviewDialog from "./TaskReviewDialog";
 import { useTasksAwaitingReview } from "../src/features/tasks/useTasksAwaitingReview";
+import { recordSessionQCResult } from "../src/features/workSessions/api";
 
 export default function QCReviewQueue() {
   const { projects, tasks, teamMembers, getTeamMember, updateTask, updateTeamMember, refreshTasks, refreshTeam } = useApp();
@@ -140,7 +141,20 @@ export default function QCReviewQueue() {
         console.log('⭐ Updating assignee Aura rating after task approval');
         await updateTeamMemberAuraRating(task.assignee, metrics.calculatedRating, metrics.speed);
       }
-      
+
+      // Record this QC decision on the task's work sessions too, so
+      // individual productivity/QC-pass reporting has it -- reuses this
+      // same approval instead of a separate per-session review screen.
+      try {
+        await recordSessionQCResult(
+          String(taskId),
+          metrics.corrections === "none" ? "Approved" : "Approved with Conditions",
+          metrics.corrections !== "none"
+        );
+      } catch (sessionError) {
+        console.error("Failed to record QC result on work sessions:", sessionError);
+      }
+
       // ✅ WEBSOCKET AUTO-UPDATE: No need to refetch - WebSocket will update automatically
       
       // Close dialog
@@ -161,7 +175,13 @@ export default function QCReviewQueue() {
         status: "In Progress",
         reviewFeedback: feedback,
       });
-      
+
+      try {
+        await recordSessionQCResult(String(taskId), "Rejected", true);
+      } catch (sessionError) {
+        console.error("Failed to record QC result on work sessions:", sessionError);
+      }
+
       // ✅ WEBSOCKET AUTO-UPDATE: No need to refetch - WebSocket will update automatically
       
       // Close dialog

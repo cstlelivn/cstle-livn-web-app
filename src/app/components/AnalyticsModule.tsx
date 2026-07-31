@@ -6,6 +6,7 @@ import { TrendingUp, Users, DollarSign, CheckCircle2, Sparkles, AlertCircle } fr
 import { Button } from "./ui/button";
 import { toast } from "sonner";
 import { useApp } from "./AppContext";
+import { generateInsights } from "../src/features/insights/api";
 
 export default function AnalyticsModule() {
   // ✅ WEBSOCKET-ONLY: Use real-time data from AppContext (no API calls)
@@ -172,322 +173,41 @@ export default function AnalyticsModule() {
   ];
 
   // Generate AI-Powered Insights using OpenAI API
+  // AI insights are generated server-side (see /insights/generate on the
+  // make-server-bcab437c edge function) using a server-only OpenAI key --
+  // not a browser-pasted one, which couldn't be role-gated. The server
+  // decides how much detail (individual names/hours) to include based on
+  // the caller's real, verified role before anything reaches the model.
   const handleGenerateInsights = async () => {
-    const openAIKey = localStorage.getItem("openai_api_key");
-    
-    if (!openAIKey) {
-      toast.error("Please add your OpenAI API key in Settings → API Keys");
-      return;
-    }
-
     setLoadingInsights(true);
 
     try {
-      // Prepare comprehensive analytics data summary for OpenAI
-      const analyticsData = {
-        overview: {
-          totalProjects: projects.length,
-          totalRevenue: projects.reduce((sum, p) => sum + (parseFloat(p.budget) || 0), 0),
-          avgProjectValue: projects.length > 0 
-            ? projects.reduce((sum, p) => sum + (parseFloat(p.budget) || 0), 0) / projects.length
-            : 0,
-          teamSize: teamMembers.length,
-          clientBase: clients.length,
-          leadPipeline: leads.length,
-        },
-        projects: {
-          total: projects.length,
-          completed: projects.filter(p => p.status === "Completed").length,
-          inProgress: projects.filter(p => p.status === "In Progress").length,
-          delayed: projects.filter(p => p.status === "Delayed" || p.status === "At Risk").length,
-          avgBudget: projects.length > 0 
-            ? projects.reduce((sum, p) => sum + (parseFloat(p.budget) || 0), 0) / projects.length
-            : 0,
-          totalBudget: projects.reduce((sum, p) => sum + (parseFloat(p.budget) || 0), 0),
-          totalSpent: projects.reduce((sum, p) => sum + (parseFloat(p.spent) || 0), 0),
-          completionRate: projects.length > 0 
-            ? (projects.filter(p => p.status === "Completed").length / projects.length) * 100
-            : 0,
-          phases: phaseData,
-          // SPECIFIC project details with names and numbers
-          delayedProjectsList: projects
-            .filter(p => p.status === "Delayed" || p.status === "At Risk")
-            .map(p => ({
-              name: p.name,
-              client: p.clientName,
-              budget: parseFloat(p.budget || '0'),
-              spent: parseFloat(p.spent || '0'),
-              progress: p.progress,
-              daysOverdue: p.endDate ? Math.floor((new Date().getTime() - new Date(p.endDate).getTime()) / (1000 * 60 * 60 * 24)) : 0,
-              status: p.status
-            })),
-          overBudgetProjects: projects
-            .filter(p => parseFloat(p.spent || '0') > parseFloat(p.budget || '0'))
-            .map(p => ({
-              name: p.name,
-              client: p.clientName,
-              budget: parseFloat(p.budget || '0'),
-              spent: parseFloat(p.spent || '0'),
-              overBy: parseFloat(p.spent || '0') - parseFloat(p.budget || '0'),
-              percentOver: ((parseFloat(p.spent || '0') / parseFloat(p.budget || '0') - 1) * 100).toFixed(1)
-            })),
-          nearBudgetProjects: projects
-            .filter(p => {
-              const spent = parseFloat(p.spent || '0');
-              const budget = parseFloat(p.budget || '0');
-              return budget > 0 && spent > budget * 0.85 && spent <= budget;
-            })
-            .map(p => ({
-              name: p.name,
-              budget: parseFloat(p.budget || '0'),
-              spent: parseFloat(p.spent || '0'),
-              remaining: parseFloat(p.budget || '0') - parseFloat(p.spent || '0'),
-              percentUsed: ((parseFloat(p.spent || '0') / parseFloat(p.budget || '0')) * 100).toFixed(1)
-            })),
-          topProjects: projects
-            .sort((a, b) => (parseFloat(b.budget) || 0) - (parseFloat(a.budget) || 0))
-            .slice(0, 5)
-            .map(p => ({ 
-              name: p.name, 
-              budget: parseFloat(p.budget || '0'),
-              spent: parseFloat(p.spent || '0'),
-              client: p.clientName,
-              status: p.status,
-              progress: p.progress,
-              margin: parseFloat(p.budget || '0') > 0 
-                ? ((1 - parseFloat(p.spent || '0') / parseFloat(p.budget || '0')) * 100).toFixed(1)
-                : 0
-            })),
-        },
-        tasks: {
-          total: tasks.length,
-          completed: tasks.filter(t => t.status === "Completed").length,
-          inProgress: tasks.filter(t => t.status === "In Progress").length,
-          overdue: tasks.filter(t => t.status !== "Completed" && new Date(t.dueDate) < new Date()).length,
-          completionRate: tasks.length > 0 
-            ? (tasks.filter(t => t.status === "Completed").length / tasks.length) * 100
-            : 0,
-          // Specific overdue tasks grouped by project
-          overdueTasksByProject: tasks
-            .filter(t => t.status !== "Completed" && new Date(t.dueDate) < new Date())
-            .reduce((acc, task) => {
-              const projectName = task.projectName || "Unknown Project";
-              if (!acc[projectName]) {
-                acc[projectName] = { count: 0, tasks: [] };
-              }
-              acc[projectName].count++;
-              acc[projectName].tasks.push({
-                title: task.title,
-                daysOverdue: Math.floor((new Date().getTime() - new Date(task.dueDate).getTime()) / (1000 * 60 * 60 * 24))
-              });
-              return acc;
-            }, {} as Record<string, { count: number, tasks: Array<{ title: string, daysOverdue: number }> }>)
-        },
-        team: {
-          total: teamMembers.length,
-          active: activeTeamCount,
-          avgAuraRating: teamMembers.length > 0
-            ? teamMembers.reduce((sum, m) => sum + (parseFloat(m.auraRating) || 0), 0) / teamMembers.length
-            : 0,
-          highPerformers: teamMembers.filter(m => m.auraRating && parseFloat(m.auraRating) >= 4.5).length,
-          midPerformers: teamMembers.filter(m => m.auraRating && parseFloat(m.auraRating) >= 3.5 && parseFloat(m.auraRating) < 4.5).length,
-          lowPerformers: teamMembers.filter(m => m.auraRating && parseFloat(m.auraRating) < 3.5).length,
-          // SPECIFIC team member names and ratings
-          topPerformers: teamMembers
-            .sort((a, b) => (parseFloat(b.auraRating) || 0) - (parseFloat(a.auraRating) || 0))
-            .slice(0, 5)
-            .map(m => ({ name: m.name, rating: m.auraRating, role: m.role, email: m.email })),
-          lowPerformersList: teamMembers
-            .filter(m => m.auraRating && parseFloat(m.auraRating) < 3.5)
-            .map(m => ({ name: m.name, rating: m.auraRating, role: m.role })),
-          roleDistribution: teamMembers.reduce((acc, m) => {
-            acc[m.role] = (acc[m.role] || 0) + 1;
-            return acc;
-          }, {} as Record<string, number>),
-        },
-        crm: {
-          leads: leads.length,
-          clients: clients.length,
-          conversionRate: leads.length + clients.length > 0 
-            ? (clients.length / (leads.length + clients.length)) * 100
-            : 0,
-          leadsByStatus: {
-            new: leads.filter(l => l.status === "New").length,
-            contacted: leads.filter(l => l.status === "Contacted").length,
-            qualified: leads.filter(l => l.status === "Qualified").length,
-            proposal: leads.filter(l => l.status === "Proposal Sent").length,
-          },
-          // SPECIFIC lead pipeline details
-          totalPipelineValue: leads.reduce((sum, l) => sum + (parseFloat(l.estimatedValue) || 0), 0),
-          avgLeadValue: leads.length > 0 
-            ? leads.reduce((sum, l) => sum + (parseFloat(l.estimatedValue) || 0), 0) / leads.length
-            : 0,
-          staleLeads: leads
-            .filter(l => {
-              const lastContact = new Date(l.lastContactDate || l.createdAt);
-              const daysSince = (new Date().getTime() - lastContact.getTime()) / (1000 * 60 * 60 * 24);
-              return daysSince > 14;
-            })
-            .map(l => ({
-              name: l.companyName || l.contactName,
-              value: parseFloat(l.estimatedValue || '0'),
-              daysSinceContact: Math.floor((new Date().getTime() - new Date(l.lastContactDate || l.createdAt).getTime()) / (1000 * 60 * 60 * 24)),
-              status: l.status
-            })),
-          topLeads: leads
-            .sort((a, b) => (parseFloat(b.estimatedValue) || 0) - (parseFloat(a.estimatedValue) || 0))
-            .slice(0, 5)
-            .map(l => ({
-              name: l.companyName || l.contactName,
-              value: parseFloat(l.estimatedValue || '0'),
-              status: l.status
-            }))
-        },
-        vendors: {
-          total: vendors.length,
-          avgRating: vendors.length > 0
-            ? vendors.reduce((sum, v) => sum + (v.rating || 0), 0) / vendors.length
-            : 0,
-          topRated: vendors.filter(v => v.rating && v.rating >= 4.7).length,
-          midRated: vendors.filter(v => v.rating && v.rating >= 4.0 && v.rating < 4.7).length,
-          lowRated: vendors.filter(v => v.rating && v.rating < 4.0).length,
-          // SPECIFIC vendor names and ratings
-          topVendors: vendors
-            .sort((a, b) => (b.rating || 0) - (a.rating || 0))
-            .slice(0, 5)
-            .map(v => ({ name: v.name, rating: v.rating, category: v.category })),
-          lowRatedVendors: vendors
-            .filter(v => v.rating && v.rating < 4.0)
-            .map(v => ({ name: v.name, rating: v.rating, category: v.category })),
-        },
-        financial: {
-          avgRevenuePerProject: projects.length > 0 
-            ? projects.reduce((sum, p) => sum + (parseFloat(p.budget) || 0), 0) / projects.length
-            : 0,
-          totalRevenue: projects.reduce((sum, p) => sum + (parseFloat(p.budget) || 0), 0),
-          totalSpent: projects.reduce((sum, p) => sum + (parseFloat(p.spent) || 0), 0),
-          estimatedProfit: projects.reduce((sum, p) => {
-            const budget = parseFloat(p.budget) || 0;
-            const spent = parseFloat(p.spent) || 0;
-            return sum + (budget - spent);
-          }, 0),
-          avgMargin: projects.length > 0 && projects.reduce((sum, p) => sum + (parseFloat(p.budget) || 0), 0) > 0
-            ? ((1 - projects.reduce((sum, p) => sum + (parseFloat(p.spent) || 0), 0) / 
-                projects.reduce((sum, p) => sum + (parseFloat(p.budget) || 0), 0)) * 100).toFixed(1)
-            : 0,
-          totalBudgetedRemaining: projects.reduce((sum, p) => {
-            const budget = parseFloat(p.budget) || 0;
-            const spent = parseFloat(p.spent) || 0;
-            return sum + Math.max(0, budget - spent);
-          }, 0)
-        },
-      };
-
-      // Call OpenAI API with comprehensive prompt
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${openAIKey}`,
-        },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          messages: [
-            {
-              role: "system",
-              content: `You are an expert profit optimization and cost reduction consultant for Cstle Livn, a modern finishing installer company specializing in trims, doors, painting, flooring, and handrailings, with plans to scale into basement builds and ADUs.
-
-Your PRIMARY MISSION is to analyze the data and provide 8-10 detailed, actionable insights focused specifically on:
-
-1. **💰 COST REDUCTION** - Identify wasteful spending, vendor inefficiencies, resource waste, budget overruns, and specific ways to cut expenses
-2. **📈 REVENUE GROWTH** - Spot opportunities to increase project values, improve pricing, upsell services, expand offerings, or capture more market share
-3. **💎 PROFIT MAXIMIZATION** - Find ways to improve margins, optimize pricing strategies, reduce overhead, and increase net profit per project
-4. **👥 TEAM STRENGTHENING** - Recommend specific actions to boost productivity, improve efficiency, optimize resource allocation, retain top performers, and improve team morale
-5. **⚠️ FINANCIAL RISKS** - Flag budget overruns, delayed projects draining resources, underperforming team members, or vendor issues impacting profitability
-6. **🎯 QUICK WINS** - Identify immediate actions that can be taken THIS WEEK to save money, increase revenue, or boost team performance
-
-Each insight must:
-- Be 2-3 sentences with SPECIFIC DATA POINTS from the provided data
-- Include a CLEAR, ACTIONABLE next step the company can implement immediately
-- Focus on measurable financial impact (save $X, increase revenue by Y%, improve margin by Z%)
-- Prioritize practical, implementable recommendations over generic advice
-
-Format: Start each insight with the category in brackets like "[Cost Reduction]", "[Revenue Growth]", "[Profit Optimization]", "[Team Performance]", "[Financial Risk]", or "[Quick Win]" then provide the specific, data-driven insight with clear action steps.`
-            },
-            {
-              role: "user",
-              content: `Analyze this comprehensive business data and provide detailed insights:\n\n${JSON.stringify(analyticsData, null, 2)}`
-            }
-          ],
-          temperature: 0.7,
-          max_tokens: 1500,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        
-        if (response.status === 429) {
-          throw new Error("Rate limit exceeded. Using fallback insights instead.");
-        } else if (response.status === 401) {
-          throw new Error("Invalid API key. Please check your key in Settings.");
-        } else if (response.status === 404) {
-          throw new Error("Model not found. Please check your OpenAI account access.");
-        } else {
-          throw new Error(`OpenAI API error: ${response.status}`);
-        }
-      }
-
-      const data = await response.json();
-      const aiResponse = data.choices[0]?.message?.content || "";
-
-      // Parse AI response into categorized insights
-      const insightLines = aiResponse
+      const result = await generateInsights(90);
+      const insightLines = result.content
         .split("\n")
-        .filter(line => line.trim().length > 0)
-        .map(line => line.replace(/^[\d\.\-\*\•]\s*/, "").trim())
-        .filter(line => line.length > 20);
+        .filter((line) => line.trim().length > 0)
+        .map((line) => line.replace(/^[\d\.\-\*\•#\s]+/, "").trim())
+        .filter((line) => line.length > 20);
 
       const parsedInsights = insightLines.map((text) => {
-        // Detect category from text
         const categoryMatch = text.match(/^\[([^\]]+)\]/);
         const category = categoryMatch ? categoryMatch[1] : "General";
         const cleanText = text.replace(/^\[([^\]]+)\]\s*/, "");
-
-        // Determine type based on keywords
-        let type: "primary" | "accent" = "primary";
-        if (
-          cleanText.toLowerCase().includes("risk") ||
-          cleanText.toLowerCase().includes("concern") ||
-          cleanText.toLowerCase().includes("delayed") ||
-          cleanText.toLowerCase().includes("overdue") ||
-          cleanText.toLowerCase().includes("low")
-        ) {
-          type = "accent";
-        }
-
-        return {
-          type,
-          text: cleanText,
-          category,
-        };
+        const type: "primary" | "accent" =
+          /risk|concern|delayed|overdue|low|reject/i.test(cleanText) ? "accent" : "primary";
+        return { type, text: cleanText, category };
       });
 
       setAiInsights(parsedInsights);
-      toast.success(`${parsedInsights.length} AI Insights Generated by OpenAI GPT-4!`);
+      toast.success(`${parsedInsights.length} AI insights generated (${result.scopeTier === "individual_detail" ? "with per-person detail" : "aggregate only"})`);
     } catch (error) {
-      // More specific error messages
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
-      
-      if (errorMessage.includes("Rate limit")) {
-        toast.error("OpenAI rate limit reached. Showing smart fallback insights.");
-      } else if (errorMessage.includes("Invalid API key")) {
-        toast.error("Invalid API key. Please update in Settings → API Keys");
+      if (errorMessage.includes("aren't configured yet")) {
+        toast.error(errorMessage);
       } else {
-        toast.error("AI temporarily unavailable. Showing data-driven insights.");
+        toast.error("AI temporarily unavailable. Showing data-driven insights instead.");
       }
-      
-      // Fallback to enhanced rule-based insights
+
       const fallbackInsights = generateFallbackInsights();
       setAiInsights(fallbackInsights);
     } finally {

@@ -42,7 +42,9 @@ import GlobalSearch from "./components/GlobalSearch";
 import NotificationBell from "./components/NotificationBell";
 import ProjectClientDiagnostic from "./components/ProjectClientDiagnostic";
 import TemplateBuilder from "./components/TemplateBuilder";
+import TeamProductivityReport from "./components/TeamProductivityReport";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { startOfflineSync } from "./src/features/workSessions/offlineQueue";
 import svgPaths from "./imports/svg-ydinhr03gq";
 
 type ViewType =
@@ -57,7 +59,8 @@ type ViewType =
   | "users"
   | "user-edit"
   | "profile"
-  | "diagnostic";
+  | "diagnostic"
+  | "productivity";
 
 type SubViewType = {
   projects: "projects" | "tasks" | "qc-review";
@@ -89,6 +92,12 @@ function AppContent() {
   const [hoverTimeout, setHoverTimeout] = useState<NodeJS.Timeout | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+
+  // Start the work-session offline sync loop once per app load -- it's a
+  // no-op if there's nothing queued, and self-schedules its own retries.
+  useEffect(() => {
+    startOfflineSync();
+  }, []);
 
   // Run DB migrations once on app boot via edge function
   useEffect(() => {
@@ -268,6 +277,12 @@ function AppContent() {
       show: hasPermission("canManageTemplates"),
     },
     {
+      id: "productivity",
+      label: "Productivity",
+      icon: BarChart3,
+      show: hasPermission("canViewAnalytics"),
+    },
+    {
       id: "settings",
       label: "Settings",
       icon: Settings,
@@ -315,6 +330,8 @@ function AppContent() {
         return <ProjectClientDiagnostic />;
       case "templates":
         return <TemplateBuilder />;
+      case "productivity":
+        return <TeamProductivityReport />;
       default:
         return <Dashboard onNavigate={handleNavigate} onNewProject={handleNewProject} />;
     }

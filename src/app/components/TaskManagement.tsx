@@ -11,6 +11,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Badge } from "./ui/badge";
 import { formatDate } from "../src/lib/dates";
 import { canEditTask } from "../src/features/tasks/permissions";
+import { useTaskAssignees, assigneeIdsForTask } from "../src/features/taskAssignees/useTaskAssignees";
 import { toast } from "sonner";
 
 type TimeFrame = "all" | "overdue" | "today" | "week" | "month";
@@ -26,6 +27,7 @@ function daysUntil(dueDate: string): number {
 export default function TaskManagement() {
   const { tasks, projects, teamMembers, getProject, getTeamMember, deleteTask, updateTask } = useApp();
   const { currentUser, hasPermission } = useAuth();
+  const { taskAssignees } = useTaskAssignees(true);
   const isManagerOrAdmin = hasPermission("canEditProjects");
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
@@ -44,20 +46,24 @@ export default function TaskManagement() {
   // the current person's own tasks -- their whole reason to be here.
   const canViewAllProjects = hasPermission("canViewAllProjects");
   const myMember = teamMembers.find((m: any) => String(m.authUserId) === String(currentUser?.id));
+  // Visible/matches-by-assignee both check the FULL assignee list (any
+  // co-assignee), not just the single "primary" one -- otherwise a task's
+  // 2nd/3rd assignee would never see it in their own task list.
   const visibleTasks = canViewAllProjects
     ? tasks
-    : tasks.filter((t: any) => myMember && String(t.assignee) === String(myMember.id));
+    : tasks.filter((t: any) => myMember && assigneeIdsForTask(taskAssignees, t.id).includes(String(myMember.id)));
 
   // Filter tasks -- incomplete tasks only for time-frame filtering, since a
   // completed task being "overdue" isn't something anyone needs to act on
   const filteredTasks = visibleTasks.filter((task) => {
+    const taskAssigneeIds = assigneeIdsForTask(taskAssignees, task.id);
     const matchesSearch =
       (task.title || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
       (task.description || "").toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = filterStatus === "all" || task.status === filterStatus;
     const matchesPriority = filterPriority === "all" || task.priority === filterPriority;
     const matchesProject = filterProject === "all" || task.projectId.toString() === filterProject;
-    const matchesAssignee = filterAssignee === "all" || task.assignee === filterAssignee;
+    const matchesAssignee = filterAssignee === "all" || taskAssigneeIds.includes(filterAssignee);
 
     let matchesTimeFrame = true;
     if (timeFrame !== "all") {
@@ -333,7 +339,7 @@ export default function TaskManagement() {
                     const project = getProject(task.projectId);
                     const assignee = getTeamMember(task.assignee);
                     const overdue = isOverdue(task.dueDate, task.status);
-                    const canEdit = canEditTask({ task, currentUserId: currentUser?.id, isManagerOrAdmin, teamMembers });
+                    const canEdit = canEditTask({ task, currentUserId: currentUser?.id, isManagerOrAdmin, teamMembers, assigneeIds: assigneeIdsForTask(taskAssignees, task.id) });
                     const canApproveQC = hasPermission("canApproveTaskQC");
 
                     const rowMenu = hasPermission("canEditProjects") && (
