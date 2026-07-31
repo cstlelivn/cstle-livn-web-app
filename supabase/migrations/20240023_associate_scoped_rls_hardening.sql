@@ -146,12 +146,16 @@ DROP POLICY IF EXISTS inventory_insert ON public.inventory;
 DROP POLICY IF EXISTS inventory_update ON public.inventory;
 DROP POLICY IF EXISTS inventory_delete ON public.inventory;
 
+-- inventory.assigned_to stores a free-text name (e.g. "Demilade"), not a
+-- team_members.id uuid -- there's no id-based FK here, so this has to match
+-- on name, not id (and needs an explicit cast/lower() since it's comparing
+-- text to text, not uuid to uuid).
 CREATE POLICY inventory_select ON public.inventory FOR SELECT
   USING (
     public.can_view_inventory()
     OR EXISTS (
       SELECT 1 FROM public.team_members tm
-      WHERE tm.id = inventory.assigned_to AND tm.auth_user_id = auth.uid()
+      WHERE lower(tm.name) = lower(inventory.assigned_to) AND tm.auth_user_id = auth.uid()
     )
   );
 CREATE POLICY inventory_insert ON public.inventory FOR INSERT WITH CHECK (public.can_edit_inventory());
