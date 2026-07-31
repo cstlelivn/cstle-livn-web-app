@@ -3048,9 +3048,20 @@ app.post("/make-server-bcab437c/gallery/sync", authMiddleware, async (c) => {
 // ---------------------------------------------------------------------------
 const TEAM_PERFORMANCE_ROLES = ["Super Admin", "Admin", "Manager", "Accountant"];
 
+// Roles with no legitimate need for AI-generated staffing/productivity
+// insights at all -- previously this route only gated the individual-level
+// breakdown, so an Associate or Contractor could still generate an
+// aggregate-only report. Phase 1 security review made this explicit:
+// Associates must not access AI Insights, period, not even an aggregate
+// version of it.
+const AI_INSIGHTS_BLOCKED_ROLES = ["Associate", "Contractor"];
+
 app.post("/make-server-bcab437c/insights/generate", authMiddleware, async (c) => {
   const userRole = c.get("userRole");
   const userId = c.get("userId");
+  if (AI_INSIGHTS_BLOCKED_ROLES.includes(userRole)) {
+    return c.json({ error: "AI Insights isn't available for your role." }, 403);
+  }
   const canViewIndividual = TEAM_PERFORMANCE_ROLES.includes(userRole);
 
   const openaiKey = Deno.env.get("OPENAI_API_KEY");

@@ -66,10 +66,17 @@ export default function InventoryModule() {
     sortOrder: "asc",
   });
 
-  // Load custom units from localStorage
+  // Load custom units from localStorage. Guarded: a corrupted stored value
+  // threw inside this useState initializer and blanked the whole Inventory
+  // page on every render with no way to recover without clearing storage.
   const [customUnits, setCustomUnits] = useState<string[]>(() => {
     const stored = localStorage.getItem("cstle_custom_units");
-    return stored ? JSON.parse(stored) : [];
+    if (!stored) return [];
+    try {
+      return JSON.parse(stored);
+    } catch {
+      return [];
+    }
   });
 
   // Track project links for inventory items

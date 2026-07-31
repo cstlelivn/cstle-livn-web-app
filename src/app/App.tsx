@@ -290,13 +290,55 @@ function AppContent() {
     },
   ].filter((item) => item.show);
 
+  // Route-level permission gate. The sidebar already hides links a role
+  // can't use, but currentView is just component state -- anything that
+  // ever calls setCurrentView/onNavigate with one of these strings (a
+  // stale deep-link, browser back/forward restoring state, a future bug in
+  // some other component) would previously render the real module with no
+  // check at all. "Hiding the menu item" was the only protection; this is
+  // the actual enforcement, mirroring the same permission each module's own
+  // data-fetching hooks require at the database level.
+  const viewPermission: Record<string, Parameters<typeof hasPermission>[0]> = {
+    teams: "canViewTeam",
+    crm: "canViewCRM",
+    inventory: "canViewInventory",
+    finance: "canViewFinance",
+    analytics: "canViewAnalytics",
+    users: "canManageTeam",
+    "user-edit": "canManageTeam",
+    settings: "canViewSettings",
+    templates: "canManageTemplates",
+    productivity: "canViewTeamPerformance",
+  };
+
   const renderView = () => {
+    const requiredPermission = viewPermission[currentView];
+    if (requiredPermission && !hasPermission(requiredPermission)) {
+      return (
+        <div className="p-[32px] flex flex-col items-center justify-center text-center gap-[12px]">
+          <p className="font-['Roboto_Mono'] font-bold text-[14px] text-foreground">
+            You don't have access to this page.
+          </p>
+          <p className="font-['Roboto_Mono'] text-[11px] text-muted-foreground max-w-[420px]">
+            If you think this is wrong, ask an admin to check your role and permissions.
+          </p>
+          <button
+            type="button"
+            onClick={() => handleNavigate("dashboard")}
+            className="px-[16px] py-[8px] bg-accent text-white rounded-[6px] hover:opacity-90 transition-opacity font-['Roboto_Mono'] text-[11px]"
+          >
+            Back to Dashboard
+          </button>
+        </div>
+      );
+    }
+
     switch (currentView) {
       case "dashboard":
         return <Dashboard onNavigate={handleNavigate} onNewProject={handleNewProject} />;
       case "projects":
         return (
-          <ProjectsGroup 
+          <ProjectsGroup
             initialTab={projectsSubView}
             selectedProjectId={selectedProjectId}
             onProjectSelect={handleProjectSelect}

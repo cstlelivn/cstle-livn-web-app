@@ -131,7 +131,7 @@ export default function TaskDialog({
         title: template.title,
         description: template.description,
         priority: template.priority,
-        tags: template.tags.join(", "),
+        tags: (template.tags || []).join(", "),
       });
       setSelectedTemplate(templateId);
       toast.success(`Template "${template.name}" loaded`);

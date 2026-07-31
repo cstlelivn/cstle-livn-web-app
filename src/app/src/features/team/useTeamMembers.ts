@@ -6,7 +6,16 @@ import { subscribeTableMulti } from '../../lib/realtime';
 function transformTeamMemberRow(dbMember: any) {
   return {
     ...dbMember,
-    // Map snake_case to camelCase for frontend compatibility
+    // Map snake_case to camelCase for frontend compatibility. Nullable
+    // string/array fields are defaulted here so every consumer (initials,
+    // search filters, specialties.join, etc.) doesn't need its own guard --
+    // a null `name`/`role`/`specialties` from a partially-set-up account was
+    // crashing Team Management, Edit Team Member, and Task Management.
+    name: dbMember.name ?? "",
+    role: dbMember.role ?? "",
+    email: dbMember.email ?? "",
+    phone: dbMember.phone ?? "",
+    specialties: dbMember.specialties ?? [],
     auraRating: dbMember.aura_rating ?? dbMember.auraRating ?? 0,
     authUserId: dbMember.auth_user_id ?? dbMember.authUserId ?? null,
     tasksCompleted: dbMember.tasks_completed ?? dbMember.tasksCompleted ?? 0,

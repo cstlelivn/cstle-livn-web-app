@@ -2,6 +2,18 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { listClients } from './api';
 import { subscribeTableMulti } from '../../lib/realtime';
 
+// See useLeads.ts's normalizeLead for the same reasoning: CRMModule.tsx calls
+// .toLowerCase()/.localeCompare() directly on name/email, which crashes on a
+// null value from a partially-filled client record.
+function normalizeClient(row: any) {
+  return {
+    ...row,
+    name: row.name ?? '',
+    email: row.email ?? '',
+    phone: row.phone ?? '',
+  };
+}
+
 export function useClients(enabled = true) {
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -13,10 +25,10 @@ export function useClients(enabled = true) {
       const m = new Map(curr.map((r) => [r.id, r]));
       for (const p of q.current) {
         if (p.eventType === 'INSERT') {
-          m.set(p.new.id, p.new);
+          m.set(p.new.id, normalizeClient(p.new));
         }
         if (p.eventType === 'UPDATE') {
-          m.set(p.new.id, { ...m.get(p.new.id), ...p.new });
+          m.set(p.new.id, normalizeClient({ ...m.get(p.new.id), ...p.new }));
         }
         if (p.eventType === 'DELETE') {
           m.delete(p.old.id);
@@ -35,7 +47,7 @@ export function useClients(enabled = true) {
     try {
       setLoading(true);
       const data = await listClients();
-      setRows(data);
+      setRows(data.map(normalizeClient));
     } catch (error: any) {
       console.error('Error refreshing clients:', error);
       // Check if it's a JWT expired error
@@ -60,7 +72,7 @@ export function useClients(enabled = true) {
     (async () => {
       try {
         const data = await listClients();
-        setRows(data);
+        setRows(data.map(normalizeClient));
         setLoading(false);
 
         // Subscribe to realtime updates

@@ -7,6 +7,17 @@ import { type PhaseQCReview, type Project, type Task, useApp } from "./AppContex
 import { useAuth } from "./AuthContext";
 import { toast } from "sonner";
 
+// Corrupted localStorage (interrupted write, quota error) previously threw
+// straight out of the approve/reject handlers below with no recovery -- the
+// action silently failed and the dialog stayed stuck.
+function readStoredReviews(): PhaseQCReview[] {
+  try {
+    return JSON.parse(localStorage.getItem('cstle_phase_qc_reviews') || '[]');
+  } catch {
+    return [];
+  }
+}
+
 interface PhaseQCReviewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -88,7 +99,7 @@ export default function PhaseQCReviewDialog({
     }
 
     // Save approval to localStorage
-    const storedReviews = JSON.parse(localStorage.getItem('cstle_phase_qc_reviews') || '[]');
+    const storedReviews = readStoredReviews();
     const updatedReviews = storedReviews.map((r: PhaseQCReview) =>
       r.id === review.id
         ? {
@@ -126,7 +137,7 @@ export default function PhaseQCReviewDialog({
     }
 
     // Save rejection to localStorage
-    const storedReviews = JSON.parse(localStorage.getItem('cstle_phase_qc_reviews') || '[]');
+    const storedReviews = readStoredReviews();
     const updatedReviews = storedReviews.map((r: PhaseQCReview) =>
       r.id === review.id
         ? {

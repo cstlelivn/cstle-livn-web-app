@@ -127,9 +127,9 @@ function DraggableTaskCard({ task, onEdit, onDelete, canEdit, canDelete }: Dragg
         )}
       </div>
 
-      {task.tags.length > 0 && (
+      {(task.tags || []).length > 0 && (
         <div className="flex flex-wrap gap-[4px] mt-[8px]">
-          {task.tags.slice(0, 2).map((tag, idx) => (
+          {(task.tags || []).slice(0, 2).map((tag, idx) => (
             <span
               key={idx}
               className="px-[6px] py-[2px] bg-accent/10 text-accent rounded-[4px] text-[8px] font-['Roboto_Mono']"
@@ -137,9 +137,9 @@ function DraggableTaskCard({ task, onEdit, onDelete, canEdit, canDelete }: Dragg
               {tag}
             </span>
           ))}
-          {task.tags.length > 2 && (
+          {(task.tags || []).length > 2 && (
             <span className="px-[6px] py-[2px] bg-muted/10 text-muted-foreground rounded-[4px] text-[8px] font-['Roboto_Mono']">
-              +{task.tags.length - 2}
+              +{(task.tags || []).length - 2}
             </span>
           )}
         </div>

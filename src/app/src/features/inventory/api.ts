@@ -70,8 +70,8 @@ function fromDbFormat(row: any): any {
   
   return {
     id: row.id,
-    name: row.name,
-    category: row.category,
+    name: row.name ?? "",
+    category: row.category ?? "",
     type: row.type,
     quantity: row.quantity,
     unit: row.unit,

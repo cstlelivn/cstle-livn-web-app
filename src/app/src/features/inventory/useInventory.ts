@@ -8,8 +8,11 @@ function transformRealtimeRow(row: any): any {
   
   return {
     id: row.id,
-    name: row.name,
-    category: row.category,
+    // Defaulted: InventoryModule's search filter calls .toLowerCase()
+    // directly on these and crashes on a null value (e.g. a row inserted
+    // directly via SQL/migration with no name/category set).
+    name: row.name ?? "",
+    category: row.category ?? "",
     type: row.type,
     quantity: row.quantity,
     unit: row.unit,

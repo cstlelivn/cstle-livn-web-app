@@ -87,10 +87,19 @@ const DEFAULT_PHASES: PhaseWithDuration[] = [
   { name: "Delivered/Completed", days: 1 },
 ];
 
-// Get phases from localStorage or use defaults
+// Get phases from localStorage or use defaults. Guarded against corrupted
+// storage (interrupted write, quota error, manual tampering) -- an unguarded
+// JSON.parse here ran during a useState initializer, so a parse error threw
+// on every render with no recovery path, blanking the whole Project Details
+// page.
 function getProjectPhases(): PhaseWithDuration[] {
   const saved = localStorage.getItem("project_phases");
-  return saved ? JSON.parse(saved) : DEFAULT_PHASES;
+  if (!saved) return DEFAULT_PHASES;
+  try {
+    return JSON.parse(saved);
+  } catch {
+    return DEFAULT_PHASES;
+  }
 }
 
 // Calculate project progress from task completion (task-based, not time-based).
@@ -600,7 +609,7 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
         </div>
 
         <div className="flex flex-wrap gap-[6px] mb-[12px]">
-          {task.tags.map((tag) => (
+          {(task.tags || []).map((tag) => (
             <div
               key={tag}
               className="px-[8px] py-[2px] bg-secondary rounded-[4px] text-[10px] font-['Roboto_Mono'] font-medium text-foreground"

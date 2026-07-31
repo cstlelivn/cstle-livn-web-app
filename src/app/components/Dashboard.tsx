@@ -9,6 +9,7 @@ import svgPaths from "../imports/svg-kds79s2oqf";
 import RecentTasksWidget from "./RecentTasksWidget";
 import AIInsightsWidget from "./AIInsightsWidget";
 import MobileTaskDashboard from "./MobileTaskDashboard";
+import ErrorBoundary from "./ErrorBoundary";
 import { useState, useMemo } from "react";
 
 interface DashboardProps {
@@ -425,11 +426,20 @@ export default function Dashboard({ onNavigate, onNewProject }: DashboardProps) 
 
         {/* Sidebar */}
         <div className="space-y-[24px]">
-          {/* AI Insights Widget */}
-          <AIInsightsWidget />
+          {/* AI Insights -- Associates/Contractors have no legitimate need
+              for staffing/productivity AI recommendations; the server
+              route also rejects them outright, this just avoids showing a
+              widget that would immediately error for those roles. */}
+          {hasPermission("canViewAnalytics") && (
+            <ErrorBoundary variant="widget" fallbackLabel="AI Insights">
+              <AIInsightsWidget />
+            </ErrorBoundary>
+          )}
 
           {/* Upcoming Tasks */}
-          <RecentTasksWidget onNavigateToProjects={() => onNavigate("tasks")} />
+          <ErrorBoundary variant="widget" fallbackLabel="Upcoming Tasks">
+            <RecentTasksWidget onNavigateToProjects={() => onNavigate("tasks")} />
+          </ErrorBoundary>
 
           {/* Recent Activity */}
           <div className="bg-card border border-border rounded-[20px] p-[24px]">

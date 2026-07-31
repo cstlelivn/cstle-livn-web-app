@@ -403,7 +403,7 @@ export default function PhaseTemplateManager() {
                       {template.name}
                     </h4>
                     <p className="font-['Roboto_Mono'] font-normal text-[10px] text-muted-foreground mt-[2px]">
-                      {template.phases.length} phases
+                      {(template.phases || []).length} phases
                     </p>
                   </div>
                   <div className="flex items-center gap-[8px]">
@@ -426,7 +426,7 @@ export default function PhaseTemplateManager() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-[6px]">
-                  {template.phases.map((phase, index) => (
+                  {(template.phases || []).map((phase, index) => (
                     <div
                       key={index}
                       className="flex items-center gap-[6px] px-[12px] py-[4px] bg-accent/10 rounded-[6px]"
