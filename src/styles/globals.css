@@ -72,8 +72,12 @@
   --muted: var(--olive-100);
   --muted-foreground: var(--grey-700);
 
-  /* Accent = vermillion, reserved strictly for CTA / one moment per screen */
-  --accent: var(--vermillion-500);
+  /* Accent = dark green, used for general highlights/links/icons throughout the app.
+     Vermillion is intentionally NOT the general accent -- per the design spec it's
+     reserved for a single CTA/focus moment per screen (see --ring, and explicit
+     vermillion-500 usages), not a broad highlight color. High contrast matters most
+     on mobile where associates need to find controls fast on a job site. */
+  --accent: var(--green-700);
   --accent-foreground: #ffffff;
 
   --destructive: #b3261e;

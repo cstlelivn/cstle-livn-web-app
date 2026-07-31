@@ -253,9 +253,11 @@ export default function Dashboard({ onNavigate, onNewProject }: DashboardProps) 
 
       {/* Stats Grid -- on mobile these become a horizontally swipeable strip
           with a fixed card width (there's no room to fit 5 equal-width cards
-          on a phone screen without them collapsing into overlapping text);
-          from md up it's the original equal-width flex row. */}
-      <div className="content-stretch flex gap-[12px] md:gap-[16px] items-stretch overflow-x-auto -mx-[16px] px-[16px] md:mx-0 md:px-0 md:overflow-visible snap-x snap-mandatory md:snap-none">
+          on a phone screen without them collapsing into overlapping text).
+          From sm up it's a wrapping grid, not a forced single row -- 5
+          equal-width flex items at laptop widths left long labels like
+          "Monthly Revenue" with no room and forced them under the icon. */}
+      <div className="flex gap-[12px] items-stretch overflow-x-auto -mx-[16px] px-[16px] snap-x snap-mandatory sm:grid sm:grid-cols-2 sm:gap-[16px] sm:overflow-visible sm:mx-0 sm:px-0 sm:snap-none lg:grid-cols-3 xl:grid-cols-5">
         {stats.map((stat, index) => {
           const iconPath =
             stat?.iconType === "folder" ? svgPaths?.p281b8900 :
@@ -269,11 +271,11 @@ export default function Dashboard({ onNavigate, onNewProject }: DashboardProps) 
             <button
               key={index}
               onClick={stat.onClick}
-              className="w-[160px] shrink-0 snap-start md:basis-0 md:grow md:w-auto md:min-h-px md:min-w-px rounded-[20px] cursor-pointer bg-card border border-border hover:border-accent/40 hover:shadow-sm transition-all text-left"
+              className="w-[160px] shrink-0 snap-start sm:w-auto rounded-[20px] cursor-pointer bg-card border border-border hover:border-accent/40 hover:shadow-sm transition-all text-left"
             >
               <div className="box-border content-stretch flex flex-col gap-[14px] items-start p-[18px] relative w-full h-full">
-                <div className="content-stretch flex items-center justify-between relative shrink-0 w-full">
-                  <p className="font-['Roboto_Mono'] font-medium leading-[1.2] text-muted-foreground text-[10px] text-nowrap uppercase tracking-wide">
+                <div className="content-stretch flex items-start justify-between gap-[8px] relative shrink-0 w-full">
+                  <p className="font-['Roboto_Mono'] font-medium leading-[1.3] text-muted-foreground text-[10px] uppercase tracking-wide min-w-0 flex-1">
                     {stat?.label || "Loading..."}
                   </p>
                   {iconD && (
