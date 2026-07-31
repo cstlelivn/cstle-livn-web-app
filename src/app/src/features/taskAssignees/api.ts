@@ -57,3 +57,15 @@ export async function unassignTaskMember(taskId: string, teamMemberId: string) {
   failIf(error, 'Failed to unassign team member');
   return transformAssignee(data);
 }
+
+// Self-service decline of the caller's own assignment -- unlike
+// unassignTaskMember (manager/admin-only), any assignee can call this on
+// their own pending work. Used by the mobile "Decline" control.
+export async function declineTaskAssignment(taskId: string, reason?: string) {
+  const { data, error } = await supabase.rpc('decline_task_assignment', {
+    p_task_id: taskId,
+    p_reason: reason ?? null,
+  });
+  failIf(error, 'Failed to decline task');
+  return transformAssignee(data);
+}

@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import svgPaths from "../imports/svg-kds79s2oqf";
 import RecentTasksWidget from "./RecentTasksWidget";
 import AIInsightsWidget from "./AIInsightsWidget";
+import MobileTaskDashboard from "./MobileTaskDashboard";
 import { useState, useMemo } from "react";
 
 interface DashboardProps {
@@ -66,10 +67,21 @@ export default function Dashboard({ onNavigate, onNewProject }: DashboardProps) 
     }
   };
 
-  // Calculate real stats
-  const activeProjects = projects.filter(
-    (p) => p.status === "In Progress" || p.status === "Planning"
-  );
+  // Calculate real stats. "Active" used to mean status is Planning/In Progress,
+  // but project.status is a field nobody ever flips automatically -- a project
+  // whose tasks are all done still reads "Planning" until someone explicitly
+  // closes it out via the completion gate. Counting those as active made the
+  // dashboard KPI misleading (e.g. "13 active" when most were 100% done), so
+  // this now also excludes anything whose real, task-derived progress is 100%.
+  const activeProjects = useMemo(() => {
+    return projects.filter((p) => {
+      if (p.status === "Completed") return false;
+      const projectTasks = tasks.filter((t: any) => t.projectId === p.id);
+      const realProgress =
+        projectTasks.length > 0 ? calculateCompletion(projectTasks).percent : p.progress || 0;
+      return realProgress < 100;
+    });
+  }, [projects, tasks]);
   const planningCount = activeProjects.filter((p) => p.status === "Planning").length;
   const inProgressCount = activeProjects.filter((p) => p.status === "In Progress").length;
 
@@ -205,7 +217,21 @@ export default function Dashboard({ onNavigate, onNewProject }: DashboardProps) 
   };
 
   return (
-    <div className="flex flex-col gap-[29px] w-full px-[0px] py-[32px]">
+    <>
+      {/* Mobile: task-led view for associates working on site -- see
+          MobileTaskDashboard.tsx. Desktop keeps the company-wide overview
+          below, unchanged, since that audience (admins/office) is fine
+          with the existing layout. */}
+      <div className="md:hidden -mx-[16px] -my-[16px]">
+        <MobileTaskDashboard
+          projects={projects}
+          tasks={tasks}
+          teamMembers={teamMembers}
+          currentUser={currentUser}
+          onNavigate={onNavigate}
+        />
+      </div>
+      <div className="hidden md:flex flex-col gap-[29px] w-full px-[0px] py-[32px]">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-[16px]">
         <div>
@@ -432,6 +458,7 @@ export default function Dashboard({ onNavigate, onNewProject }: DashboardProps) 
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
