@@ -1,8 +1,10 @@
 import { useState } from "react";
-import { Bell, Phone, Mail, Calendar, Clock, Check, Trash2, X, ClipboardCheck, AlertCircle } from "lucide-react";
+import { Bell, Phone, Mail, Calendar, Clock, Check, Trash2, X, ClipboardCheck, AlertCircle, UserX } from "lucide-react";
 import { useApp, type Reminder } from "./AppContext";
+import { useAuth } from "./AuthContext";
 import { usePendingQCCount } from "./QCReviewQueue";
 import { useTasksAwaitingReview } from "../src/features/tasks/useTasksAwaitingReview";
+import { useDeclinedTasksNeedingReassignment } from "../src/features/taskAssignees/useDeclinedAssignments";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { Badge } from "./ui/badge";
@@ -14,7 +16,8 @@ interface NotificationBellProps {
 }
 
 export default function NotificationBell({ onNavigate }: NotificationBellProps) {
-  const { reminders, completeReminder, deleteReminder } = useApp();
+  const { reminders, completeReminder, deleteReminder, tasks } = useApp();
+  const { hasPermission } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const pendingQCCount = usePendingQCCount();
 
@@ -23,6 +26,13 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
   // who don't supervise a given project) never see these, only whoever the
   // actual QC reviewer for that project is.
   const tasksNeedingAttention = useTasksAwaitingReview();
+
+  // Declined assignments needing reassignment -- only relevant to people who
+  // can actually act on it (assign someone else), same gate as the rest of
+  // the team-management surface. An Associate declining their own task isn't
+  // shown this list about themselves; it's for whoever needs to reassign it.
+  const canReassign = hasPermission("canManageTeam");
+  const { items: declinedTasks } = useDeclinedTasksNeedingReassignment(tasks, canReassign);
 
   // Filter for active (incomplete) reminders
   const activeReminders = reminders.filter((r) => !r.completed);
@@ -205,7 +215,7 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
     </div>
   );
 
-  const totalNotifications = overdueReminders.length + pendingQCCount + tasksNeedingAttention.length;
+  const totalNotifications = overdueReminders.length + pendingQCCount + tasksNeedingAttention.length + declinedTasks.length;
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
@@ -251,7 +261,7 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
         </div>
 
         <div className="max-h-[500px] overflow-y-auto">
-          {activeReminders.length === 0 && pendingQCCount === 0 && tasksNeedingAttention.length === 0 ? (
+          {activeReminders.length === 0 && pendingQCCount === 0 && tasksNeedingAttention.length === 0 && declinedTasks.length === 0 ? (
             <div className="p-[32px] text-center">
               <Bell className="w-12 h-12 mx-auto mb-[12px] text-muted-foreground/30" />
               <p className="font-['Roboto_Mono'] text-[11px] text-muted-foreground">
@@ -291,6 +301,43 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
                         </p>
                       </div>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Declined tasks needing reassignment */}
+              {declinedTasks.length > 0 && (
+                <div>
+                  <h4 className="font-['Roboto_Mono'] text-[10px] text-destructive uppercase mb-[8px]">
+                    Declined Tasks ({declinedTasks.length})
+                  </h4>
+                  <div className="space-y-[8px]">
+                    {declinedTasks.map((item) => (
+                      <div
+                        key={item.id}
+                        className="p-[12px] rounded-[8px] border bg-destructive/5 border-destructive/20 hover:shadow-sm transition-all cursor-pointer"
+                        onClick={() => {
+                          setIsOpen(false);
+                          if (onNavigate) {
+                            onNavigate("project-details", item.task.projectId);
+                          }
+                        }}
+                      >
+                        <div className="flex items-center gap-[12px]">
+                          <div className="p-[8px] rounded-[6px] bg-destructive/10">
+                            <UserX className="w-4 h-4 text-destructive" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-['Roboto_Mono'] text-[11px] text-foreground truncate">
+                              {item.task.title}
+                            </p>
+                            <p className="font-['Roboto_Mono'] text-[10px] text-muted-foreground truncate">
+                              Declined{item.declineReason ? `: ${item.declineReason}` : ""} — needs reassignment
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}

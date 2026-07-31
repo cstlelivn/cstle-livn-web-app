@@ -27,6 +27,25 @@ export async function listActiveTaskAssignees() {
   return (data ?? []).map(transformAssignee);
 }
 
+// Every declined assignment, most recent first. Used to power the "declined
+// tasks need reassignment" notification for managers/supervisors -- a task
+// counts as still needing attention if it has a decline in its history and
+// nobody active is currently assigned (see useDeclinedAssignments.ts, which
+// cross-references this against the live active-assignee list).
+export async function listDeclinedAssignments(limit = 200) {
+  const { data, error } = await supabase
+    .from('task_assignees')
+    .select('*')
+    .not('decline_reason', 'is', null)
+    .order('unassigned_at', { ascending: false })
+    .limit(limit);
+  failIf(error, 'Failed to list declined assignments');
+  return (data ?? []).map((row: any) => ({
+    ...transformAssignee(row),
+    declineReason: row.decline_reason,
+  }));
+}
+
 export async function listTaskAssigneeHistory(taskId: string) {
   const { data, error } = await supabase
     .from('task_assignees')
