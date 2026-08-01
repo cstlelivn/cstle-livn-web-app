@@ -9,6 +9,7 @@ import { Button } from './ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Plus, User, Phone, Mail, Briefcase } from 'lucide-react';
 import AuraSummaryCard from './AuraSummaryCard';
+import AuraProfileCard from './AuraProfileCard';
 import AuraTaskList from './AuraTaskList';
 import CreateAuraTaskDialog from './CreateAuraTaskDialog';
 import { useWorkerTasks, useWorkerAuraSummary } from '../src/features/aura/useAura';
@@ -148,20 +149,26 @@ export default function WorkerAuraProfile({
           </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-6">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger 
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger
                 value="overview"
                 style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-base)' }}
               >
                 Overview
               </TabsTrigger>
-              <TabsTrigger 
+              <TabsTrigger
+                value="performance"
+                style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-base)' }}
+              >
+                Performance
+              </TabsTrigger>
+              <TabsTrigger
                 value="tasks"
                 style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-base)' }}
               >
                 Tasks ({tasks.length})
               </TabsTrigger>
-              <TabsTrigger 
+              <TabsTrigger
                 value="history"
                 style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-base)' }}
               >
@@ -218,6 +225,10 @@ export default function WorkerAuraProfile({
                   </Button>
                 )}
               </div>
+            </TabsContent>
+
+            <TabsContent value="performance" className="mt-6">
+              <AuraProfileCard teamMemberId={String(worker.id)} />
             </TabsContent>
 
             <TabsContent value="tasks" className="mt-6">

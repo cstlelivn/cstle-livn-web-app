@@ -5,6 +5,7 @@ import { calculateCompletion } from "../src/lib/progress";
 import { useTaskAssignees, assigneeIdsForTask } from "../src/features/taskAssignees/useTaskAssignees";
 import { queueSessionAction } from "../src/features/workSessions/offlineQueue";
 import { declineTaskAssignment } from "../src/features/taskAssignees/api";
+import AuraProfileCard from "./AuraProfileCard";
 
 // Mobile-only, task-led dashboard for associates working on site: "what do I
 // have to do right now" rather than the admin's company-wide project/finance
@@ -156,6 +157,15 @@ export default function MobileTaskDashboard({
           </div>
         )}
       </div>
+
+      {myMember && (
+        <div className="px-[16px] flex flex-col gap-[12px]">
+          <h2 style={{ fontFamily: "Anybody", fontVariationSettings: "'wdth' 137", fontWeight: 700, fontStretch: "137%", letterSpacing: "-0.04em", fontSize: "22px" }}>
+            Your Aura
+          </h2>
+          <AuraProfileCard teamMemberId={String(myMember.id)} />
+        </div>
+      )}
     </div>
   );
 }
