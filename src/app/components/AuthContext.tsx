@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, useRef, ReactNode } fro
 import { createClient, authAPI, userAPI } from "../utils/supabase/client.tsx";
 import { toast } from "sonner";
 
-export type UserRole = "Super Admin" | "Admin" | "Manager" | "Quality Control" | "Accountant" | "Contractor" | "Associate";
+export type UserRole = "Super Admin" | "Admin" | "Manager" | "Quality Control" | "Accountant" | "Contractor" | "Associate" | "Supervisor";
 
 export type Permission =
   | "canViewDashboard"
@@ -195,6 +195,19 @@ const rolePermissions: Record<UserRole, Permission[]> = {
   Associate: [
     "canViewDashboard",
     "canViewProjects",
+  ],
+  // On-site, works alongside Associates but with QC authority scoped to the
+  // specific project(s) they supervise (projects.supervisor_id -- see
+  // 20240026_supervisor_role.sql). Deliberately narrower than Manager: no
+  // canViewAllProjects (only their supervised + assigned projects), no
+  // team/CRM/finance/inventory/analytics/settings access, no phase editing.
+  Supervisor: [
+    "canViewDashboard",
+    "canViewProjects",
+    "canViewTeam",
+    "canViewQCReviewQueue",
+    "canViewPhaseQCReviewQueue",
+    "canApproveTaskQC",
   ],
 };
 
