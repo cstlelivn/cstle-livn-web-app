@@ -54,6 +54,26 @@ export async function recordTaskAuraScore(taskId: string, reviewerFeedback?: str
   return data as number;
 }
 
+export async function finalizeTaskQC(input: {
+  taskId: string;
+  qcResult: 'Approved' | 'Approved with Conditions' | 'Rejected';
+  rework: boolean;
+  feedback?: string;
+  displayRating?: number;
+  ratingMetrics?: Record<string, unknown>;
+}) {
+  const { data, error } = await supabase.rpc('finalize_task_qc', {
+    p_task_id: input.taskId,
+    p_qc_result: input.qcResult,
+    p_rework: input.rework,
+    p_feedback: input.feedback ?? null,
+    p_display_rating: input.displayRating ?? null,
+    p_rating_metrics: input.ratingMetrics ?? null,
+  });
+  failIf(error, 'Failed to finalize task QC');
+  return Number(data ?? 0);
+}
+
 export async function getTaskAuraScore(taskId: string, teamMemberId: string) {
   const { data, error } = await supabase
     .from('task_aura_scores')

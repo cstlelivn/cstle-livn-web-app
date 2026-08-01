@@ -261,6 +261,13 @@
   }
 }
 
+/* Anybody is a variable display face. Keep its width axis explicit even when
+   it is used on a non-heading through Tailwind's arbitrary font utility. */
+.font-\[\'Anybody\'\] {
+  font-variation-settings: "wdth" 137;
+  font-stretch: 137%;
+}
+
 /**
  * Base typography for plain, unclassed elements. A component that wants a
  * different size just adds its own Tailwind text-size class -- a class

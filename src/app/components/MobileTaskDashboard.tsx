@@ -191,7 +191,7 @@ function TaskQueueRow({
   if (!isExpanded) {
     return (
       <button
-        onClick={() => onNavigate("project-details", task.projectId)}
+        onClick={() => onNavigate("task-details", task.id)}
         className="w-full text-left px-[20px] py-[16px] bg-[var(--olive-100)] border-t border-[var(--olive-300)] flex items-start justify-between gap-[12px]"
       >
         <p
@@ -222,7 +222,7 @@ function TaskQueueRow({
       const teamMemberId = myMemberId && assigneeIds.includes(myMemberId) ? myMemberId : assigneeIds[0];
       await queueSessionAction({ type: "start", taskId: String(task.id), teamMemberId });
       toast.success("Timer started");
-      onNavigate("project-details", task.projectId);
+      onNavigate("task-details", task.id);
     } catch (error: any) {
       toast.error(error?.message || "Failed to start task");
     } finally {
@@ -273,12 +273,13 @@ function TaskQueueRow({
       </div>
 
       <div className="flex items-center justify-between gap-[12px]">
-        <p
+        <button
+          onClick={() => onNavigate("task-details", task.id)}
           className="text-foreground flex-1"
           style={{ fontFamily: "Anybody", fontVariationSettings: "'wdth' 137", fontWeight: 700, fontStretch: "137%", letterSpacing: "-0.04em", fontSize: "26px", lineHeight: 1.2 }}
         >
           {task.title}
-        </p>
+        </button>
       </div>
       <div className="flex items-center justify-between font-['Roboto_Mono'] text-[11px] text-muted-foreground -mt-[8px]">
         <span className="uppercase tracking-wide">{task.priority || "Medium"}</span>

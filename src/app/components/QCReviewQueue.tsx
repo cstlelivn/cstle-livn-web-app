@@ -5,8 +5,7 @@ import { useAuth } from "./AuthContext";
 import { toast } from "sonner";
 import TaskReviewDialog from "./TaskReviewDialog";
 import { useTasksAwaitingReview } from "../src/features/tasks/useTasksAwaitingReview";
-import { recordSessionQCResult } from "../src/features/workSessions/api";
-import { recordTaskAuraScore } from "../src/features/auraScoring/api";
+import { finalizeTaskQC } from "../src/features/auraScoring/api";
 
 export default function QCReviewQueue() {
   const { projects, tasks, teamMembers, getTeamMember, updateTask, refreshTasks, refreshTeam } = useApp();
@@ -124,37 +123,14 @@ export default function QCReviewQueue() {
         return;
       }
 
-      // Update the task
-      await updateTask(taskId, {
-        status: "Completed",
-        progress: 100,
-        rating: metrics.calculatedRating,
-        ratingMetrics: {
-          speed: metrics.speed,
-          corrections: metrics.corrections,
-        },
-        reviewFeedback: feedback || undefined,
-        completedDate: new Date().toISOString(),
+      await finalizeTaskQC({
+        taskId: String(taskId),
+        qcResult: metrics.corrections === "none" ? "Approved" : "Approved with Conditions",
+        rework: metrics.corrections !== "none",
+        feedback: feedback || undefined,
+        displayRating: metrics.calculatedRating,
+        ratingMetrics: { speed: metrics.speed, corrections: metrics.corrections },
       });
-
-      // Record this QC decision on the task's work sessions too, so
-      // individual productivity/QC-pass reporting has it -- reuses this
-      // same approval instead of a separate per-session review screen.
-      // Then compute the real Aura score from that (qc_result + measured
-      // time vs estimate + documented delays + reliability signals) --
-      // this replaces the old client-side "weighted average of the
-      // reviewer's speed/corrections dropdown" (updateTeamMemberAuraRating
-      // below), which never used real timer data at all.
-      try {
-        await recordSessionQCResult(
-          String(taskId),
-          metrics.corrections === "none" ? "Approved" : "Approved with Conditions",
-          metrics.corrections !== "none"
-        );
-        await recordTaskAuraScore(String(taskId), feedback || undefined);
-      } catch (sessionError) {
-        console.error("Failed to record QC result / Aura score on work sessions:", sessionError);
-      }
 
       // ✅ WEBSOCKET AUTO-UPDATE: No need to refetch - WebSocket will update automatically
       
@@ -172,17 +148,7 @@ export default function QCReviewQueue() {
     try {
       toast.loading("Requesting changes...", { id: "task-reject" });
       
-      await updateTask(taskId, {
-        status: "In Progress",
-        reviewFeedback: feedback,
-      });
-
-      try {
-        await recordSessionQCResult(String(taskId), "Rejected", true);
-        await recordTaskAuraScore(String(taskId), feedback || undefined);
-      } catch (sessionError) {
-        console.error("Failed to record QC result / Aura score on work sessions:", sessionError);
-      }
+      await finalizeTaskQC({ taskId: String(taskId), qcResult: "Rejected", rework: true, feedback });
 
       // ✅ WEBSOCKET AUTO-UPDATE: No need to refetch - WebSocket will update automatically
       

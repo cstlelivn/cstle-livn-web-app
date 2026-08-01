@@ -16,6 +16,7 @@ export interface WorkSession {
   notes: string | null;
   delayReason: string | null;
   blocker: string | null;
+  delayStatus: 'pending' | 'approved' | 'rejected' | null;
   qcResult: 'Approved' | 'Approved with Conditions' | 'Rejected' | null;
   rework: boolean;
   completionStatus: string | null;
@@ -37,6 +38,7 @@ function transformSession(row: any): WorkSession {
     notes: row.notes,
     delayReason: row.delay_reason,
     blocker: row.blocker,
+    delayStatus: row.delay_status,
     qcResult: row.qc_result,
     rework: row.rework,
     completionStatus: row.completion_status,
@@ -54,6 +56,12 @@ export async function listSessionsForTask(taskId: string) {
     .order('started_at', { ascending: true });
   failIf(error, 'Failed to list work sessions');
   return (data ?? []).map(transformSession);
+}
+
+export async function reviewTaskDelay(sessionId: string, approved: boolean) {
+  const { data, error } = await supabase.rpc('review_task_delay', { p_session_id: sessionId, p_approved: approved });
+  failIf(error, 'Failed to review delay');
+  return transformSession(data);
 }
 
 // RLS scopes this to "my own sessions" for a plain Associate, and to

@@ -23,5 +23,7 @@
     "src/app/src/features/tasks/useTasks.ts",
     "src/app/src/features/projects/api.ts",
     "src/app/src/features/projects/useProjects.ts"
+    ,"src/app/components/AuraProfileCard.tsx"
+    ,"src/app/components/AuraProfileCard.test.ts"
   ]
 }

@@ -2,6 +2,15 @@ import { Hono } from "npm:hono";
 import { cors } from "npm:hono/cors";
 import { logger } from "npm:hono/logger";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+  ListObjectsV2Command,
+  PutObjectCommand,
+  S3Client,
+} from "npm:@aws-sdk/client-s3";
+import { getSignedUrl } from "npm:@aws-sdk/s3-request-presigner";
 import * as kv from "./kv_store.tsx";
 
 const app = new Hono();
@@ -11,6 +20,114 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_URL") ?? "",
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
 );
+
+const R2_BUCKET_NAME = Deno.env.get("R2_BUCKET_NAME") ?? "cstle-task-media";
+const MEDIA_VIEW_ROLES = ["Super Admin", "Admin", "Manager", "Quality Control", "Accountant"];
+const MEDIA_UPLOAD_ROLES = ["Super Admin", "Admin", "Manager", "Quality Control"];
+const R2_FREE_STORAGE_GUARD_BYTES = 8 * 1024 * 1024 * 1024;
+const MEDIA_ALLOWED_TYPES = /^(image\/(jpeg|png|webp|heic|heif)|video\/(mp4|quicktime|webm)|audio\/(mpeg|mp4|wav|webm|ogg)|application\/pdf)$/i;
+
+function getR2Client() {
+  const accountId = Deno.env.get("R2_ACCOUNT_ID");
+  const accessKeyId = Deno.env.get("R2_ACCESS_KEY_ID");
+  const secretAccessKey = Deno.env.get("R2_SECRET_ACCESS_KEY");
+  if (!accountId || !accessKeyId || !secretAccessKey) {
+    throw new Error("R2 credentials are not configured");
+  }
+  return new S3Client({
+    region: "auto",
+    endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+    credentials: { accessKeyId, secretAccessKey },
+  });
+}
+
+function mediaKind(contentType: string) {
+  if (contentType.startsWith("image/")) return "photo";
+  if (contentType.startsWith("video/")) return "video";
+  if (contentType.startsWith("audio/")) return "audio";
+  return "document";
+}
+
+function mediaSizeLimit(contentType: string) {
+  const kind = mediaKind(contentType);
+  if (kind === "photo") return 12 * 1024 * 1024;
+  if (kind === "video") return 50 * 1024 * 1024;
+  if (kind === "audio") return 20 * 1024 * 1024;
+  return 25 * 1024 * 1024;
+}
+
+function safeMediaName(name: string) {
+  return name.trim().replace(/[^a-zA-Z0-9._-]+/g, "-").slice(-160) || "file";
+}
+
+async function currentR2StorageBytes() {
+  const r2 = getR2Client();
+  let total = 0;
+  let continuationToken: string | undefined;
+  do {
+    const page = await r2.send(new ListObjectsV2Command({
+      Bucket: R2_BUCKET_NAME,
+      ContinuationToken: continuationToken,
+    }));
+    total += (page.Contents ?? []).reduce((sum, item) => sum + (item.Size ?? 0), 0);
+    continuationToken = page.IsTruncated ? page.NextContinuationToken : undefined;
+  } while (continuationToken);
+  return total;
+}
+
+async function mediaAccess(
+  userId: string,
+  role: string,
+  projectId: string,
+  taskId: string | null,
+  mode: "view" | "upload" | "approve",
+) {
+  if ((mode === "view" ? MEDIA_VIEW_ROLES : MEDIA_UPLOAD_ROLES).includes(role)) return true;
+
+  const { data: project } = await supabase
+    .from("projects")
+    .select("id, supervisor_id")
+    .eq("id", projectId)
+    .maybeSingle();
+  if (!project) return false;
+
+  if (project.supervisor_id) {
+    const { data: supervisor } = await supabase
+      .from("team_members")
+      .select("id")
+      .eq("id", project.supervisor_id)
+      .eq("auth_user_id", userId)
+      .maybeSingle();
+    if (supervisor) return true;
+  }
+
+  if (mode === "approve" || !taskId) return false;
+
+  const { data: task } = await supabase
+    .from("tasks")
+    .select("id, project_id, assignee_id")
+    .eq("id", taskId)
+    .eq("project_id", projectId)
+    .maybeSingle();
+  if (!task) return false;
+
+  const { data: member } = await supabase
+    .from("team_members")
+    .select("id")
+    .eq("auth_user_id", userId)
+    .maybeSingle();
+  if (!member) return false;
+  if (String(task.assignee_id) === String(member.id)) return true;
+
+  const { data: assignment } = await supabase
+    .from("task_assignees")
+    .select("id")
+    .eq("task_id", taskId)
+    .eq("team_member_id", member.id)
+    .eq("is_active", true)
+    .maybeSingle();
+  return !!assignment;
+}
 
 // Enable logger
 app.use("*", logger(console.log));
@@ -3243,6 +3360,197 @@ Based only on the above, provide: (1) realistic timeline/staffing recommendation
   } catch (err: any) {
     console.error("Insights generation error:", err);
     return c.json({ error: String(err?.message ?? err) }, 500);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// R2 task/project media evidence
+// ---------------------------------------------------------------------------
+
+app.post("/make-server-bcab437c/media/upload-url", authMiddleware, async (c) => {
+  try {
+    const userId = c.get("userId");
+    const role = c.get("userRole");
+    const { projectId, taskId = null, taskUpdateId = null, fileName, contentType, byteSize, evidenceStage = "progress", caption = null, capturedAt = null } = await c.req.json();
+
+    if (!projectId || !fileName || !contentType || !Number.isFinite(byteSize)) {
+      return c.json({ error: "projectId, fileName, contentType, and byteSize are required" }, 400);
+    }
+    const fileLimit = mediaSizeLimit(contentType);
+    if (byteSize <= 0 || byteSize > fileLimit) {
+      return c.json({ error: `This file type must be ${Math.round(fileLimit / 1024 / 1024)} MB or smaller` }, 400);
+    }
+    if (!MEDIA_ALLOWED_TYPES.test(contentType)) {
+      return c.json({ error: "Unsupported file type" }, 400);
+    }
+    if (!["before", "progress", "after", "general"].includes(evidenceStage)) {
+      return c.json({ error: "Invalid evidence stage" }, 400);
+    }
+    if (!(await mediaAccess(userId, role, projectId, taskId, "upload"))) {
+      return c.json({ error: "You do not have permission to upload evidence here" }, 403);
+    }
+
+    const storedBytes = await currentR2StorageBytes();
+    if (storedBytes + byteSize > R2_FREE_STORAGE_GUARD_BYTES) {
+      return c.json({
+        error: "Uploads are paused: R2 storage has reached the 8 GB free-tier safety limit. Contact an administrator.",
+        code: "R2_FREE_TIER_GUARD",
+        storedBytes,
+        safetyLimitBytes: R2_FREE_STORAGE_GUARD_BYTES,
+      }, 507);
+    }
+
+    const id = crypto.randomUUID();
+    const scope = taskId ? `tasks/${taskId}` : "project-files";
+    const objectKey = `projects/${projectId}/${scope}/${evidenceStage}/${id}-${safeMediaName(fileName)}`;
+    const { data: media, error } = await supabase.from("task_media").insert({
+      id,
+      project_id: projectId,
+      task_id: taskId,
+      task_update_id: taskUpdateId,
+      object_key: objectKey,
+      original_filename: fileName,
+      content_type: contentType,
+      byte_size: byteSize,
+      media_kind: mediaKind(contentType),
+      evidence_stage: evidenceStage,
+      caption,
+      captured_at: capturedAt,
+      uploaded_by: userId,
+      upload_status: "pending",
+      client_visible: false,
+      social_approved: false,
+    }).select().single();
+    if (error) return c.json({ error: error.message }, 400);
+
+    try {
+      const uploadUrl = await getSignedUrl(
+        getR2Client(),
+        new PutObjectCommand({
+          Bucket: R2_BUCKET_NAME,
+          Key: objectKey,
+          ContentType: contentType,
+        }),
+        { expiresIn: 600 },
+      );
+      return c.json({ media, uploadUrl });
+    } catch (error) {
+      await supabase.from("task_media").delete().eq("id", id);
+      throw error;
+    }
+  } catch (error: any) {
+    console.error("Media upload-url error:", error);
+    return c.json({ error: error?.message ?? "Could not prepare upload" }, 500);
+  }
+});
+
+app.post("/make-server-bcab437c/media/:id/complete", authMiddleware, async (c) => {
+  try {
+    const userId = c.get("userId");
+    const role = c.get("userRole");
+    const id = c.req.param("id");
+    const { data: media } = await supabase.from("task_media").select("*").eq("id", id).maybeSingle();
+    if (!media || media.deleted_at) return c.json({ error: "Media record not found" }, 404);
+    const isOwner = media.uploaded_by === userId;
+    if (!isOwner && !(await mediaAccess(userId, role, media.project_id, media.task_id, "upload"))) {
+      return c.json({ error: "You do not have permission to complete this upload" }, 403);
+    }
+
+    const head = await getR2Client().send(new HeadObjectCommand({
+      Bucket: R2_BUCKET_NAME,
+      Key: media.object_key,
+    }));
+    if (head.ContentLength !== media.byte_size) {
+      await supabase.from("task_media").update({ upload_status: "failed" }).eq("id", id);
+      return c.json({ error: "Uploaded file size did not match the prepared upload" }, 409);
+    }
+
+    const { data, error } = await supabase.from("task_media")
+      .update({ upload_status: "ready" }).eq("id", id).select().single();
+    if (error) return c.json({ error: error.message }, 400);
+    return c.json({ media: data });
+  } catch (error: any) {
+    console.error("Media completion error:", error);
+    return c.json({ error: error?.message ?? "Could not complete upload" }, 500);
+  }
+});
+
+app.get("/make-server-bcab437c/media", authMiddleware, async (c) => {
+  try {
+    const userId = c.get("userId");
+    const role = c.get("userRole");
+    const taskId = c.req.query("taskId") ?? null;
+    const projectId = c.req.query("projectId");
+    if (!projectId) return c.json({ error: "projectId is required" }, 400);
+    if (!(await mediaAccess(userId, role, projectId, taskId, "view"))) {
+      return c.json({ error: "You do not have permission to view this evidence" }, 403);
+    }
+
+    let query = supabase.from("task_media").select("*")
+      .eq("project_id", projectId)
+      .eq("upload_status", "ready")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(200);
+    query = taskId ? query.eq("task_id", taskId) : query.is("task_id", null);
+    const { data, error } = await query;
+    if (error) return c.json({ error: error.message }, 400);
+
+    const r2 = getR2Client();
+    const media = await Promise.all((data ?? []).map(async (item: any) => ({
+      ...item,
+      url: await getSignedUrl(
+        r2,
+        new GetObjectCommand({ Bucket: R2_BUCKET_NAME, Key: item.object_key }),
+        { expiresIn: 3600 },
+      ),
+    })));
+    return c.json({ media });
+  } catch (error: any) {
+    console.error("Media list error:", error);
+    return c.json({ error: error?.message ?? "Could not load media" }, 500);
+  }
+});
+
+app.patch("/make-server-bcab437c/media/:id/approval", authMiddleware, async (c) => {
+  try {
+    const userId = c.get("userId");
+    const role = c.get("userRole");
+    const id = c.req.param("id");
+    const { clientVisible, socialApproved } = await c.req.json();
+    const { data: media } = await supabase.from("task_media").select("*").eq("id", id).maybeSingle();
+    if (!media || media.deleted_at) return c.json({ error: "Media record not found" }, 404);
+    if (!(await mediaAccess(userId, role, media.project_id, media.task_id, "approve"))) {
+      return c.json({ error: "You do not have permission to approve this media" }, 403);
+    }
+    const { data, error } = await supabase.from("task_media").update({
+      client_visible: Boolean(clientVisible),
+      social_approved: Boolean(socialApproved),
+    }).eq("id", id).select().single();
+    if (error) return c.json({ error: error.message }, 400);
+    return c.json({ media: data });
+  } catch (error: any) {
+    return c.json({ error: error?.message ?? "Could not update media approval" }, 500);
+  }
+});
+
+app.delete("/make-server-bcab437c/media/:id", authMiddleware, async (c) => {
+  try {
+    const userId = c.get("userId");
+    const role = c.get("userRole");
+    const id = c.req.param("id");
+    const { data: media } = await supabase.from("task_media").select("*").eq("id", id).maybeSingle();
+    if (!media || media.deleted_at) return c.json({ error: "Media record not found" }, 404);
+    const isOwner = media.uploaded_by === userId && !media.client_visible && !media.social_approved;
+    const canApprove = await mediaAccess(userId, role, media.project_id, media.task_id, "approve");
+    if (!isOwner && !canApprove) return c.json({ error: "You do not have permission to delete this media" }, 403);
+
+    await getR2Client().send(new DeleteObjectCommand({ Bucket: R2_BUCKET_NAME, Key: media.object_key }));
+    const { error } = await supabase.from("task_media").update({ deleted_at: new Date().toISOString() }).eq("id", id);
+    if (error) return c.json({ error: error.message }, 400);
+    return c.json({ success: true });
+  } catch (error: any) {
+    return c.json({ error: error?.message ?? "Could not delete media" }, 500);
   }
 });
 

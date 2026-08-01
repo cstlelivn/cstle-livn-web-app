@@ -197,6 +197,47 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   started (offline support so far is scoped only to the work-session
   timer, not the whole app).
 
+## Aura v3 + onsite task workspace (local, awaiting migration)
+
+- Migration `20240029_aura_completion_and_task_reporting.sql` was run
+  successfully in Supabase on August 1, 2026. It adds reviewable
+  `pending/approved/rejected` delays, structured task progress/query/
+  suggestion/issue/change-request records, required checklist items, required
+  photo counts, evidence-aware reliability scoring, profile-RPC authorization,
+  and transactional `finalize_task_qc()`.
+- Aura v3 fixes the v2 audit findings: only QC-approved delays protect timing;
+  missing timer/estimate data is neutral rather than perfect; reliability uses
+  real task updates, required checklist completion, ready R2 photo metadata and
+  clock integrity; QC/task/Aura writes succeed or roll back together; profile
+  aggregates run with caller RLS; improvement guidance is limited and based on
+  the weakest metric. Quality remains the largest weight at 50%.
+- The old pay/Aura-points presentation was removed from `WorkerAuraProfile`.
+  The profile now exposes only the transparent performance system. Payroll is
+  still separate elsewhere and Aura explicitly cannot decide pay, promotion,
+  discipline or termination.
+- A dedicated mobile `MobileTaskWorkspace` now follows the supplied three-
+  screen onsite reference: bold green/olive/vermillion contrast, task details,
+  prominent start/pause/resume/complete controls, live timer, required
+  checklist, evidence launcher, site updates, queries, suggestions, issue and
+  change requests, recent activity, and task Aura feedback. Dashboard task
+  cards route directly to it, and the mobile shell has a four-item bottom nav.
+  Every new Anybody use explicitly sets `font-variation-settings: 'wdth' 137`
+  and `font-stretch: 137%`; a CSS utility safeguard covers arbitrary Anybody
+  utility usage.
+- Managers/QC can author required checklist steps in the task dialog, read and
+  acknowledge/resolve/decline onsite reports, and approve or reject documented
+  delays during QC review. Associates cannot submit completion until required
+  checklist items and the configured required photo count are satisfied.
+- Local verification on August 1, 2026: focused TypeScript passed, 7/7 tests
+  passed, production Vite build passed, and `git diff --check` passed. Browser
+  rendering reached the local sign-in page, but authenticated role-by-role
+  visual QA remains pending because no test credentials were supplied. The
+  frontend remained undeployed at that verification checkpoint.
+- The user explicitly authorized R2 activation and full deployment after
+  confirming migration `20240029`. Repository/live status must be updated again
+  after the frontend push, secret configuration and manual Edge Function deploy
+  are each verified; do not infer one step succeeded from another.
+
 ## R2 task media / proof of work (in progress)
 
 - **Deployment is intentionally paused due to Supabase free-plan egress.** On

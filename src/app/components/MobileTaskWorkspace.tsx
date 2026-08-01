@@ -1,0 +1,123 @@
+import { useEffect, useMemo, useState } from 'react';
+import { ArrowLeft, Camera, Check, ChevronDown, CircleAlert, HelpCircle, Mic, Pause, Pencil, Play, Send, Square } from 'lucide-react';
+import { toast } from 'sonner';
+import { useApp } from './AppContext';
+import { useAuth } from './AuthContext';
+import { useTaskAssignees, assigneeIdsForTask } from '../src/features/taskAssignees/useTaskAssignees';
+import { useWorkSessions } from '../src/features/workSessions/useWorkSessions';
+import { useElapsedTime, formatElapsed } from '../src/features/workSessions/useElapsedTime';
+import { queueSessionAction } from '../src/features/workSessions/offlineQueue';
+import { countReadyTaskPhotos, createTaskUpdate, listTaskChecklist, listTaskUpdates, setChecklistItem, type TaskUpdateType } from '../src/features/taskUpdates/api';
+import TaskMediaEvidence from './TaskMediaEvidence';
+import AuraTaskFeedback from './AuraTaskFeedback';
+
+const display = { fontFamily: 'Anybody', fontVariationSettings: "'wdth' 137", fontStretch: '137%', fontWeight: 800, letterSpacing: '-0.04em' } as const;
+const labels: Record<TaskUpdateType, string> = { progress: 'Site update', query: 'Ask a question', suggestion: 'Suggestion', issue: 'Report issue', change_request: 'Request change' };
+
+export default function MobileTaskWorkspace({ taskId, onBack }: { taskId: string; onBack: () => void }) {
+  const { tasks, projects, teamMembers } = useApp();
+  const { currentUser } = useAuth();
+  const { taskAssignees } = useTaskAssignees(true);
+  const { workSessions } = useWorkSessions(true);
+  const task = tasks.find((row: any) => String(row.id) === String(taskId));
+  const project = projects.find((row: any) => String(row.id) === String(task?.projectId));
+  const member = teamMembers.find((row: any) => String(row.authUserId) === String(currentUser?.id));
+  const memberId = member ? String(member.id) : '';
+  const assigned = task ? assigneeIdsForTask(taskAssignees, task.id).includes(memberId) : false;
+  const session = workSessions.find((row: any) => String(row.taskId) === String(taskId) && String(row.teamMemberId) === memberId && row.status !== 'finished');
+  const elapsed = useElapsedTime(session);
+  const [checklist, setChecklist] = useState<any[]>([]);
+  const [updates, setUpdates] = useState<any[]>([]);
+  const [composer, setComposer] = useState<TaskUpdateType | null>(null);
+  const [body, setBody] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [showEvidence, setShowEvidence] = useState(false);
+  const [photoCount, setPhotoCount] = useState(0);
+
+  useEffect(() => {
+    if (!task) return;
+    Promise.all([listTaskChecklist(String(task.id)), listTaskUpdates(String(task.id)), countReadyTaskPhotos(String(task.id))])
+      .then(([items, activity, photos]) => { setChecklist(items); setUpdates(activity); setPhotoCount(photos); })
+      .catch(() => {});
+  }, [task?.id]);
+
+  const requiredIncomplete = checklist.filter((item) => item.is_required && !item.completed_at).length;
+  const assignedNames = useMemo(() => task ? assigneeIdsForTask(taskAssignees, task.id).map((id) => teamMembers.find((m: any) => String(m.id) === id)?.name).filter(Boolean).join(' + ') : '', [task, taskAssignees, teamMembers]);
+
+  if (!task) return <div className="p-6 font-['Roboto_Mono'] text-sm">Task not found.</div>;
+
+  const run = async (operation: () => Promise<any>, message: string) => {
+    setBusy(true);
+    try { await operation(); toast.success(message); }
+    catch (error: any) { toast.error(error?.message || 'Could not update task'); }
+    finally { setBusy(false); }
+  };
+
+  const start = () => run(() => queueSessionAction({ type: 'start', taskId: String(task.id), teamMemberId: memberId }), 'Task started');
+  const pause = () => session && run(() => queueSessionAction({ type: 'pause', taskId: String(task.id), teamMemberId: memberId, sessionId: session.id }), 'Task paused');
+  const resume = () => session && run(() => queueSessionAction({ type: 'resume', taskId: String(task.id), teamMemberId: memberId, sessionId: session.id }), 'Task resumed');
+  const finish = () => {
+    if (requiredIncomplete > 0) { toast.error(`Complete ${requiredIncomplete} required checklist item${requiredIncomplete === 1 ? '' : 's'} first`); return; }
+    const requiredPhotos = Number(task.required_photo_count || 0);
+    if (photoCount < requiredPhotos) { toast.error(`Add ${requiredPhotos - photoCount} more required photo${requiredPhotos - photoCount === 1 ? '' : 's'} first`); return; }
+    if (!session) return;
+    run(() => queueSessionAction({ type: 'finish', taskId: String(task.id), teamMemberId: memberId, sessionId: session.id, notes: body || undefined }), 'Task submitted for QC');
+  };
+  const submitUpdate = async () => {
+    if (!composer || !body.trim() || !memberId) return;
+    await run(async () => {
+      const created = await createTaskUpdate(String(task.id), String(task.projectId), memberId, composer, body);
+      setUpdates((current) => [created, ...current]); setBody(''); setComposer(null);
+    }, `${labels[composer]} submitted`);
+  };
+  const toggleItem = async (item: any) => {
+    const completed = !item.completed_at;
+    setChecklist((rows) => rows.map((row) => row.id === item.id ? { ...row, completed_at: completed ? new Date().toISOString() : null } : row));
+    try { await setChecklistItem(item.id, completed); } catch (error: any) {
+      setChecklist((rows) => rows.map((row) => row.id === item.id ? item : row)); toast.error(error?.message || 'Checklist update failed');
+    }
+  };
+
+  const inProgress = Boolean(session);
+  return (
+    <div className="md:hidden min-h-full -m-[16px] bg-[var(--grey-50)] text-[var(--grey-900)] pb-[92px]">
+      <header className={inProgress ? 'bg-[var(--green-900)] text-white px-6 pt-5 pb-6' : 'px-6 pt-5 pb-3'}>
+        <button onClick={onBack} className="w-11 h-11 -ml-3 flex items-center justify-center" aria-label="Back"><ArrowLeft /></button>
+        {inProgress ? (
+          <><h1 className="text-[42px] leading-[.96] mt-4" style={display}>Task in<br />progress</h1>
+          <div className="mt-5 bg-[var(--olive-300)] text-[var(--green-900)] rounded-[18px] px-5 py-5 flex items-center justify-between">
+            <div><p className="font-['Roboto_Mono'] text-[35px] leading-none tracking-tight">{formatElapsed(elapsed)}</p><p className="font-['Roboto_Mono'] text-[10px] uppercase mt-3">{session.status === 'paused' ? 'Paused' : `Started ${new Date(session.startedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`}</p></div>
+            <div className="w-16 h-16 rounded-full border-[7px] border-white border-l-[var(--green-900)]" /></div></>
+        ) : <p className="font-['Roboto_Mono'] text-[10px] uppercase tracking-[.12em] mt-2">{project?.title} · {task.phase || project?.phase}</p>}
+      </header>
+
+      <main className="px-5 py-5 space-y-4">
+        <h2 className="text-[30px] leading-[1.05]" style={display}>{task.title}</h2>
+        {!inProgress && <div className="grid grid-cols-4 border-y border-[var(--olive-300)] py-4">
+          {[['Priority', task.priority || 'Normal'], ['Start', task.start_date ? new Date(task.start_date).toLocaleDateString([], { month:'short', day:'numeric' }) : 'Now'], ['Estimate', task.estimated_hours ? `${task.estimated_hours} hr` : 'Not set'], ['Assigned', assignedNames || '—']].map(([label,value]) => <div key={label} className="px-2 border-r last:border-0 border-[var(--olive-300)]"><p className="font-['Roboto_Mono'] text-[8px] uppercase">{label}</p><p className="font-['Roboto_Mono'] text-[10px] uppercase mt-2 truncate">{value}</p></div>)}
+        </div>}
+
+        {!inProgress && <section className="bg-[var(--green-900)] text-white rounded-[18px] p-5"><p className="font-['Roboto_Mono'] text-[9px] uppercase text-[var(--olive-300)]">What to do</p><p className="font-['Roboto_Mono'] text-[13px] leading-relaxed mt-3 whitespace-pre-wrap">{task.description || 'Complete the assigned work and document your progress.'}</p><p className="font-['Roboto_Mono'] text-[9px] uppercase text-[var(--olive-300)] mt-5">Site · {project?.location || 'See project details'}</p></section>}
+
+        {checklist.length > 0 && <section className="border border-[var(--olive-300)] rounded-[14px] overflow-hidden bg-white"><div className="px-4 py-3 flex justify-between"><span className="font-['Roboto_Mono'] text-[10px] uppercase">Materials & checklist · {checklist.length} items</span><ChevronDown className="w-4 h-4" /></div>{checklist.map((item) => <button key={item.id} onClick={() => toggleItem(item)} className="w-full border-t border-[var(--olive-300)] px-4 py-3 text-left flex gap-3 items-center"><span className={`w-5 h-5 border rounded-sm flex items-center justify-center ${item.completed_at ? 'bg-[var(--green-900)] text-white' : ''}`}>{item.completed_at && <Check className="w-3 h-3" />}</span><span className="font-['Roboto_Mono'] text-[11px]">{item.label}{item.is_required ? ' *' : ''}</span></button>)}</section>}
+
+        {inProgress && <>
+          <button onClick={() => setShowEvidence(!showEvidence)} className="w-full h-14 rounded-[12px] border border-[var(--olive-300)] bg-white flex items-center justify-center gap-3 font-['Roboto_Mono'] text-[11px] uppercase"><Camera className="w-5 h-5" /> Add photo, video or audio</button>
+          <p className="font-['Roboto_Mono'] text-[9px] uppercase text-center -mt-2">{photoCount} photo{photoCount === 1 ? '' : 's'} added{Number(task.required_photo_count || 0) > 0 ? ` · ${task.required_photo_count} required` : ''}</p>
+          {showEvidence && <TaskMediaEvidence projectId={String(task.projectId)} taskId={String(task.id)} />}
+          <div className="grid grid-cols-2 gap-3">
+            {([{type:'progress',icon:Send},{type:'query',icon:HelpCircle},{type:'suggestion',icon:Mic},{type:'issue',icon:CircleAlert},{type:'change_request',icon:Pencil}] as const).map(({type,icon:Icon}) => <button key={type} onClick={() => setComposer(type)} className={`min-h-14 px-3 rounded-[12px] border font-['Roboto_Mono'] text-[10px] uppercase flex items-center justify-center gap-2 ${composer===type ? 'bg-[var(--green-900)] text-white' : 'bg-white border-[var(--olive-300)]'}`}><Icon className="w-4 h-4" />{labels[type]}</button>)}
+          </div>
+          {composer && <div className="bg-white border border-[var(--olive-300)] rounded-[14px] p-3"><p className="font-['Roboto_Mono'] text-[9px] uppercase mb-2">{labels[composer]}</p><textarea value={body} onChange={(e)=>setBody(e.target.value)} rows={3} className="w-full resize-none bg-transparent font-['Roboto_Mono'] text-[12px] outline-none" placeholder="What did you complete or notice?"/><button onClick={submitUpdate} disabled={busy || !body.trim()} className="w-full mt-2 h-11 rounded-full bg-[var(--vermillion-500)] text-white font-['Roboto_Mono'] text-[11px] uppercase disabled:opacity-40">Submit</button></div>}
+          {updates.length > 0 && <section><p className="font-['Roboto_Mono'] text-[9px] uppercase mb-2">Recent task activity</p>{updates.slice(0,3).map((u)=><div key={u.id} className="border-t border-[var(--olive-300)] py-3"><p className="font-['Roboto_Mono'] text-[9px] uppercase text-[var(--vermillion-700)]">{labels[u.update_type as TaskUpdateType]} · {u.status}</p><p className="font-['Roboto_Mono'] text-[11px] mt-1">{u.body}</p></div>)}</section>}
+        </>}
+
+        {memberId && <AuraTaskFeedback taskId={String(task.id)} teamMemberId={memberId} />}
+      </main>
+      <footer className="fixed md:hidden bottom-0 left-0 right-0 bg-[var(--grey-50)] border-t border-[var(--olive-300)] p-4 grid grid-cols-[.75fr_1.5fr] gap-3 z-30">
+        {inProgress ? <button onClick={session?.status === 'paused' ? resume : pause} disabled={busy} className="h-12 border border-[var(--green-900)] rounded-full font-['Roboto_Mono'] text-[11px] uppercase flex items-center justify-center gap-2">{session?.status === 'paused' ? <Play className="w-4"/> : <Pause className="w-4"/>}{session?.status === 'paused' ? 'Resume':'Pause'}</button> : <button onClick={()=>setComposer('query')} className="h-12 border border-[var(--green-900)] rounded-full font-['Roboto_Mono'] text-[11px] uppercase">Request help</button>}
+        {inProgress ? <button onClick={finish} disabled={busy} className="h-12 bg-[var(--vermillion-500)] text-white rounded-full font-['Roboto_Mono'] text-[11px] uppercase flex items-center justify-center gap-2"><Square className="w-4"/>Complete task</button> : <button onClick={start} disabled={busy || !assigned || !memberId} className="h-12 bg-[var(--vermillion-500)] text-white rounded-full font-['Roboto_Mono'] text-[11px] uppercase flex items-center justify-center gap-2 disabled:opacity-40"><Play className="w-4"/>Start task</button>}
+      </footer>
+    </div>
+  );
+}

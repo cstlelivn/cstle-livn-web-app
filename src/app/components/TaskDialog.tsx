@@ -12,6 +12,9 @@ import { useTaskAssignees, assigneeIdsForTask } from "../src/features/taskAssign
 import { assignTaskMember, unassignTaskMember } from "../src/features/taskAssignees/api";
 import WorkSessionTimer from "./WorkSessionTimer";
 import AuraTaskFeedback from "./AuraTaskFeedback";
+import TaskChecklistEditor from './TaskChecklistEditor';
+import TaskActivityFeed from './TaskActivityFeed';
+import TaskMediaEvidence from "./TaskMediaEvidence";
 import { toast } from "sonner";
 
 interface TaskDialogProps {
@@ -648,6 +651,14 @@ export default function TaskDialog({
               for sessions to attach to). */}
           {mode === "edit" && task && (
             <WorkSessionTimer taskId={String(task.id)} projectId={String(projectId)} />
+          )}
+
+          {mode === "edit" && task && <TaskChecklistEditor taskId={String(task.id)} />}
+
+          {mode === "edit" && task && <TaskActivityFeed taskId={String(task.id)} />}
+
+          {mode === "edit" && task && (
+            <TaskMediaEvidence projectId={String(projectId)} taskId={String(task.id)} />
           )}
 
           {/* Aura feedback for this task -- only renders once a real score

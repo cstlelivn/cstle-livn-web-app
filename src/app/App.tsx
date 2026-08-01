@@ -21,6 +21,8 @@ import {
   LayoutTemplate,
   Menu,
   X,
+  Home,
+  Bell,
 } from "lucide-react";
 import { AppProvider, useApp } from "./components/AppContext";
 import { AuthProvider, useAuth } from "./components/AuthContext";
@@ -43,6 +45,7 @@ import NotificationBell from "./components/NotificationBell";
 import ProjectClientDiagnostic from "./components/ProjectClientDiagnostic";
 import TemplateBuilder from "./components/TemplateBuilder";
 import TeamProductivityReport from "./components/TeamProductivityReport";
+import MobileTaskWorkspace from "./components/MobileTaskWorkspace";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { startOfflineSync } from "./src/features/workSessions/offlineQueue";
 import svgPaths from "./imports/svg-ydinhr03gq";
@@ -60,7 +63,8 @@ type ViewType =
   | "user-edit"
   | "profile"
   | "diagnostic"
-  | "productivity";
+  | "productivity"
+  | "task-details";
 
 type SubViewType = {
   projects: "projects" | "tasks" | "qc-review";
@@ -87,6 +91,7 @@ function AppContent() {
   const [projectsSubView, setProjectsSubView] = useState<SubViewType["projects"]>("projects");
   const [teamsSubView, setTeamsSubView] = useState<SubViewType["teams"]>("team");
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [hoverTimeout, setHoverTimeout] = useState<NodeJS.Timeout | null>(null);
@@ -169,7 +174,10 @@ function AppContent() {
     setMobileMenuOpen(false);
     
     // Handle navigation to specific sub-views or IDs
-    if (view === "project-details" && subViewOrId !== undefined && subViewOrId !== null) {
+    if (view === "task-details" && subViewOrId !== undefined && subViewOrId !== null) {
+      setSelectedTaskId(String(subViewOrId));
+      setCurrentView("task-details");
+    } else if (view === "project-details" && subViewOrId !== undefined && subViewOrId !== null) {
       // Project ids are UUID strings, not numbers -- this guard used to check
       // `typeof subViewOrId === "number"`, which is never true for a UUID, so
       // this branch silently never ran: dashboard cards, global search, and
@@ -374,6 +382,10 @@ function AppContent() {
         return <TemplateBuilder />;
       case "productivity":
         return <TeamProductivityReport />;
+      case "task-details":
+        return selectedTaskId
+          ? <MobileTaskWorkspace taskId={selectedTaskId} onBack={() => { setSelectedTaskId(null); setCurrentView("dashboard"); }} />
+          : <Dashboard onNavigate={handleNavigate} onNewProject={handleNewProject} />;
       default:
         return <Dashboard onNavigate={handleNavigate} onNewProject={handleNewProject} />;
     }
@@ -577,7 +589,7 @@ function AppContent() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Bar */}
-        <div className="h-[60px] border-b border-border bg-background px-[12px] md:px-[32px] flex items-center justify-between gap-[8px] shrink-0">
+        <div className={`${currentView === "task-details" ? "hidden md:flex" : "flex"} h-[60px] border-b border-border bg-background px-[12px] md:px-[32px] items-center justify-between gap-[8px] shrink-0`}>
           <div className="flex items-center gap-[8px] min-w-0">
             <button
               onClick={() => setMobileMenuOpen(true)}
@@ -618,11 +630,25 @@ function AppContent() {
         </div>
 
         {/* Page Content */}
-         <div className="flex-1 overflow-y-auto bg-background mx-auto w-full p-[16px] md:p-[32px]">
+        <div className={`flex-1 overflow-y-auto bg-background mx-auto w-full ${currentView === "task-details" ? "p-[16px] md:p-[32px]" : "p-[16px] md:p-[32px]"}`}>
           <ErrorBoundary key={currentView}>
             {renderView()}
           </ErrorBoundary>
         </div>
+        {currentView !== "task-details" && (
+          <nav className="md:hidden h-[68px] shrink-0 border-t border-[var(--olive-300)] bg-[var(--grey-50)] grid grid-cols-4 px-3 z-30">
+            {[
+              { label: 'Home', icon: Home, action: () => handleNavigate('dashboard'), active: currentView === 'dashboard' },
+              { label: 'Projects', icon: FolderKanban, action: () => handleNavigate('projects'), active: currentView === 'projects' },
+              { label: 'Updates', icon: Bell, action: () => handleNavigate('dashboard'), active: false },
+              { label: 'Profile', icon: UserCircle, action: () => handleNavigate('profile'), active: currentView === 'profile' },
+            ].map(({ label, icon: Icon, action, active }) => (
+              <button key={label} onClick={action} className={`flex flex-col items-center justify-center gap-1 font-['Roboto_Mono'] text-[8px] uppercase ${active ? 'text-[var(--green-900)] font-bold' : 'text-[var(--grey-700)]'}`}>
+                <Icon className="w-5 h-5" />{label}<span className={`h-[2px] w-8 ${active ? 'bg-[var(--green-900)]' : 'bg-transparent'}`} />
+              </button>
+            ))}
+          </nav>
+        )}
       </div>
     </div>
   );

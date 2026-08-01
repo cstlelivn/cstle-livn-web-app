@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CheckCircle, XCircle, AlertCircle, Star, Clock, MessageSquare, User, Calendar } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "./ui/dialog";
 import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
 import { Badge } from "./ui/badge";
 import type { Task } from "./AppContext";
+import { listSessionsForTask, reviewTaskDelay, type WorkSession } from '../src/features/workSessions/api';
+import { toast } from 'sonner';
 
 interface TaskReviewDialogProps {
   isOpen: boolean;
@@ -43,6 +45,20 @@ export default function TaskReviewDialog({
   const [speed, setSpeed] = useState<"fast" | "on-time" | "slow" | null>(null);
   const [corrections, setCorrections] = useState<"none" | "minor" | "major" | null>(null);
   const [additionalComments, setAdditionalComments] = useState("");
+  const [sessions, setSessions] = useState<WorkSession[]>([]);
+
+  useEffect(() => {
+    if (!isOpen || !task?.id) return;
+    listSessionsForTask(String(task.id)).then(setSessions).catch(() => {});
+  }, [isOpen, task?.id]);
+
+  const decideDelay = async (session: WorkSession, approved: boolean) => {
+    try {
+      const updated = await reviewTaskDelay(session.id, approved);
+      setSessions((rows) => rows.map((row) => row.id === session.id ? updated : row));
+      toast.success(approved ? 'Delay approved' : 'Delay declined');
+    } catch (error: any) { toast.error(error?.message || 'Could not review delay'); }
+  };
 
   // Calculate rating based on speed and corrections
   const calculateRating = (
@@ -269,6 +285,22 @@ export default function TaskReviewDialog({
                     )}
                   </div>
                 )}
+
+              {/* QC Guidelines */}
+              {sessions.some((session) => session.delayReason || session.blocker) && (
+                <div className="p-[16px] bg-secondary/20 border border-border rounded-[8px] space-y-[10px]">
+                  <p className="font-['Roboto_Mono'] font-bold text-[10px] uppercase tracking-wide">Documented delays</p>
+                  {sessions.filter((session) => session.delayReason || session.blocker).map((session) => (
+                    <div key={session.id} className="border-t border-border pt-[10px] first:border-0 first:pt-0">
+                      <p className="font-['Roboto_Mono'] text-[11px]">{session.delayReason || session.blocker}</p>
+                      <div className="flex items-center justify-between mt-[7px]">
+                        <span className="font-['Roboto_Mono'] text-[9px] uppercase text-muted-foreground">{session.delayStatus || 'pending'}</span>
+                        {(!session.delayStatus || session.delayStatus === 'pending') && <div className="flex gap-[6px]"><button type="button" onClick={() => decideDelay(session, false)} className="px-3 py-1 border border-border rounded-full font-['Roboto_Mono'] text-[9px] uppercase">Decline</button><button type="button" onClick={() => decideDelay(session, true)} className="px-3 py-1 bg-success text-white rounded-full font-['Roboto_Mono'] text-[9px] uppercase">Approve delay</button></div>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* QC Guidelines */}
               <div className="p-[16px] bg-secondary rounded-[8px]">

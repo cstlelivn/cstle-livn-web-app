@@ -122,7 +122,7 @@ export default function AuraTaskFeedback({ taskId, teamMemberId }: AuraTaskFeedb
         <div>
           <p className="font-['Roboto_Mono'] text-[10px] font-bold uppercase tracking-wide text-accent mb-[4px]">To improve</p>
           <ul className="space-y-[2px]">
-            {suggestions.map((s, i) => (
+            {suggestions.slice(0, 2).map((s, i) => (
               <li key={i} className="font-['Roboto_Mono'] text-[11px] text-foreground">• {s}</li>
             ))}
           </ul>

@@ -9,7 +9,7 @@ const TASK_LIST_COLUMNS = [
   'assignee_id', 'start_date', 'due_date', 'progress', 'tags', 'phase',
   'phase_id', 'task_type', 'is_required', 'dependency_task_id', 'blocked_by',
   'completed_date', 'started_at', 'submitted_at', 'review_feedback', 'rating',
-  'rating_metrics', 'estimated_hours', 'complexity', 'created_at', 'updated_at',
+  'rating_metrics', 'estimated_hours', 'complexity', 'required_photo_count', 'created_at', 'updated_at',
 ].join(',');
 
 // Helper to check if a value is a valid UUID

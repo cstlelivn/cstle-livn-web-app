@@ -9,7 +9,7 @@ interface AuraProfileCardProps {
 const LEVEL_ORDER = ["New Member", "Developing", "Skilled", "Advanced", "Expert"] as const;
 const LEVEL_FLOORS: Record<string, number> = { Developing: 0, Skilled: 3.2, Advanced: 4.0, Expert: 4.5 };
 
-function nextLevelSteps(profile: AuraProfile): string {
+export function nextLevelSteps(profile: AuraProfile): string {
   if (profile.scoredTaskCount < 5) {
     return `Complete ${profile.tasksUntilConfident} more reviewed task${profile.tasksUntilConfident === 1 ? "" : "s"} to get a confident Aura rating.`;
   }
@@ -19,7 +19,13 @@ function nextLevelSteps(profile: AuraProfile): string {
   const floor = LEVEL_FLOORS[next];
   const gap = profile.avgOverall !== null ? Math.max(0, floor - profile.avgOverall) : floor;
   if (gap <= 0) return `You're already scoring high enough for ${next} -- this should update on your next reviewed task.`;
-  return `Reach an average Aura of ${floor.toFixed(1)} to become ${next} (you're at ${profile.avgOverall?.toFixed(1) ?? "—"} now).`;
+  const metrics = [
+    { value: profile.avgQuality, action: 'focus on passing QC without corrections' },
+    { value: profile.avgTiming, action: 'finish within the estimate or report delays early' },
+    { value: profile.avgReliability, action: 'complete required updates, checklists and evidence' },
+  ].filter((metric) => metric.value !== null).sort((a, b) => Number(a.value) - Number(b.value));
+  const focus = metrics[0]?.action;
+  return `Reach an average Aura of ${floor.toFixed(1)} to become ${next}${focus ? `; your clearest next step is to ${focus}` : ''}.`;
 }
 
 // Performance-only Aura profile (This is separate from any pay/payroll
@@ -76,7 +82,7 @@ export default function AuraProfileCard({ teamMemberId }: AuraProfileCardProps) 
         <div className="flex items-center justify-between mb-[12px]">
           <div>
             <p className="font-['Roboto_Mono'] text-[10px] uppercase tracking-wide text-muted-foreground mb-[4px]">
-              Current Aura
+              {profile.scoredTaskCount < 5 ? 'Provisional Aura' : 'Current Aura'}
             </p>
             <p style={{ fontFamily: "Anybody", fontVariationSettings: "'wdth' 137", fontWeight: 700, fontStretch: "137%", fontSize: "32px" }} className="text-foreground">
               {profile.avgOverall !== null ? profile.avgOverall.toFixed(1) : "—"} <span className="text-[16px] text-muted-foreground">/ 5</span>
