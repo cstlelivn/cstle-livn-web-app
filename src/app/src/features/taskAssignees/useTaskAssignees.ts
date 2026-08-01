@@ -94,9 +94,12 @@ export function useTaskAssignees(enabled = true) {
       }
     })();
 
+    // Realtime backstop only (see useTasks.ts for why this moved from 30s
+    // to 5 minutes -- a real Supabase egress overage was traced to these
+    // full-table safety-net polls firing every 30s in every open tab).
     const poll = setInterval(() => {
       listActiveTaskAssignees().then(setRows).catch(() => {});
-    }, 30000);
+    }, 300000);
 
     return () => {
       off();

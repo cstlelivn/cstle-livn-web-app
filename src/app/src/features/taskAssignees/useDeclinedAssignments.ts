@@ -22,7 +22,10 @@ export function useDeclinedTasksNeedingReassignment(tasks: any[], enabled = true
 
   useEffect(() => {
     refresh();
-    const poll = setInterval(refresh, 30000);
+    // A notification-bell supplement, not live task data -- doesn't need
+    // 30s freshness. Full-table polls at that frequency in every open tab
+    // were the real driver of a Supabase egress overage.
+    const poll = setInterval(refresh, 300000);
     return () => clearInterval(poll);
   }, [refresh]);
 

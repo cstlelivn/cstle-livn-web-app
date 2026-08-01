@@ -115,12 +115,16 @@ export function useTasks(enabled = true) {
     // which gives no signal when a message is silently missed) would
     // otherwise leave this tab showing stale task status/QC state
     // indefinitely, with no visible way to know something changed
-    // elsewhere. This is the app's only correctness backstop for that --
-    // it's a background re-fetch, not the primary update path, so it stays
-    // infrequent enough to not matter for load.
+    // elsewhere. This is the app's only correctness backstop for that.
+    // Was 30s -- a full table re-fetch every 30s in every open tab, all day,
+    // turned out to be the actual driver of a real Supabase egress overage
+    // (245% over the free-tier bandwidth cap), since realtime already
+    // handles the normal case near-instantly. 5 minutes is still fast
+    // enough for a backstop that only matters when a message was silently
+    // dropped, which is rare.
     const poll = setInterval(() => {
       listTasks().then(setRows).catch(() => {});
-    }, 30000);
+    }, 300000);
 
     return () => {
       off();

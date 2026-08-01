@@ -101,10 +101,12 @@ export function useWorkSessions(enabled = true) {
 
     // Same rationale as useTasks.ts: postgres_changes delivery isn't
     // guaranteed, so a background re-fetch is the correctness backstop, not
-    // the primary update path.
+    // the primary update path. Moved from 30s to 5 minutes -- these
+    // full-table safety-net polls, firing every 30s in every open tab all
+    // day, turned out to be the real driver of a Supabase egress overage.
     const poll = setInterval(() => {
       listAllSessions().then(setRows).catch(() => {});
-    }, 30000);
+    }, 300000);
 
     return () => {
       off();
