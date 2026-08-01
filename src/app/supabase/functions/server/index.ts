@@ -228,10 +228,23 @@ app.get("/make-server-bcab437c/debug/user/:email", async (c) => {
 // ============= AUTH ROUTES =============
 
 // Sign up - Create new user
+// Public, unauthenticated endpoint -- this is the account-CREATION path, not
+// the account-UPDATE path (PUT /users/:id below already restricts role
+// changes to Super Admin/Manager). That fix was never applied here: this
+// used to trust the client-supplied `role` verbatim, so anyone could POST
+// {role: "Super Admin"} and self-register as a full admin. Self-signup can
+// now only ever produce the two lowest-privilege roles (matching the only
+// two options the sign-up form's dropdown actually shows); anything else
+// requested, or omitted, silently becomes Associate. Elevating a real
+// employee to Manager/Admin/Accountant/Super Admin stays a separate,
+// authenticated, already-locked-down action via PUT /users/:id.
+const SELF_SIGNUP_ALLOWED_ROLES = ["Associate", "Contractor"];
+
 app.post("/make-server-bcab437c/auth/signup", async (c) => {
   try {
-    const { email, password, name, role } = await c.req.json();
-    console.log("Signup request for:", email, "with role:", role);
+    const { email, password, name, role: requestedRole } = await c.req.json();
+    const role = SELF_SIGNUP_ALLOWED_ROLES.includes(requestedRole) ? requestedRole : "Associate";
+    console.log("Signup request for:", email, "requested role:", requestedRole, "assigned role:", role);
 
     // FIRST: Check if user already exists in Auth to avoid error logs
     const { data: { users }, error: listError } = await supabase.auth.admin.listUsers();
