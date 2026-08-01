@@ -197,7 +197,7 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   started (offline support so far is scoped only to the work-session
   timer, not the whole app).
 
-## Aura v3 + onsite task workspace (local, awaiting migration)
+## Aura v3 + onsite task workspace (live; role QA still pending)
 
 - Migration `20240029_aura_completion_and_task_reporting.sql` was run
   successfully in Supabase on August 1, 2026. It adds reviewable
@@ -228,25 +228,30 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   acknowledge/resolve/decline onsite reports, and approve or reject documented
   delays during QC review. Associates cannot submit completion until required
   checklist items and the configured required photo count are satisfied.
-- Local verification on August 1, 2026: focused TypeScript passed, 7/7 tests
+- Verification on August 1, 2026: focused TypeScript passed, 7/7 tests
   passed, production Vite build passed, and `git diff --check` passed. Browser
   rendering reached the local sign-in page, but authenticated role-by-role
-  visual QA remains pending because no test credentials were supplied. The
-  frontend remained undeployed at that verification checkpoint.
-- The user explicitly authorized R2 activation and full deployment after
-  confirming migration `20240029`. Repository/live status must be updated again
-  after the frontend push, secret configuration and manual Edge Function deploy
-  are each verified; do not infer one step succeeded from another.
+  visual QA remains pending because no test credentials were supplied.
+- **Production deployment completed August 1, 2026.** Commit `2c9cba3`
+  (`feat: launch task-led Aura and R2 evidence`) was pushed to `main`; Vercel
+  serves a fresh production bundle containing the Aura, task reporting and
+  `media/upload-url` code. Supabase migration `20240029` is live, and the
+  canonical `make-server-bcab437c` Edge Function was manually deployed and
+  verified in the dashboard. Its public diagnostic route returned HTTP 200 and
+  the protected media route returned the expected HTTP 401 for an anonymous
+  token (proving the new route is present without performing a media upload).
 
-## R2 task media / proof of work (in progress)
+## R2 task media / proof of work (live; authenticated role QA pending)
 
-- **Deployment is intentionally paused due to Supabase free-plan egress.** On
-  August 1, 2026 the live organization Usage page reported 12.271 / 5 GB
+- **Historical egress warning; deployment pause was explicitly lifted by the
+  user on August 1, 2026.** The live organization Usage page reported
+  12.271 / 5 GB
   uncached egress (245%) for the July 16-August 16 cycle, an overage of 7.27 GB.
   Supabase also reports that the previous cycle exceeded egress and warns that
   project restrictions may begin August 30, 2026 if the organization remains
-  over quota. Do not deploy or run live media tests until the remaining
-  database/API egress is audited and the user explicitly resumes deployment.
+  over quota. The database/API egress fix was audited and deployed before R2
+  activation; continue monitoring usage and preserve the 3.5 GB internal
+  warning policy.
   At the same check: cached egress 0 / 5 GB, database size 38.36 / 500 MB,
   Storage 0 / 1 GB, Edge Function invocations 381 / 500,000, Realtime messages
   2,203 / 2,000,000, Realtime peak connections 7 / 200, and MAU 4 / 50,000.
@@ -264,8 +269,9 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   TypeScript, canonical Edge Function mirror comparison, and `git diff --check`
   all pass. **The isolated frontend egress fix was deployed to production on
   August 1, 2026 in commit `faedfd6`.** Vercel served a fresh production bundle
-  containing the new WebSocket recovery subscription. R2 media files and Edge
-  Function changes were excluded from that commit and remain undeployed.
+  containing the new WebSocket recovery subscription. R2 media and Aura were
+  deployed separately afterward in commit `2c9cba3` and the manual Edge
+  Function deployment described below.
   Browser tabs opened before this deployment must reload once to receive the
   fix; after reload they no longer run the five-minute full-table polls.
 
@@ -279,8 +285,8 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
 - **Migration `20240027_task_media_evidence.sql` has been run successfully.**
   It creates `public.task_media`, relationship-validation and media-permission
   helpers, internal-by-default client/social flags, RLS, indexes, and Realtime.
-- **R2 application code and the first onsite task-media UI are implemented in
-  the repository but are not deployed/configured live yet.** The canonical
+- **R2 application code and the first onsite task-media UI are deployed live.**
+  The canonical
   Edge Function and mirror now expose authenticated prepare/complete/list/
   approve/delete media routes using short-lived R2 signed URLs. The task edit
   dialog renders `TaskMediaEvidence.tsx`; the client API is
@@ -292,22 +298,16 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   `http://localhost:5173` and `https://admin.cstlelivn.ca`, allowing only
   browser `GET`, `PUT`, and `HEAD` requests with `Content-Type` and exposing
   `ETag`.
-- Remaining live activation requires
-  `R2_ACCOUNT_ID`,
-  `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, and `R2_BUCKET_NAME` Edge
-  Function secrets. Never put these credentials in Vite/client environment
-  variables or store signed URLs in Postgres; persist only the R2 object key.
-  Follow `R2_MEDIA_SETUP.md`, deploy the Edge Function manually, then deploy
-  the frontend and complete the role-by-role media test checklist.
-- **A production R2 account token named `Cstle task media production` has been
-  created with Object Read & Write access restricted only to
-  `cstle-task-media`.** Its one-time credentials are currently displayed in
-  Cloudflare. Its values were captured only in the active secure browser
-  session and have not been written to disk or logs. Transfer to Supabase Edge
-  Function secrets is currently paused because the in-app browser requires a
-  Supabase sign-in and no authenticated Supabase CLI is installed. Never record
-  the credential values in this file, the repository, logs, or client
-  environment variables.
+- **R2 secrets and Edge Function are active in production.** `R2_ACCOUNT_ID`,
+  `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, and `R2_BUCKET_NAME` were added
+  to Supabase Edge Function secrets on August 1, 2026. The replacement account
+  token `Cstle task media production v2` has Object Read & Write access limited
+  to `cstle-task-media`; one signed, read-only bucket-list request returned HTTP
+  200, with no upload performed. Credential values were never written to the
+  repository or documentation. The older same-scope token remains to be
+  deleted in Cloudflare; do not use it. Authenticated associate/manager/QC
+  upload, approval, download and deletion QA is still pending because no app
+  test credentials were supplied.
 - **Free-tier hard stop is implemented in the Edge Function:** before issuing
   an upload URL it lists/sums current R2 objects and refuses an upload that
   would take stored bytes above 8 GiB, leaving 2 GiB headroom below the 10 GB
