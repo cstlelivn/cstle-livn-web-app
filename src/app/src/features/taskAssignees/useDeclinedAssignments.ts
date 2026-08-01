@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { listDeclinedAssignments } from './api';
 import { useTaskAssignees } from './useTaskAssignees';
+import { subscribeTableMulti } from '../../lib/realtime';
 
 // Surfaces tasks that were declined and still have nobody active assigned --
 // i.e. a manager/supervisor needs to step in and reassign. Resolves itself
@@ -22,11 +23,32 @@ export function useDeclinedTasksNeedingReassignment(tasks: any[], enabled = true
 
   useEffect(() => {
     refresh();
-    // A notification-bell supplement, not live task data -- doesn't need
-    // 30s freshness. Full-table polls at that frequency in every open tab
-    // were the real driver of a Supabase egress overage.
-    const poll = setInterval(refresh, 300000);
-    return () => clearInterval(poll);
+    let subscribedOnce = false;
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible' && navigator.onLine) refresh();
+    };
+    const off = subscribeTableMulti(
+      'declined-task-assignments',
+      'task_assignees',
+      {
+        onInsert: refresh,
+        onUpdate: refresh,
+        onDelete: refresh,
+      },
+      undefined,
+      (status) => {
+        if (status !== 'SUBSCRIBED') return;
+        if (subscribedOnce) refresh();
+        subscribedOnce = true;
+      }
+    );
+    window.addEventListener('online', refresh);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      off();
+      window.removeEventListener('online', refresh);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [refresh]);
 
   if (!enabled) return { items: [], refresh };

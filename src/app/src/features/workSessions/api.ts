@@ -2,6 +2,7 @@ import { createClient } from '../../../utils/supabase/client.tsx';
 import { failIf } from '../../lib/errors';
 
 const supabase = createClient();
+let allSessionsRequest: Promise<WorkSession[]> | null = null;
 
 export interface WorkSession {
   id: string;
@@ -59,13 +60,21 @@ export async function listSessionsForTask(taskId: string) {
 // everyone's for Manager/Admin/Super Admin/QC/Accountant -- same rows
 // either way, the database decides what comes back.
 export async function listAllSessions(limit = 2000) {
-  const { data, error } = await supabase
-    .from('task_work_sessions')
-    .select('*')
-    .order('started_at', { ascending: false })
-    .limit(limit);
-  failIf(error, 'Failed to list work sessions');
-  return (data ?? []).map(transformSession);
+  if (allSessionsRequest) return allSessionsRequest;
+  allSessionsRequest = (async () => {
+    const { data, error } = await supabase
+      .from('task_work_sessions')
+      .select('*')
+      .order('started_at', { ascending: false })
+      .limit(limit);
+    failIf(error, 'Failed to list work sessions');
+    return (data ?? []).map(transformSession);
+  })();
+  try {
+    return await allSessionsRequest;
+  } finally {
+    allSessionsRequest = null;
+  }
 }
 
 interface RpcOpts {

@@ -4,6 +4,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 const supabase = createClient();
 
 type ChangeEvent = 'INSERT' | 'UPDATE' | 'DELETE' | '*';
+type RealtimeStatus = 'SUBSCRIBED' | 'TIMED_OUT' | 'CLOSED' | 'CHANNEL_ERROR';
 
 // Track realtime connection status
 let hasLoggedRealtimeStatus = false;
@@ -102,21 +103,46 @@ export function subscribeTableMulti(
     onUpdate?: (payload: any) => void;
     onDelete?: (payload: any) => void;
   },
-  filter?: string
+  filter?: string,
+  onStatus?: (status: RealtimeStatus) => void
 ): () => void {
-  const unsubscribers: (() => void)[] = [];
+  const channelName = `${key}:${table}`;
+  let channel: RealtimeChannel = supabase.channel(channelName);
+  const config = (event: ChangeEvent) => ({
+    event,
+    schema: 'public' as const,
+    table,
+    ...(filter ? { filter } : {}),
+  });
 
   if (handlers.onInsert) {
-    unsubscribers.push(subscribeTable(`${key}-ins`, table, 'INSERT', handlers.onInsert, filter));
+    channel = channel.on('postgres_changes', config('INSERT'), handlers.onInsert);
   }
   if (handlers.onUpdate) {
-    unsubscribers.push(subscribeTable(`${key}-upd`, table, 'UPDATE', handlers.onUpdate, filter));
+    channel = channel.on('postgres_changes', config('UPDATE'), handlers.onUpdate);
   }
   if (handlers.onDelete) {
-    unsubscribers.push(subscribeTable(`${key}-del`, table, 'DELETE', handlers.onDelete, filter));
+    channel = channel.on('postgres_changes', config('DELETE'), handlers.onDelete);
   }
 
+  channel.subscribe((status) => {
+    const typedStatus = status as RealtimeStatus;
+    onStatus?.(typedStatus);
+    if (status === 'SUBSCRIBED' && !hasLoggedRealtimeStatus) {
+      hasLoggedRealtimeStatus = true;
+      console.log('✅ Realtime WebSockets Connected - Live updates enabled');
+    } else if (status === 'CHANNEL_ERROR' && !hasLoggedRealtimeStatus) {
+      hasLoggedRealtimeStatus = true;
+      console.warn(
+        '⚠️  Realtime Setup Required\n' +
+        '   → Run /src/db/enable-realtime.sql in your Supabase SQL Editor\n' +
+        '   → App will work normally but changes require manual refresh\n' +
+        '   → See documentation: /src/db/REALTIME_SETUP.md'
+      );
+    }
+  });
+
   return () => {
-    unsubscribers.forEach((unsub) => unsub());
+    channel.unsubscribe();
   };
 }

@@ -2,6 +2,7 @@ import { createClient } from '../../../utils/supabase/client.tsx';
 import { failIf } from '../../lib/errors';
 
 const supabase = createClient();
+let activeAssigneesRequest: Promise<any[]> | null = null;
 
 // Transform database row to camelCase for frontend use.
 function transformAssignee(row: any) {
@@ -17,14 +18,22 @@ function transformAssignee(row: any) {
 }
 
 export async function listActiveTaskAssignees() {
-  const { data, error } = await supabase
-    .from('task_assignees')
-    .select('*')
-    .eq('is_active', true)
-    .order('assigned_at', { ascending: true })
-    .limit(2000);
-  failIf(error, 'Failed to list task assignees');
-  return (data ?? []).map(transformAssignee);
+  if (activeAssigneesRequest) return activeAssigneesRequest;
+  activeAssigneesRequest = (async () => {
+    const { data, error } = await supabase
+      .from('task_assignees')
+      .select('*')
+      .eq('is_active', true)
+      .order('assigned_at', { ascending: true })
+      .limit(2000);
+    failIf(error, 'Failed to list task assignees');
+    return (data ?? []).map(transformAssignee);
+  })();
+  try {
+    return await activeAssigneesRequest;
+  } finally {
+    activeAssigneesRequest = null;
+  }
 }
 
 // Every declined assignment, most recent first. Used to power the "declined

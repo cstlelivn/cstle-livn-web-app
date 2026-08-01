@@ -59,7 +59,7 @@ export function useWorkSessions(enabled = true) {
       const data = await listAllSessions();
       setRows(data);
     } catch (error) {
-      // realtime/poll fallback will retry
+      // realtime/reconnect recovery will retry
     } finally {
       setLoading(false);
     }
@@ -73,6 +73,15 @@ export function useWorkSessions(enabled = true) {
     }
 
     let off = () => {};
+    let subscribedOnce = false;
+
+    const recover = () => {
+      if (document.visibilityState !== 'visible' || !navigator.onLine) return;
+      listAllSessions().then(setRows).catch(() => {});
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') recover();
+    };
 
     (async () => {
       try {
@@ -93,25 +102,24 @@ export function useWorkSessions(enabled = true) {
             q.current.push(p);
             if (!raf.current) raf.current = requestAnimationFrame(flush);
           },
+        }, undefined, (status) => {
+          if (status !== 'SUBSCRIBED') return;
+          if (subscribedOnce) recover();
+          subscribedOnce = true;
         });
       } catch (error) {
         setLoading(false);
       }
     })();
 
-    // Same rationale as useTasks.ts: postgres_changes delivery isn't
-    // guaranteed, so a background re-fetch is the correctness backstop, not
-    // the primary update path. Moved from 30s to 5 minutes -- these
-    // full-table safety-net polls, firing every 30s in every open tab all
-    // day, turned out to be the real driver of a Supabase egress overage.
-    const poll = setInterval(() => {
-      listAllSessions().then(setRows).catch(() => {});
-    }, 300000);
+    window.addEventListener('online', recover);
+    document.addEventListener('visibilitychange', onVisibility);
 
     return () => {
       off();
       if (raf.current) cancelAnimationFrame(raf.current);
-      clearInterval(poll);
+      window.removeEventListener('online', recover);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [flush, enabled]);
 

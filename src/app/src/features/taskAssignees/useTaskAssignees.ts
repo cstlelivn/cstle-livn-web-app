@@ -54,7 +54,7 @@ export function useTaskAssignees(enabled = true) {
       const data = await listActiveTaskAssignees();
       setRows(data);
     } catch (error) {
-      // swallow -- realtime/poll fallback will retry
+      // swallow -- realtime/reconnect recovery will retry
     } finally {
       setLoading(false);
     }
@@ -68,6 +68,15 @@ export function useTaskAssignees(enabled = true) {
     }
 
     let off = () => {};
+    let subscribedOnce = false;
+
+    const recover = () => {
+      if (document.visibilityState !== 'visible' || !navigator.onLine) return;
+      listActiveTaskAssignees().then(setRows).catch(() => {});
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') recover();
+    };
 
     (async () => {
       try {
@@ -88,23 +97,24 @@ export function useTaskAssignees(enabled = true) {
             q.current.push(p);
             if (!raf.current) raf.current = requestAnimationFrame(flush);
           },
+        }, undefined, (status) => {
+          if (status !== 'SUBSCRIBED') return;
+          if (subscribedOnce) recover();
+          subscribedOnce = true;
         });
       } catch (error) {
         setLoading(false);
       }
     })();
 
-    // Realtime backstop only (see useTasks.ts for why this moved from 30s
-    // to 5 minutes -- a real Supabase egress overage was traced to these
-    // full-table safety-net polls firing every 30s in every open tab).
-    const poll = setInterval(() => {
-      listActiveTaskAssignees().then(setRows).catch(() => {});
-    }, 300000);
+    window.addEventListener('online', recover);
+    document.addEventListener('visibilitychange', onVisibility);
 
     return () => {
       off();
       if (raf.current) cancelAnimationFrame(raf.current);
-      clearInterval(poll);
+      window.removeEventListener('online', recover);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [flush, enabled]);
 

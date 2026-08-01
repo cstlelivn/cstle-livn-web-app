@@ -77,6 +77,15 @@ export function useTasks(enabled = true) {
     }
 
     let off = () => {};
+    let subscribedOnce = false;
+
+    const recover = () => {
+      if (document.visibilityState !== 'visible' || !navigator.onLine) return;
+      listTasks().then(setRows).catch(() => {});
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') recover();
+    };
 
     (async () => {
       try {
@@ -102,6 +111,12 @@ export function useTasks(enabled = true) {
               q.current.push(p);
               if (!raf.current) raf.current = requestAnimationFrame(flush);
             },
+          },
+          undefined,
+          (status) => {
+            if (status !== 'SUBSCRIBED') return;
+            if (subscribedOnce) recover();
+            subscribedOnce = true;
           }
         );
       } catch (error) {
@@ -109,27 +124,14 @@ export function useTasks(enabled = true) {
       }
     })();
 
-    // Safety net: postgres_changes broadcasts are usually near-instant, but
-    // aren't guaranteed delivery -- a dropped/delayed message on Supabase's
-    // side (separate from this socket's own connected/disconnected state,
-    // which gives no signal when a message is silently missed) would
-    // otherwise leave this tab showing stale task status/QC state
-    // indefinitely, with no visible way to know something changed
-    // elsewhere. This is the app's only correctness backstop for that.
-    // Was 30s -- a full table re-fetch every 30s in every open tab, all day,
-    // turned out to be the actual driver of a real Supabase egress overage
-    // (245% over the free-tier bandwidth cap), since realtime already
-    // handles the normal case near-instantly. 5 minutes is still fast
-    // enough for a backstop that only matters when a message was silently
-    // dropped, which is rare.
-    const poll = setInterval(() => {
-      listTasks().then(setRows).catch(() => {});
-    }, 300000);
+    window.addEventListener('online', recover);
+    document.addEventListener('visibilitychange', onVisibility);
 
     return () => {
       off();
       if (raf.current) cancelAnimationFrame(raf.current);
-      clearInterval(poll);
+      window.removeEventListener('online', recover);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [flush, enabled]);
 
