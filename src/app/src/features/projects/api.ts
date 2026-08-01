@@ -2,8 +2,16 @@ import { createClient } from '../../../utils/supabase/client.tsx';
 import { failIf } from '../../lib/errors';
 import { now } from '../../lib/dates';
 import { withJWTRefresh } from '../../lib/jwt-refresh';
+import { recordPostgrestRequest } from '../../lib/syncMetrics';
 
 const supabase = createClient();
+const clientNameCache = new Map<string, string>();
+const PROJECT_LIST_COLUMNS = [
+  'id', 'title', 'client', 'location', 'budget', 'spent', 'progress', 'status',
+  'phase', 'phases', 'start_date', 'end_date', 'description', 'team', 'color',
+  'created_by', 'supervisor_id', 'force_completed', 'force_completed_reason',
+  'force_completed_by', 'force_completed_at', 'created_at', 'updated_at',
+].join(',');
 
 export interface ProjectInput {
   title: string;
@@ -50,13 +58,14 @@ function transformProject(dbProject: any) {
   };
 }
 
-export async function listProjects() {
+export async function listProjects(refreshClientNames = clientNameCache.size === 0) {
+  recordPostgrestRequest('full-list');
   try {
     // Fetch projects with JWT refresh support
     const { data: projectsData, error: projectsError } = await withJWTRefresh(
       () => supabase
         .from('projects')
-        .select('*')
+        .select(PROJECT_LIST_COLUMNS)
         .order('updated_at', { ascending: false })
         .limit(300),
       'fetch projects'
@@ -74,8 +83,20 @@ export async function listProjects() {
       // Other errors should still be thrown
       failIf(projectsError, 'Failed to list projects');
     }
+    const projectRows = (projectsData ?? []) as any[];
     
-    // Fetch all clients to map IDs to names with JWT refresh support
+    if (!refreshClientNames) {
+      return projectRows.map((project: any) => {
+        const transformed = transformProject(project);
+        return {
+          ...transformed,
+          client: clientNameCache.get(String(project.client)) || project.client,
+          clientId: project.client,
+        };
+      });
+    }
+
+    // Populate the small client-name lookup once. Routine safety syncs reuse it.
     const { data: clientsData, error: clientsError } = await withJWTRefresh(
       () => supabase
         .from('clients')
@@ -90,16 +111,20 @@ export async function listProjects() {
           clientsError.message?.includes('network')) {
         console.warn('⚠️ Network error fetching clients - proceeding without client mapping');
         // Continue without client mapping
-        return (projectsData ?? []).map((project: any) => transformProject(project));
+        return projectRows.map((project: any) => transformProject(project));
       }
-      failIf(clientsError, 'Failed to fetch clients');
+      return projectRows.map((project: any) => transformProject(project));
     }
     
     // Create a map of client IDs to names
-    const clientMap = new Map((clientsData || []).map((c: any) => [String(c.id), c.name]));
+    const clientMap = new Map<string, string>(((clientsData || []) as any[]).map(
+      (c: any) => [String(c.id), String(c.name)]
+    ));
+    clientNameCache.clear();
+    for (const [id, name] of clientMap) clientNameCache.set(id, name as string);
     
     // Transform projects and replace client ID with client name
-    return (projectsData ?? []).map((project: any) => {
+    return projectRows.map((project: any) => {
       const transformed = transformProject(project);
       return {
         ...transformed,
@@ -124,27 +149,21 @@ export async function listProjects() {
 }
 
 export async function getProject(id: string) {
+  recordPostgrestRequest('targeted-record');
   const { data, error } = await supabase
     .from('projects')
-    .select('*')
+    .select(PROJECT_LIST_COLUMNS)
     .eq('id', id)
-    .single();
+    .maybeSingle();
   
   failIf(error, 'Failed to get project');
   
   if (!data) return null;
   
-  // Fetch client name
-  const { data: clientData } = await supabase
-    .from('clients')
-    .select('name')
-    .eq('id', data.client)
-    .single();
-  
   const transformed = transformProject(data);
   return {
     ...transformed,
-    client: clientData?.name || data.client, // Map ID to name
+    client: clientNameCache.get(String(data.client)) || data.client,
     clientId: data.client, // Keep the ID for reference
   };
 }
@@ -189,7 +208,7 @@ export async function createProject(input: ProjectInput) {
   const { data, error } = await supabase
     .from('projects')
     .insert(dbInput)
-    .select()
+    .select(PROJECT_LIST_COLUMNS)
     .single();
   
   failIf(error, 'Failed to create project');
@@ -231,21 +250,19 @@ export async function updateProject(id: string, updates: ProjectUpdate) {
 
   console.log('📤 API updateProject - Sending to DB:', dbUpdates);
 
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('projects')
     .update(dbUpdates)
-    .eq('id', id)
-    .select()
-    .single();
+    .eq('id', id);
   
   if (error) {
     console.error('❌ API updateProject - Database error:', error);
   } else {
-    console.log('✅ API updateProject - Success:', data);
+    console.log('✅ API updateProject - Success');
   }
   
   failIf(error, 'Failed to update project');
-  return data ? transformProject(data) : null;
+  return { id, ...updates };
 }
 
 export async function deleteProject(id: string) {
@@ -286,12 +303,10 @@ export async function markProjectComplete(projectId: string, userId: string) {
     throw new Error(`${readiness.incompleteCount} phase(s) are not completed yet`);
   }
 
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('projects')
     .update({ status: 'Completed', updated_at: now() })
-    .eq('id', projectId)
-    .select()
-    .single();
+    .eq('id', projectId);
   failIf(error, 'Failed to mark project complete');
 
   await supabase.from('project_activity_log').insert({
@@ -301,7 +316,7 @@ export async function markProjectComplete(projectId: string, userId: string) {
     created_at: now(),
   });
 
-  return data ? transformProject(data) : null;
+  return { id: projectId, status: 'Completed' };
 }
 
 /** Super Admin-only override: force a project to Completed even if phases
@@ -319,7 +334,7 @@ export async function forceCompleteProject(projectId: string, userId: string, re
     .eq('id', projectId)
     .single();
 
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('projects')
     .update({
       status: 'Completed',
@@ -329,9 +344,7 @@ export async function forceCompleteProject(projectId: string, userId: string, re
       force_completed_at: now(),
       updated_at: now(),
     })
-    .eq('id', projectId)
-    .select()
-    .single();
+    .eq('id', projectId);
   failIf(error, 'Failed to force-complete project');
 
   await supabase.from('project_activity_log').insert({
@@ -344,5 +357,5 @@ export async function forceCompleteProject(projectId: string, userId: string, re
     created_at: now(),
   });
 
-  return data ? transformProject(data) : null;
+  return { id: projectId, status: 'Completed', force_completed: true };
 }

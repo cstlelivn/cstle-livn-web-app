@@ -18,8 +18,6 @@ export function createClient() {
           autoRefreshToken: true,
           persistSession: true,
           detectSessionInUrl: true,
-          // Automatically refresh token 5 minutes (300 seconds) before expiry
-          refreshTokenMarginSeconds: 300,
         },
         global: {
           headers: {

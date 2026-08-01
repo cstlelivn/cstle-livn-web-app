@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { listTasks } from './api';
-import { subscribeTableMulti } from '../../lib/realtime';
+import { getTask, listTasks } from './api';
+import { registerSafetySync, subscribeScopedInvalidations } from '../../lib/scopedBroadcast';
+import { mergeEntityById, removeEntityById } from '../../lib/entityCache';
 
 // Transform database row to match Task format (same as in api.ts)
 function transformTaskRow(dbTask: any) {
@@ -20,39 +21,20 @@ function transformTaskRow(dbTask: any) {
   };
 }
 
-export function useTasks(enabled = true) {
+export function useTasks(enabled = true, role = '', userId = '') {
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const q = useRef<any[]>([]);
-  const raf = useRef<number | null>(null);
+  const targetedFetches = useRef(new Set<string>());
 
-  const flush = useCallback(() => {
-    setRows((curr) => {
-      const m = new Map(curr.map((r) => [r.id, r]));
-      for (const p of q.current) {
-        if (p.eventType === 'INSERT') {
-          console.log('🔵 [useTasks] INSERT event, raw data:', p.new);
-          const transformed = transformTaskRow(p.new);
-          console.log('🔵 [useTasks] Transformed INSERT data:', transformed);
-          m.set(p.new.id, transformed);
-        }
-        if (p.eventType === 'UPDATE') {
-          console.log('🔵 [useTasks] UPDATE event, raw data:', p.new);
-          const existing = m.get(p.new.id) || {};
-          const transformed = transformTaskRow({ ...existing, ...p.new });
-          console.log('🔵 [useTasks] Transformed UPDATE data:', { existing, new: p.new, result: transformed });
-          m.set(p.new.id, transformed);
-        }
-        if (p.eventType === 'DELETE') {
-          m.delete(p.old.id);
-        }
-      }
-      q.current = [];
-      return [...m.values()].sort(
-        (a, b) => (b.created_at || b.createdAt || '').localeCompare(a.created_at || a.createdAt || '')
-      );
-    });
-    raf.current = null;
+  const mergeTask = useCallback((task: any) => {
+    const transformed = transformTaskRow(task);
+    setRows((curr) => mergeEntityById(curr, transformed,
+        (a, b) => (b.updated_at || b.createdAt || '').localeCompare(a.updated_at || a.createdAt || '')
+      ));
+  }, []);
+
+  const removeTask = useCallback((id: string | number) => {
+    setRows((curr) => removeEntityById(curr, id));
   }, []);
 
   const refresh = useCallback(async () => {
@@ -77,14 +59,12 @@ export function useTasks(enabled = true) {
     }
 
     let off = () => {};
+    let stopSafetySync = () => {};
     let subscribedOnce = false;
 
     const recover = () => {
       if (document.visibilityState !== 'visible' || !navigator.onLine) return;
       listTasks().then(setRows).catch(() => {});
-    };
-    const onVisibility = () => {
-      if (document.visibilityState === 'visible') recover();
     };
 
     (async () => {
@@ -94,46 +74,39 @@ export function useTasks(enabled = true) {
         setRows(data);
         setLoading(false);
 
-        // Subscribe to realtime updates
-        off = subscribeTableMulti(
-          'tasks',
-          'tasks',
-          {
-            onInsert: (p: any) => {
-              q.current.push(p);
-              if (!raf.current) raf.current = requestAnimationFrame(flush);
-            },
-            onUpdate: (p: any) => {
-              q.current.push(p);
-              if (!raf.current) raf.current = requestAnimationFrame(flush);
-            },
-            onDelete: (p: any) => {
-              q.current.push(p);
-              if (!raf.current) raf.current = requestAnimationFrame(flush);
-            },
+        off = subscribeScopedInvalidations(
+          role,
+          userId,
+          (event) => {
+            if (event.entity !== 'task') return;
+            if (event.operation === 'DELETE') {
+              removeTask(event.id);
+              return;
+            }
+            if (targetedFetches.current.has(event.id)) return;
+            targetedFetches.current.add(event.id);
+            getTask(event.id)
+              .then((task) => task ? mergeTask(task) : removeTask(event.id))
+              .catch(() => {})
+              .finally(() => targetedFetches.current.delete(event.id));
           },
-          undefined,
           (status) => {
             if (status !== 'SUBSCRIBED') return;
             if (subscribedOnce) recover();
             subscribedOnce = true;
           }
         );
+        stopSafetySync = registerSafetySync(recover);
       } catch (error) {
         setLoading(false);
       }
     })();
 
-    window.addEventListener('online', recover);
-    document.addEventListener('visibilitychange', onVisibility);
-
     return () => {
       off();
-      if (raf.current) cancelAnimationFrame(raf.current);
-      window.removeEventListener('online', recover);
-      document.removeEventListener('visibilitychange', onVisibility);
+      stopSafetySync();
     };
-  }, [flush, enabled]);
+  }, [enabled, mergeTask, removeTask, role, userId]);
 
-  return { tasks: rows, loading, refresh };
+  return { tasks: rows, loading, refresh, mergeTask, removeTask };
 }

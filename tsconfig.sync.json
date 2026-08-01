@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": false,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "types": ["vite/client", "vitest/globals"]
+  },
+  "include": [
+    "src/app/src/lib/entityCache.ts",
+    "src/app/src/lib/entityCache.test.ts",
+    "src/app/src/lib/scopedBroadcast.ts",
+    "src/app/src/lib/syncMetrics.ts",
+    "src/app/src/features/tasks/api.ts",
+    "src/app/src/features/tasks/useTasks.ts",
+    "src/app/src/features/projects/api.ts",
+    "src/app/src/features/projects/useProjects.ts"
+  ]
+}

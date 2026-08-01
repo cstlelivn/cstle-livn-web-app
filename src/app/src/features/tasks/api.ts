@@ -1,8 +1,16 @@
 import { createClient } from '../../../utils/supabase/client.tsx';
 import { failIf } from '../../lib/errors';
 import { now } from '../../lib/dates';
+import { recordPostgrestRequest } from '../../lib/syncMetrics';
 
 const supabase = createClient();
+const TASK_LIST_COLUMNS = [
+  'id', 'project_id', 'title', 'description', 'status', 'priority',
+  'assignee_id', 'start_date', 'due_date', 'progress', 'tags', 'phase',
+  'phase_id', 'task_type', 'is_required', 'dependency_task_id', 'blocked_by',
+  'completed_date', 'started_at', 'submitted_at', 'review_feedback', 'rating',
+  'rating_metrics', 'estimated_hours', 'complexity', 'created_at', 'updated_at',
+].join(',');
 
 // Helper to check if a value is a valid UUID
 function isValidUUID(value: any): boolean {
@@ -69,12 +77,14 @@ export interface TaskUpdate {
   is_required?: boolean;
 }
 
-export async function listTasks(projectId?: string | number) {
+export async function listTasks(projectId?: string | number, page = 0, pageSize = 300) {
+  recordPostgrestRequest('full-list');
+  const from = page * pageSize;
   let query = supabase
     .from('tasks')
-    .select('*')
+    .select(TASK_LIST_COLUMNS)
     .order('updated_at', { ascending: false })
-    .limit(300);
+    .range(from, from + pageSize - 1);
   
   if (projectId) {
     query = query.eq('project_id', String(projectId));
@@ -86,11 +96,12 @@ export async function listTasks(projectId?: string | number) {
 }
 
 export async function getTask(id: string | number) {
+  recordPostgrestRequest('targeted-record');
   const { data, error } = await supabase
     .from('tasks')
-    .select('*')
+    .select(TASK_LIST_COLUMNS)
     .eq('id', String(id))
-    .single();
+    .maybeSingle();
   
   failIf(error, 'Failed to get task');
   return data ? transformTask(data) : null;
@@ -135,7 +146,7 @@ export async function createTask(input: TaskInput) {
   const { data, error} = await supabase
     .from('tasks')
     .insert(dbInput)
-    .select()
+    .select(TASK_LIST_COLUMNS)
     .single();
   
   if (error) {
@@ -213,12 +224,10 @@ export async function updateTask(id: string | number, updates: TaskUpdate) {
 
   console.log('🔵 Updating task in database with:', dbUpdates);
 
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('tasks')
     .update(dbUpdates)
-    .eq('id', String(id))
-    .select()
-    .single();
+    .eq('id', String(id));
   
   if (error) {
     console.error('❌ Database error when updating task:', error);
@@ -226,7 +235,7 @@ export async function updateTask(id: string | number, updates: TaskUpdate) {
   }
   
   failIf(error, 'Failed to update task');
-  return data ? transformTask(data) : null;
+  return { id: String(id), ...updates };
 }
 
 export async function deleteTask(id: string | number) {
@@ -249,7 +258,7 @@ export interface TaskUpdateInput {
 export async function listTaskUpdates(taskId: string) {
   const { data, error } = await supabase
     .from('task_updates')
-    .select('*')
+    .select('id, task_id, author_id, body, photo_url, created_at')
     .eq('task_id', taskId)
     .order('created_at', { ascending: false });
   

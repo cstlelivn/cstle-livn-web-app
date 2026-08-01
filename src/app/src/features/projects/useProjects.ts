@@ -1,76 +1,22 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { listProjects, createProject, updateProject, deleteProject, getProject } from './api';
-import type { ProjectInput, ProjectUpdate } from './api';
-import { subscribeTableMulti } from '../../lib/realtime';
-import { createClient } from '../../../utils/supabase/client.tsx';
+import { listProjects, getProject } from './api';
+import { registerSafetySync, subscribeScopedInvalidations } from '../../lib/scopedBroadcast';
+import { mergeEntityById, removeEntityById } from '../../lib/entityCache';
 
-const supabase = createClient();
-
-export function useProjects(enabled = true) {
+export function useProjects(enabled = true, role = '', userId = '') {
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [clientMap, setClientMap] = useState<Map<string, string>>(new Map());
-  const q = useRef<any[]>([]);
-  const raf = useRef<number | null>(null);
+  const targetedFetches = useRef(new Set<string>());
 
-  // Fetch and cache client names
-  const fetchClients = useCallback(async () => {
-    const { data } = await supabase
-      .from('clients')
-      .select('id, name');
-    
-    if (data) {
-      const map = new Map(data.map((c: any) => [String(c.id), c.name]));
-      setClientMap(map);
-    }
+  const mergeProject = useCallback((project: any) => {
+    setRows((curr) => mergeEntityById(curr, project,
+        (a, b) => (b.updated_at || '').localeCompare(a.updated_at || '')
+      ));
   }, []);
 
-  const flush = useCallback(() => {
-    setRows((curr) => {
-      const m = new Map(curr.map((r) => [r.id, r]));
-      for (const p of q.current) {
-        if (p.eventType === 'INSERT') {
-          // Map client ID to name
-          const project = {
-            ...p.new,
-            client: clientMap.get(String(p.new.client)) || p.new.client,
-            clientId: p.new.client,
-          };
-          m.set(p.new.id, project);
-        }
-        if (p.eventType === 'UPDATE') {
-          // Map client ID to name
-          const project = {
-            ...p.new,
-            client: clientMap.get(String(p.new.client)) || p.new.client,
-            clientId: p.new.client,
-          };
-          m.set(p.new.id, { ...m.get(p.new.id), ...project });
-        }
-        if (p.eventType === 'DELETE') {
-          m.delete(p.old.id);
-        }
-      }
-      q.current = [];
-      return [...m.values()].sort(
-        (a, b) => (b.updated_at || '').localeCompare(a.updated_at || '')
-      );
-    });
-    raf.current = null;
-  }, [clientMap]);
-
-  // flush's identity changes once clientMap populates (right after the initial
-  // fetchClients() call resolves). It used to sit in the subscribe effect's
-  // dependency array below, which meant that single identity change tore down
-  // and re-ran the *entire* effect shortly after every mount -- a redundant
-  // second listProjects() fetch plus an unsubscribe/resubscribe of the
-  // realtime channel, right when the page was otherwise done loading. Routing
-  // through a ref lets realtime handlers always call the latest flush without
-  // making the effect depend on it.
-  const flushRef = useRef(flush);
-  useEffect(() => {
-    flushRef.current = flush;
-  }, [flush]);
+  const removeProject = useCallback((id: string | number) => {
+    setRows((curr) => removeEntityById(curr, id));
+  }, []);
 
   const refresh = useCallback(async () => {
     if (!enabled) return;
@@ -93,6 +39,13 @@ export function useProjects(enabled = true) {
     }
 
     let off = () => {};
+    let stopSafetySync = () => {};
+    let subscribedOnce = false;
+
+    const recover = () => {
+      if (document.visibilityState !== 'visible' || !navigator.onLine) return;
+      listProjects(false).then(setRows).catch(() => {});
+    };
 
     (async () => {
       try {
@@ -100,28 +53,29 @@ export function useProjects(enabled = true) {
         setRows(data);
         setLoading(false);
 
-        // Fetch client names
-        await fetchClients();
-
-        // Subscribe to realtime updates
-        off = subscribeTableMulti(
-          'projects',
-          'projects',
-          {
-            onInsert: (p: any) => {
-              q.current.push(p);
-              if (!raf.current) raf.current = requestAnimationFrame(() => flushRef.current());
-            },
-            onUpdate: (p: any) => {
-              q.current.push(p);
-              if (!raf.current) raf.current = requestAnimationFrame(() => flushRef.current());
-            },
-            onDelete: (p: any) => {
-              q.current.push(p);
-              if (!raf.current) raf.current = requestAnimationFrame(() => flushRef.current());
-            },
+        off = subscribeScopedInvalidations(
+          role,
+          userId,
+          (event) => {
+            if (event.entity !== 'project') return;
+            if (event.operation === 'DELETE') {
+              removeProject(event.id);
+              return;
+            }
+            if (targetedFetches.current.has(event.id)) return;
+            targetedFetches.current.add(event.id);
+            getProject(event.id)
+              .then((project) => project ? mergeProject(project) : removeProject(event.id))
+              .catch(() => {})
+              .finally(() => targetedFetches.current.delete(event.id));
+          },
+          (status) => {
+            if (status !== 'SUBSCRIBED') return;
+            if (subscribedOnce) recover();
+            subscribedOnce = true;
           }
         );
+        stopSafetySync = registerSafetySync(recover);
       } catch (error) {
         setLoading(false);
       }
@@ -129,9 +83,9 @@ export function useProjects(enabled = true) {
 
     return () => {
       off();
-      if (raf.current) cancelAnimationFrame(raf.current);
+      stopSafetySync();
     };
-  }, [enabled]);
+  }, [enabled, mergeProject, removeProject, role, userId]);
 
-  return { projects: rows, loading, refresh };
+  return { projects: rows, loading, refresh, mergeProject, removeProject };
 }

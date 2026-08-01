@@ -333,13 +333,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     projects: realtimeProjects,
     loading: isLoadingProjects,
     refresh: refreshProjectsHook,
-  } = useProjectsRealtime(hasPermission("canViewProjects"));
+    mergeProject,
+    removeProject,
+  } = useProjectsRealtime(hasPermission("canViewProjects"), user?.role || '', user?.id || '');
 
   const {
     tasks: realtimeTasks,
     loading: isLoadingTasks,
     refresh: refreshTasksHook,
-  } = useTasksRealtime(hasPermission("canViewProjects"));
+    mergeTask,
+    removeTask,
+  } = useTasksRealtime(hasPermission("canViewProjects"), user?.role || '', user?.id || '');
 
   // Always enabled, regardless of canViewTeam: every signed-in person needs
   // their own team_member record loaded for basic self-identification (task
@@ -472,29 +476,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Project methods
   const addProject = async (project: Omit<Project, "id">) => {
     try {
-      await projectsAPI.createProject(project);
-      // Realtime hook will automatically update the list
+      const created = await projectsAPI.createProject(project);
+      if (created) mergeProject(created);
     } catch (error) {
       throw error;
     }
   };
 
   const updateProject = async (id: number, updates: Partial<Project>) => {
+    const previous = realtimeProjects.find((project: any) => String(project.id) === String(id));
     try {
-      // Convert id to string for API
+      if (previous) mergeProject({ ...previous, ...updates, id });
       await projectsAPI.updateProject(String(id), updates);
-      // Realtime hook will automatically update the list
     } catch (error) {
+      if (previous) mergeProject(previous);
       console.error('Failed to update project:', error);
       throw error;
     }
   };
 
   const deleteProject = async (id: number) => {
+    const previous = realtimeProjects.find((project: any) => String(project.id) === String(id));
     try {
+      removeProject(id);
       await projectsAPI.deleteProject(id);
-      // Realtime hook will automatically update the list
     } catch (error) {
+      if (previous) mergeProject(previous);
       throw error;
     }
   };
@@ -533,7 +540,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         createdAt: new Date().toISOString(),
       } as any);
 
-      // Realtime hook will automatically update the list
+      if (result) mergeTask(result);
       return result;
     } catch (error) {
       console.error('❌ Failed to create task:', error);
@@ -542,20 +549,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const updateTask = async (id: number, updates: Partial<Task>) => {
+    const previous = realtimeTasks.find((task: any) => String(task.id) === String(id));
     try {
+      if (previous) mergeTask({ ...previous, ...updates, id });
       await tasksAPI.updateTask(id, updates);
-      // Realtime hook will automatically update the list
     } catch (error) {
+      if (previous) mergeTask(previous);
       console.error('❌ Failed to update task:', error);
       throw error;
     }
   };
 
   const deleteTask = async (id: number) => {
+    const previous = realtimeTasks.find((task: any) => String(task.id) === String(id));
     try {
+      removeTask(id);
       await tasksAPI.deleteTask(id);
-      // Realtime hook will automatically update the list
     } catch (error) {
+      if (previous) mergeTask(previous);
       console.error('❌ Failed to delete task:', error);
       throw error;
     }
