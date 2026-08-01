@@ -126,8 +126,9 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
 ## Private task/project invalidation refactor (awaiting migration/deploy)
 
 - Migration `20240028_private_realtime_invalidation.sql` was run successfully
-  in Supabase on August 1, 2026. The matching frontend was then cleared for
-  deployment. It adds a SELECT policy on
+  in Supabase on August 1, 2026. The matching frontend was deployed from commit
+  `cb9515c` the same day, and the production bundle was verified to contain the
+  private scoped-channel markers. It adds a SELECT policy on
   `realtime.messages`, a locked-down `SECURITY DEFINER` sender, and triggers
   that emit small `{entity,id,project_id,operation,updated_at}` Broadcast
   payloads. Company-wide roles use `organization:cstle`; Associates,
@@ -157,6 +158,11 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
 - R2 media activation remains separately paused. Do not add R2 secrets, deploy
   its Edge Function changes, or perform media tests as part of this egress
   rollout.
+- No automated Supabase 3.5 GB egress warning is configured yet. The existing
+  USD $0.01 alert documented below is Cloudflare/R2-only and must not be
+  mistaken for Supabase monitoring. The current Supabase billing cycle is
+  already above 3.5 GB; establish any new threshold monitor after the usage
+  cycle resets so it can provide an early warning rather than firing at setup.
 
 ## Known gaps — deliberately deferred, not forgotten
 
