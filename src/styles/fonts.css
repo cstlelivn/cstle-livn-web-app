@@ -1,1 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Anybody:wdth,wght@50..200,100..900&family=Roboto+Mono:wght@400;500;700&family=Inter:wght@400&display=swap');
+/* Anybody's real registered wdth axis range is 50-150 (confirmed via
+   fonts.google.com/metadata/fonts/Anybody), not 50-200. Requesting 200 was
+   out of range, so Google Fonts silently dropped the ENTIRE "Anybody"
+   family from the response -- it has never actually loaded, all session;
+   every "Anybody, 137% width" heading has really been rendering in the
+   sans-serif fallback the whole time. This is why fonts looked broken/
+   inconsistent on another device: no Anybody face ever existed to load,
+   on any device, so the failure mode (bare unstyled headings) was just
+   more visible wherever the sans-serif fallback also failed to apply. */
+@import url('https://fonts.googleapis.com/css2?family=Anybody:wdth,wght@50..150,100..900&family=Roboto+Mono:wght@400;500;700&family=Inter:wght@400&display=swap');
