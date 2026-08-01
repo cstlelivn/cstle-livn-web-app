@@ -6,9 +6,10 @@ import { toast } from "sonner";
 import TaskReviewDialog from "./TaskReviewDialog";
 import { useTasksAwaitingReview } from "../src/features/tasks/useTasksAwaitingReview";
 import { recordSessionQCResult } from "../src/features/workSessions/api";
+import { recordTaskAuraScore } from "../src/features/auraScoring/api";
 
 export default function QCReviewQueue() {
-  const { projects, tasks, teamMembers, getTeamMember, updateTask, updateTeamMember, refreshTasks, refreshTeam } = useApp();
+  const { projects, tasks, teamMembers, getTeamMember, updateTask, refreshTasks, refreshTeam } = useApp();
   const { hasPermission, user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [projectFilter, setProjectFilter] = useState<string>("all");
@@ -136,23 +137,23 @@ export default function QCReviewQueue() {
         completedDate: new Date().toISOString(),
       });
 
-      // ⭐ UPDATE ASSIGNEE AURA RATING - Immediate feedback
-      if (task.assignee && task.assignee !== "") {
-        console.log('⭐ Updating assignee Aura rating after task approval');
-        await updateTeamMemberAuraRating(task.assignee, metrics.calculatedRating, metrics.speed);
-      }
-
       // Record this QC decision on the task's work sessions too, so
       // individual productivity/QC-pass reporting has it -- reuses this
       // same approval instead of a separate per-session review screen.
+      // Then compute the real Aura score from that (qc_result + measured
+      // time vs estimate + documented delays + reliability signals) --
+      // this replaces the old client-side "weighted average of the
+      // reviewer's speed/corrections dropdown" (updateTeamMemberAuraRating
+      // below), which never used real timer data at all.
       try {
         await recordSessionQCResult(
           String(taskId),
           metrics.corrections === "none" ? "Approved" : "Approved with Conditions",
           metrics.corrections !== "none"
         );
+        await recordTaskAuraScore(String(taskId), feedback || undefined);
       } catch (sessionError) {
-        console.error("Failed to record QC result on work sessions:", sessionError);
+        console.error("Failed to record QC result / Aura score on work sessions:", sessionError);
       }
 
       // ✅ WEBSOCKET AUTO-UPDATE: No need to refetch - WebSocket will update automatically
@@ -178,8 +179,9 @@ export default function QCReviewQueue() {
 
       try {
         await recordSessionQCResult(String(taskId), "Rejected", true);
+        await recordTaskAuraScore(String(taskId), feedback || undefined);
       } catch (sessionError) {
-        console.error("Failed to record QC result on work sessions:", sessionError);
+        console.error("Failed to record QC result / Aura score on work sessions:", sessionError);
       }
 
       // ✅ WEBSOCKET AUTO-UPDATE: No need to refetch - WebSocket will update automatically
@@ -191,98 +193,6 @@ export default function QCReviewQueue() {
       toast.success("Changes requested - task sent back to worker", { id: "task-reject" });
     } catch (error) {
       toast.error("Failed to reject task. Please try again.", { id: "task-reject" });
-    }
-  };
-
-  // ⭐ NEW: Update team member's Aura rating based on task performance
-  const updateTeamMemberAuraRating = async (
-    memberId: string, 
-    taskRating: number, 
-    speed: "fast" | "on-time" | "slow"
-  ) => {
-    try {
-      const member = getTeamMember(memberId);
-      if (!member) {
-        console.warn('⚠️ Team member not found for Aura update:', memberId);
-        return;
-      }
-
-      // Get all completed tasks for this member with ratings
-      const memberTasks = tasks.filter(
-        t => t.assignee === memberId && 
-        t.status === "Completed" && 
-        t.rating !== undefined && 
-        t.rating > 0
-      );
-
-      // Calculate new Aura rating using weighted average (last 30 tasks)
-      const recentTasks = memberTasks.slice(-30); // Last 30 rated tasks
-      const totalWeight = recentTasks.reduce((sum, _, idx) => sum + (idx + 1), 0);
-      
-      let newAuraRating: number;
-      if (recentTasks.length === 0) {
-        // First rated task - use the task rating directly
-        newAuraRating = taskRating;
-      } else {
-        // Weighted average: more recent tasks have more weight
-        const weightedSum = recentTasks.reduce((sum, task, idx) => {
-          const weight = idx + 1; // Weight increases for more recent tasks
-          return sum + (task.rating! * weight);
-        }, 0);
-        
-        // Add the new task rating with highest weight
-        const newWeight = recentTasks.length + 1;
-        newAuraRating = (weightedSum + (taskRating * newWeight)) / (totalWeight + newWeight);
-      }
-
-      // Round to 1 decimal place
-      newAuraRating = Math.round(newAuraRating * 10) / 10;
-
-      // Calculate tasks completed and on-time stats
-      const completedCount = memberTasks.length + 1; // +1 for the current task
-      const onTimeCount = tasks.filter(
-        t => t.assignee === memberId && 
-        t.status === "Completed" && 
-        (t.ratingMetrics?.speed === "fast" || t.ratingMetrics?.speed === "on-time")
-      ).length + (speed === "fast" || speed === "on-time" ? 1 : 0);
-
-      const efficiency = completedCount > 0 
-        ? Math.round((onTimeCount / completedCount) * 100) 
-        : 0;
-
-      // Update the team member
-      await updateTeamMember(member.id, {
-        aura_rating: newAuraRating,
-        tasks_completed: completedCount,
-        tasks_on_time: onTimeCount,
-        efficiency: efficiency,
-      });
-
-      const oldRating = member.auraRating || 0;
-      const ratingChange = newAuraRating - oldRating;
-      const changeText = ratingChange > 0 
-        ? `+${ratingChange.toFixed(1)}` 
-        : ratingChange.toFixed(1);
-
-      console.log('⭐ Aura rating updated:', {
-        member: member.name,
-        oldRating,
-        newRating: newAuraRating,
-        change: changeText,
-        tasksCompleted: completedCount,
-        efficiency: `${efficiency}%`
-      });
-
-      // Show feedback toast
-      if (Math.abs(ratingChange) >= 0.1) {
-        toast.success(`${member.name}'s Aura: ${newAuraRating}/5 (${changeText})`, {
-          description: `Efficiency: ${efficiency}% • Tasks: ${completedCount}`,
-          duration: 4000,
-        });
-      }
-    } catch (error) {
-      console.error('❌ Failed to update Aura rating:', error);
-      // Don't throw - Aura update failure shouldn't block task approval
     }
   };
 

@@ -11,6 +11,7 @@ import { canEditTask } from "../src/features/tasks/permissions";
 import { useTaskAssignees, assigneeIdsForTask } from "../src/features/taskAssignees/useTaskAssignees";
 import { assignTaskMember, unassignTaskMember } from "../src/features/taskAssignees/api";
 import WorkSessionTimer from "./WorkSessionTimer";
+import AuraTaskFeedback from "./AuraTaskFeedback";
 import { toast } from "sonner";
 
 interface TaskDialogProps {
@@ -648,6 +649,15 @@ export default function TaskDialog({
           {mode === "edit" && task && (
             <WorkSessionTimer taskId={String(task.id)} projectId={String(projectId)} />
           )}
+
+          {/* Aura feedback for this task -- only renders once a real score
+              exists (i.e. this task has been through QC) and only for the
+              logged-in assignee's own work, not a teammate's. */}
+          {mode === "edit" && task && (() => {
+            const myMember = teamMembers.find((m: any) => String(m.authUserId) === String(currentUser?.id));
+            if (!myMember) return null;
+            return <AuraTaskFeedback taskId={String(task.id)} teamMemberId={String(myMember.id)} />;
+          })()}
 
           {/* Tags */}
           <div>

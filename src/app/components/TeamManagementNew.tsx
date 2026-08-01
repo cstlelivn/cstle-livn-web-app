@@ -71,18 +71,20 @@ export default function TeamManagement() {
     return Number((sum / ratings.length).toFixed(1));
   };
 
-  // Aura System levels matching design system
+  // Aura levels -- 5 tiers, matching the thresholds team_member_aura_profile()
+  // (supabase/migrations/20240025_aura_scoring_v2.sql) uses server-side. A
+  // real confidence gate (needs >=5 QC'd tasks scored, not just any
+  // "tasksCompleted" count) lives in that RPC via getAuraProfile() --
+  // this client-side version is a display-only fallback for places that
+  // just have the raw rating/count on hand.
   const getAuraLevel = (stars: number, tasksCompleted: number = 0) => {
-    if (tasksCompleted === 0) {
-      return { level: "New Member", color: "var(--muted-foreground)", points: 0 };
+    if (tasksCompleted < 5) {
+      return { level: "New Member", color: "var(--muted-foreground)" };
     }
-    
-    if (stars >= 4.8) return { level: "Legendary", color: "#A78C38", points: 500 };
-    if (stars >= 4.5) return { level: "Master", color: "#92949B", points: 400 };
-    if (stars >= 4.0) return { level: "Expert", color: "var(--primary)", points: 300 };
-    if (stars >= 3.5) return { level: "Professional", color: "var(--accent)", points: 200 };
-    if (stars >= 3.0) return { level: "Skilled", color: "var(--muted-foreground)", points: 100 };
-    return { level: "Developing", color: "var(--muted-foreground)", points: 50 };
+    if (stars >= 4.5) return { level: "Expert", color: "var(--primary)" };
+    if (stars >= 4.0) return { level: "Advanced", color: "var(--accent)" };
+    if (stars >= 3.2) return { level: "Skilled", color: "var(--muted-foreground)" };
+    return { level: "Developing", color: "var(--muted-foreground)" };
   };
 
   const getInitials = (name: string) => {
@@ -756,9 +758,11 @@ export default function TeamManagement() {
                         </span>
                       </div>
                     </div>
-                    <Progress value={(aura.points / 500) * 100} className="h-2" />
+                    <Progress value={(member.rating / 5) * 100} className="h-2" />
                     <p className="mt-1" style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-label)', color: 'var(--muted-foreground)' }}>
-                      {aura.points} Aura Points
+                      {member.tasksCompleted < 5
+                        ? `${5 - member.tasksCompleted} more reviewed task${5 - member.tasksCompleted === 1 ? '' : 's'} needed for a confident rating`
+                        : `Based on ${member.tasksCompleted} reviewed task${member.tasksCompleted === 1 ? '' : 's'}`}
                     </p>
                   </div>
 
