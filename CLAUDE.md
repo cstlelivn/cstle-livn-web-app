@@ -304,10 +304,13 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   token `Cstle task media production v2` has Object Read & Write access limited
   to `cstle-task-media`; one signed, read-only bucket-list request returned HTTP
   200, with no upload performed. Credential values were never written to the
-  repository or documentation. The older same-scope token remains to be
-  deleted in Cloudflare; do not use it. Authenticated associate/manager/QC
-  upload, approval, download and deletion QA is still pending because no app
-  test credentials were supplied.
+  repository or documentation. The older same-scope token was permanently
+  deleted from Cloudflare after the `v2` credential passed verification, so
+  `v2` is the only active R2 account token. Temporary Supabase deployment
+  tokens and an unrelated expired, never-used token were also removed after
+  deployment. Authenticated associate/manager/QC upload, approval, download
+  and deletion QA is still pending because no app test credentials were
+  supplied.
 - **Free-tier hard stop is implemented in the Edge Function:** before issuing
   an upload URL it lists/sums current R2 objects and refuses an upload that
   would take stored bytes above 8 GiB, leaving 2 GiB headroom below the 10 GB
