@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { operationalTasks } from "../src/features/projects/lifecycle";
 import { Sparkles, TrendingUp, AlertCircle, Lightbulb } from "lucide-react";
 import { Button } from "./ui/button";
 import { toast } from "sonner";
@@ -117,7 +118,7 @@ export default function AIInsightsWidget() {
       });
     }
 
-    const overdueTasks = tasks.filter(
+    const overdueTasks = operationalTasks(tasks, projects).filter(
       (t) => t.status !== "Completed" && new Date(t.dueDate) < new Date()
     );
     const delayedProjects = projects.filter(

@@ -199,6 +199,52 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
 
 ## Aura v3 + onsite task workspace (live; role QA still pending)
 
+- **Mobile/PWA readiness deployment batch — August 4, 2026.**
+  The app now has a real web manifest plus 180/192/512px home-screen icons
+  generated from the existing Cstle castle mark, iOS standalone/status-bar
+  metadata, phone-width overflow guards, and `100dvh`/safe viewport behavior.
+  Opening a mobile task now pushes a real browser-history entry, so native
+  iOS/Android edge-back gestures can return to the prior screen. Task assignment
+  now exposes RPC failures instead of swallowing them and falsely reporting a
+  successful save. Migration `20240032_supervisor_task_assignment.sql` aligns
+  the assignment RPC with the existing project-scoped Supervisor task policy;
+  Managers/Admins remain company-wide and Supervisors are limited to projects
+  they supervise. Migration `20240032_supervisor_task_assignment.sql` was run
+  successfully in Supabase on August 4 and included in the live read-back below.
+  The same pending frontend batch now also makes the Projects screen explicitly
+  sort by creation date newest-first (rather than inheriting API updated-date
+  order), exposes Date Created ascending/descending in the existing sort
+  control, and paginates list/grid/Gantt views at 10 projects per page. This is
+  client-side over the already-loaded project cache and adds no PostgREST calls
+  or egress.
+
+- **Closed-project task-integrity deployment — August 4, 2026.** The global
+  Tasks-tab Add Task flow no longer falls back to
+  `projects[0]` (the cause of tasks landing on an arbitrary project); it now
+  requires an explicit open-project selection. Project-detail task creation
+  keeps its explicit current-project context and hides Add Task after closure.
+  `AppContext.addTask` independently rejects missing/closed projects. Migration
+  `20240033_closed_project_task_integrity.sql` makes `Completed` the database-
+  enforced closed/read-only state: normal closure requires at least one phase,
+  every phase completed, and every task completed; task INSERT/UPDATE is blocked
+  after closure; accidental status-based reopening is blocked. Super Admin
+  force-complete with a recorded reason remains the exceptional audited route.
+  Closed-project tasks are retained for project history, Aura, QC, and audit,
+  but are excluded from the global Tasks screen totals/list, dashboard open and
+  upcoming task counts, mobile onsite queue, recent tasks, and fallback overdue
+  insights. Migration `20240032` also refuses assignment changes on a closed
+  project. Migrations `20240032` and `20240033` were both run successfully in
+  Supabase on August 4. A clean SQL read-back confirmed all four expected
+  functions and all three expected triggers. TypeScript, all 9 tests, the
+  production build, and diff checks pass; the matching frontend is in the
+  deployment commit described below.
+  Closure is deliberately **not automatic**: the system determines when a
+  project is “Ready to close,” but a Manager/Admin must explicitly select Mark
+  Complete after final inspection/handover/business checks. This prevents the
+  last task or phase transition from silently archiving work before office
+  close-out. Unauthorized roles see readiness but cannot close; Super Admin
+  force-close remains reason-gated and audited.
+
 - **Task completer attribution deployed August 4, 2026.** The
   matching frontend and migration `20240031_task_completion_attribution.sql`
   automatically show and record the employee name(s) from finished task

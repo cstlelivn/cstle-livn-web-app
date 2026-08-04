@@ -65,8 +65,8 @@ export async function listTaskAssigneeHistory(taskId: string) {
   return (data ?? []).map(transformAssignee);
 }
 
-// Both RPCs are manager/admin-only at the database level (RLS + an explicit
-// role check inside the function) -- calling either as an Associate returns
+// Both RPCs are restricted at the database level to managers/admins or the
+// Supervisor of the task's project -- calling either as an Associate returns
 // a clear FORBIDDEN error rather than silently doing nothing.
 export async function assignTaskMember(taskId: string, teamMemberId: string) {
   const { data, error } = await supabase.rpc('assign_task_member', {

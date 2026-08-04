@@ -11,6 +11,7 @@ import AIInsightsWidget from "./AIInsightsWidget";
 import MobileTaskDashboard from "./MobileTaskDashboard";
 import ErrorBoundary from "./ErrorBoundary";
 import { useState, useMemo } from "react";
+import { operationalTasks } from "../src/features/projects/lifecycle";
 
 interface DashboardProps {
   onNavigate: (view: string, id?: number) => void;
@@ -102,7 +103,8 @@ export default function Dashboard({ onNavigate, onNewProject }: DashboardProps) 
       ? teamMembersWithRatings.reduce((sum, m) => sum + m.auraRating, 0) / teamMembersWithRatings.length
       : 0;
 
-  const openTasks = tasks.filter((t) => t.status !== "Completed");
+  const currentTasks = operationalTasks(tasks, projects);
+  const openTasks = currentTasks.filter((t) => t.status !== "Completed");
   const overdueTasks = openTasks.filter((t) => new Date(t.dueDate) < new Date());
 
   const pendingPaymentsTotal = canViewFinance
@@ -173,7 +175,7 @@ export default function Dashboard({ onNavigate, onNewProject }: DashboardProps) 
 
   const activeProjectsList = activeProjects.slice(0, 4);
 
-  const upcomingTasks = tasks
+  const upcomingTasks = currentTasks
     .filter((t) => t.status !== "Completed")
     .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
     .slice(0, 5)

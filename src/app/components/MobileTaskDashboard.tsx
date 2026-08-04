@@ -53,14 +53,17 @@ export default function MobileTaskDashboard({
   const myTasks = useMemo(() => {
     const now = new Date();
     return tasks
-      .filter((t: any) => myTaskIds.has(String(t.id)) && t.status !== "Completed")
+      .filter((t: any) => {
+        const project = projects.find((p: any) => String(p.id) === String(t.projectId));
+        return myTaskIds.has(String(t.id)) && t.status !== "Completed" && project?.status !== "Completed";
+      })
       .sort((a: any, b: any) => {
         const aDelayed = a.dueDate && new Date(a.dueDate) < now;
         const bDelayed = b.dueDate && new Date(b.dueDate) < now;
         if (aDelayed !== bDelayed) return aDelayed ? -1 : 1;
         return new Date(a.dueDate || a.startDate || 0).getTime() - new Date(b.dueDate || b.startDate || 0).getTime();
       });
-  }, [tasks, myTaskIds]);
+  }, [tasks, projects, myTaskIds]);
 
   const delayedCount = myTasks.filter((t: any) => t.dueDate && new Date(t.dueDate) < new Date()).length;
 

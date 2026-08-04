@@ -13,6 +13,7 @@ import { formatDate } from "../src/lib/dates";
 import { canEditTask } from "../src/features/tasks/permissions";
 import { useTaskAssignees, assigneeIdsForTask } from "../src/features/taskAssignees/useTaskAssignees";
 import { toast } from "sonner";
+import { operationalTasks } from "../src/features/projects/lifecycle";
 
 type TimeFrame = "all" | "overdue" | "today" | "week" | "month";
 
@@ -49,9 +50,11 @@ export default function TaskManagement() {
   // Visible/matches-by-assignee both check the FULL assignee list (any
   // co-assignee), not just the single "primary" one -- otherwise a task's
   // 2nd/3rd assignee would never see it in their own task list.
+  const activeTasks = operationalTasks(tasks, projects);
+  const activeProjects = projects.filter((project: any) => project.status !== "Completed");
   const visibleTasks = canViewAllProjects
-    ? tasks
-    : tasks.filter((t: any) => myMember && assigneeIdsForTask(taskAssignees, t.id).includes(String(myMember.id)));
+    ? activeTasks
+    : activeTasks.filter((t: any) => myMember && assigneeIdsForTask(taskAssignees, t.id).includes(String(myMember.id)));
 
   // Filter tasks -- incomplete tasks only for time-frame filtering, since a
   // completed task being "overdue" isn't something anyone needs to act on
@@ -168,10 +171,10 @@ export default function TaskManagement() {
   };
 
   // Calculate stats
-  const totalTasks = tasks.length;
-  const completedTasks = tasks.filter(t => t.status === "Completed").length;
-  const inProgressTasks = tasks.filter(t => t.status === "In Progress").length;
-  const overdueTasks = tasks.filter(t => isOverdue(t.dueDate, t.status)).length;
+  const totalTasks = visibleTasks.length;
+  const completedTasks = visibleTasks.filter(t => t.status === "Completed").length;
+  const inProgressTasks = visibleTasks.filter(t => t.status === "In Progress").length;
+  const overdueTasks = visibleTasks.filter(t => isOverdue(t.dueDate, t.status)).length;
   const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
   return (
@@ -288,7 +291,7 @@ export default function TaskManagement() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Projects</SelectItem>
-              {projects.map((project) => (
+              {activeProjects.map((project) => (
                 <SelectItem key={project.id} value={project.id.toString()}>
                   {project.title}
                 </SelectItem>
@@ -511,7 +514,7 @@ export default function TaskManagement() {
       <TaskDialog
         open={isTaskDialogOpen}
         onOpenChange={setIsTaskDialogOpen}
-        projectId={selectedTask?.projectId || projects[0]?.id || 1}
+        projectId={selectedTask?.projectId}
         task={selectedTask}
         mode={taskDialogMode}
       />

@@ -78,11 +78,15 @@ export default function ProjectManagement({ onViewProject, openCreateDialog = fa
   const [isNewClientDialogOpen, setIsNewClientDialogOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<number | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const projectsPerPage = 10;
   const [filters, setFilters] = useState<Filters>({
     search: "",
     dateFrom: undefined,
     dateTo: undefined,
     selects: {},
+    sortBy: "createdAt",
+    sortOrder: "desc",
   });
 
   // Open dialog when prop changes
@@ -137,11 +141,16 @@ export default function ProjectManagement({ onViewProject, openCreateDialog = fa
       return matchesSearch && matchesStatus && matchesDateFrom && matchesDateTo;
     })
     .sort((a, b) => {
-      if (!filters.sortBy) return 0;
+      const sortBy = filters.sortBy || "createdAt";
 
       const order = filters.sortOrder === "asc" ? 1 : -1;
 
-      switch (filters.sortBy) {
+      switch (sortBy) {
+        case "createdAt":
+          return order * (
+            new Date((a as any).created_at || (a as any).createdAt || 0).getTime()
+            - new Date((b as any).created_at || (b as any).createdAt || 0).getTime()
+          );
         case "name":
           return order * a.title.localeCompare(b.title);
         case "client":
@@ -160,6 +169,16 @@ export default function ProjectManagement({ onViewProject, openCreateDialog = fa
           return 0;
       }
     });
+
+  const totalPages = Math.max(1, Math.ceil(filteredProjects.length / projectsPerPage));
+  const paginatedProjects = filteredProjects.slice(
+    (currentPage - 1) * projectsPerPage,
+    currentPage * projectsPerPage
+  );
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
 
   // Filter configuration
   const filterConfig: FilterConfig[] = [
@@ -190,6 +209,7 @@ export default function ProjectManagement({ onViewProject, openCreateDialog = fa
 
   // Sort options configuration
   const sortOptions = [
+    { field: "createdAt", label: "Date Created" },
     { field: "name", label: "Project Name" },
     { field: "client", label: "Client" },
     { field: "startDate", label: "Start Date" },
@@ -224,9 +244,14 @@ export default function ProjectManagement({ onViewProject, openCreateDialog = fa
       <div className="flex items-center gap-[12px]">
         <TableFilter
           filters={filterConfig}
-          onFilterChange={setFilters}
+          onFilterChange={(nextFilters) => {
+            setFilters(nextFilters);
+            setCurrentPage(1);
+          }}
           searchPlaceholder="Search by name, client, location..."
           sortOptions={sortOptions}
+          defaultSortBy="createdAt"
+          defaultSortOrder="desc"
         />
 
         <div className="flex items-center gap-[4px] bg-card border border-border rounded-[6px] p-[2px] ml-auto">
@@ -269,7 +294,7 @@ export default function ProjectManagement({ onViewProject, openCreateDialog = fa
       {/* Projects Display */}
       {view === "list" && (
         <div className="space-y-[12px]">
-          {filteredProjects.map((project) => (
+          {paginatedProjects.map((project) => (
             <ProjectListItem
               key={project.id}
               project={project}
@@ -284,7 +309,7 @@ export default function ProjectManagement({ onViewProject, openCreateDialog = fa
 
       {view === "grid" && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-[20px]">
-          {filteredProjects.map((project) => (
+          {paginatedProjects.map((project) => (
             <ProjectGridItem
               key={project.id}
               project={project}
@@ -298,7 +323,36 @@ export default function ProjectManagement({ onViewProject, openCreateDialog = fa
         </div>
       )}
 
-      {view === "gantt" && <ProjectGanttView projects={filteredProjects} onViewProject={onViewProject} />}
+      {view === "gantt" && <ProjectGanttView projects={paginatedProjects} onViewProject={onViewProject} />}
+
+      {filteredProjects.length > projectsPerPage && (
+        <nav className="flex flex-col sm:flex-row items-center justify-between gap-[12px] border-t border-border pt-[16px]" aria-label="Project pages">
+          <p className="font-['Roboto_Mono'] text-[10px] text-muted-foreground">
+            Showing {(currentPage - 1) * projectsPerPage + 1}–{Math.min(currentPage * projectsPerPage, filteredProjects.length)} of {filteredProjects.length} projects
+          </p>
+          <div className="flex items-center gap-[8px]">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              disabled={currentPage === 1}
+              className="h-[36px] px-[12px] flex items-center gap-[6px] border border-border bg-card rounded-[6px] font-['Roboto_Mono'] text-[10px] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-accent/5"
+            >
+              <ChevronLeft className="w-[13px] h-[13px]" /> Previous
+            </button>
+            <span className="min-w-[76px] text-center font-['Roboto_Mono'] text-[10px] text-foreground">
+              Page {currentPage} of {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+              disabled={currentPage === totalPages}
+              className="h-[36px] px-[12px] flex items-center gap-[6px] border border-border bg-card rounded-[6px] font-['Roboto_Mono'] text-[10px] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-accent/5"
+            >
+              Next <ChevronRight className="w-[13px] h-[13px]" />
+            </button>
+          </div>
+        </nav>
+      )}
 
       {filteredProjects.length === 0 && (
         <div className="bg-card border border-border rounded-[12px] p-[40px] text-center">

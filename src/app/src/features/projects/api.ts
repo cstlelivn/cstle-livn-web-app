@@ -281,6 +281,7 @@ export async function deleteProject(id: string) {
 export async function checkProjectCompletionReadiness(projectId: string): Promise<{
   ready: boolean;
   incompleteCount: number;
+  incompleteTaskCount: number;
   totalPhases: number;
 }> {
   const { data: phases, error } = await supabase
@@ -291,7 +292,18 @@ export async function checkProjectCompletionReadiness(projectId: string): Promis
 
   const all = phases ?? [];
   const incomplete = all.filter((p: any) => p.status !== 'Completed');
-  return { ready: incomplete.length === 0, incompleteCount: incomplete.length, totalPhases: all.length };
+  const { count: incompleteTaskCount, error: taskError } = await supabase
+    .from('tasks')
+    .select('id', { count: 'exact', head: true })
+    .eq('project_id', projectId)
+    .neq('status', 'Completed');
+  failIf(taskError, 'Failed to check open project tasks');
+  return {
+    ready: all.length > 0 && incomplete.length === 0 && (incompleteTaskCount ?? 0) === 0,
+    incompleteCount: incomplete.length,
+    incompleteTaskCount: incompleteTaskCount ?? 0,
+    totalPhases: all.length,
+  };
 }
 
 /** Mark a project complete the normal way — blocked unless every phase is
@@ -300,7 +312,7 @@ export async function checkProjectCompletionReadiness(projectId: string): Promis
 export async function markProjectComplete(projectId: string, userId: string) {
   const readiness = await checkProjectCompletionReadiness(projectId);
   if (!readiness.ready) {
-    throw new Error(`${readiness.incompleteCount} phase(s) are not completed yet`);
+    throw new Error(`${readiness.incompleteCount} phase(s) and ${readiness.incompleteTaskCount} task(s) are not completed yet`);
   }
 
   const { error } = await supabase

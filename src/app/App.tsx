@@ -98,6 +98,58 @@ function AppContent() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
 
+  // Keep real browser history in sync with the state-driven app shell. This
+  // gives installed iPhone/Android web apps a genuine previous entry, so the
+  // native edge-swipe/back gesture works instead of leaving users trapped in
+  // a detail screen.
+  useEffect(() => {
+    const initialState = {
+      cstleNavigation: true,
+      view: currentView,
+      projectsSubView,
+      teamsSubView,
+      selectedProjectId,
+      selectedTaskId,
+      selectedUserId,
+    };
+    window.history.replaceState(initialState, "", window.location.href);
+
+    const restoreNavigation = (event: PopStateEvent) => {
+      const state = event.state;
+      if (!state?.cstleNavigation) return;
+      setCurrentView(state.view || "dashboard");
+      setProjectsSubView(state.projectsSubView || "projects");
+      setTeamsSubView(state.teamsSubView || "team");
+      setSelectedProjectId(state.selectedProjectId ?? null);
+      setSelectedTaskId(state.selectedTaskId ?? null);
+      setSelectedUserId(state.selectedUserId ?? null);
+      setMobileMenuOpen(false);
+    };
+    window.addEventListener("popstate", restoreNavigation);
+    return () => window.removeEventListener("popstate", restoreNavigation);
+    // This establishes the initial entry once; later entries are explicit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const pushNavigation = (next: Partial<{
+    view: ViewType;
+    projectsSubView: SubViewType["projects"];
+    teamsSubView: SubViewType["teams"];
+    selectedProjectId: number | null;
+    selectedTaskId: string | null;
+    selectedUserId: string | null;
+  }>) => {
+    window.history.pushState({
+      cstleNavigation: true,
+      view: next.view ?? currentView,
+      projectsSubView: next.projectsSubView ?? projectsSubView,
+      teamsSubView: next.teamsSubView ?? teamsSubView,
+      selectedProjectId: next.selectedProjectId !== undefined ? next.selectedProjectId : selectedProjectId,
+      selectedTaskId: next.selectedTaskId !== undefined ? next.selectedTaskId : selectedTaskId,
+      selectedUserId: next.selectedUserId !== undefined ? next.selectedUserId : selectedUserId,
+    }, "", window.location.href);
+  };
+
   // Start the work-session offline sync loop once per app load -- it's a
   // no-op if there's nothing queued, and self-schedules its own retries.
   useEffect(() => {
@@ -175,6 +227,7 @@ function AppContent() {
     
     // Handle navigation to specific sub-views or IDs
     if (view === "task-details" && subViewOrId !== undefined && subViewOrId !== null) {
+      pushNavigation({ view: "task-details", selectedTaskId: String(subViewOrId) });
       setSelectedTaskId(String(subViewOrId));
       setCurrentView("task-details");
     } else if (view === "project-details" && subViewOrId !== undefined && subViewOrId !== null) {
@@ -384,7 +437,10 @@ function AppContent() {
         return <TeamProductivityReport />;
       case "task-details":
         return selectedTaskId
-          ? <MobileTaskWorkspace taskId={selectedTaskId} onBack={() => { setSelectedTaskId(null); setCurrentView("dashboard"); }} />
+          ? <MobileTaskWorkspace taskId={selectedTaskId} onBack={() => {
+              if (window.history.state?.cstleNavigation) window.history.back();
+              else { setSelectedTaskId(null); setCurrentView("dashboard"); }
+            }} />
           : <Dashboard onNavigate={handleNavigate} onNewProject={handleNewProject} />;
       default:
         return <Dashboard onNavigate={handleNavigate} onNewProject={handleNewProject} />;
@@ -457,7 +513,7 @@ function AppContent() {
     });
 
   return (
-    <div className="flex min-h-screen w-full bg-background">
+    <div className="flex min-h-[100dvh] w-full max-w-full min-w-0 overflow-x-clip bg-background">
       {/* Mobile nav drawer -- hidden entirely above the md breakpoint, where
           the hover sidebar below takes over. Backdrop tap or picking an item
           closes it. */}
@@ -587,7 +643,7 @@ function AppContent() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 min-w-0 max-w-full flex flex-col overflow-hidden">
         {/* Top Bar */}
         <div className={`${currentView === "task-details" ? "hidden md:flex" : "flex"} h-[60px] border-b border-border bg-background px-[12px] md:px-[32px] items-center justify-between gap-[8px] shrink-0`}>
           <div className="flex items-center gap-[8px] min-w-0">

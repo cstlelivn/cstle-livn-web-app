@@ -192,11 +192,14 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
 
   const incompletePhaseCount = normalizedPhases.filter((p: any) => p.status !== "Completed").length;
   const allPhasesComplete = normalizedPhases.length > 0 && incompletePhaseCount === 0;
+  const incompleteTaskCount = allProjectTasks.filter((task: any) => task.status !== "Completed").length;
+  const readyToClose = allPhasesComplete && incompleteTaskCount === 0;
   // Once every phase is done, the card should read "Project Complete" at
   // 100% instead of whatever the last active phase's name happened to be.
   const phaseCardLabel = allPhasesComplete ? "Project Complete" : project?.phase;
   const phaseCardProgress = allPhasesComplete ? 100 : currentPhaseProgress;
   const canForceComplete = hasPermission("canForceCompleteProjects");
+  const canCloseProject = hasPermission("canEditProjects");
 
   const handleMarkComplete = async () => {
     if (!currentUser) return;
@@ -746,15 +749,20 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
           >
             {project.status}
           </div>
-          {project.status !== "Completed" && (
+          {project.status !== "Completed" && canCloseProject && (
             <button
               onClick={handleMarkComplete}
-              disabled={!allPhasesComplete || markingComplete}
-              title={allPhasesComplete ? undefined : `${incompletePhaseCount} phase(s) not completed yet`}
+              disabled={!readyToClose || markingComplete}
+              title={readyToClose ? undefined : `${incompletePhaseCount} incomplete phase(s) · ${incompleteTaskCount} open task(s)`}
               className="px-[14px] py-[8px] rounded-[6px] text-[11px] font-['Roboto_Mono'] font-medium bg-success/10 text-success border border-success/20 hover:bg-success/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {markingComplete ? "Completing…" : "Mark Complete"}
             </button>
+          )}
+          {project.status !== "Completed" && readyToClose && !canCloseProject && (
+            <span className="px-[12px] py-[7px] rounded-full bg-success/10 text-success border border-success/20 font-['Roboto_Mono'] text-[10px]">
+              Ready for Manager/Admin close-out
+            </span>
           )}
           {project.status !== "Completed" && canForceComplete && (
             <button
@@ -950,7 +958,7 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
             </TabsTrigger>
           </TabsList>
 
-          {currentTab === "tasks" && (
+          {currentTab === "tasks" && project.status !== "Completed" && (
             <button
               onClick={handleAddTask}
               className="flex items-center gap-[8px] px-[16px] py-[8px] bg-accent text-accent-foreground rounded-[6px] hover:bg-accent/90 transition-colors"

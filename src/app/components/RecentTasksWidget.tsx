@@ -5,6 +5,7 @@ import { useAuth } from "./AuthContext";
 import TaskDialog from "./TaskDialog";
 import { getTaskStatusIcon } from "./TaskStatusControl";
 import { formatDate } from "../src/lib/dates";
+import { operationalTasks } from "../src/features/projects/lifecycle";
 
 interface RecentTasksWidgetProps {
   onNavigateToProjects?: () => void;
@@ -20,11 +21,12 @@ export default function RecentTasksWidget({ onNavigateToProjects }: RecentTasksW
   // Without canViewAllProjects (Associates), only show this person's own
   // tasks -- otherwise everyone saw every open task company-wide here.
   const visibleTasks = useMemo(() => {
-    if (hasPermission("canViewAllProjects")) return tasks;
+    const currentTasks = operationalTasks(tasks, projects);
+    if (hasPermission("canViewAllProjects")) return currentTasks;
     const myMember = teamMembers.find((m: any) => String(m.authUserId) === String(currentUser?.id));
     if (!myMember) return [];
-    return tasks.filter((t: any) => String(t.assignee) === String(myMember.id));
-  }, [tasks, teamMembers, currentUser, hasPermission]);
+    return currentTasks.filter((t: any) => String(t.assignee) === String(myMember.id));
+  }, [tasks, projects, teamMembers, currentUser, hasPermission]);
 
   // Get recent incomplete tasks (sorted by due date)
   const recentTasks = visibleTasks

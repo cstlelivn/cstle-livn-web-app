@@ -20,7 +20,7 @@ import { toast } from "sonner";
 interface TaskDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  projectId: number;
+  projectId?: number;
   task?: Task;
   mode: "add" | "edit";
   onSave?: (taskData: any) => void;
@@ -36,12 +36,13 @@ export default function TaskDialog({
   onSave,
   defaultStatus,
 }: TaskDialogProps) {
-  const { teamMembers, addTask, updateTask, taskTemplates, saveTaskTemplate, getProject } = useApp();
+  const { projects, teamMembers, addTask, updateTask, taskTemplates, saveTaskTemplate, getProject } = useApp();
   const { hasPermission, currentUser } = useAuth();
   const { taskAssignees } = useTaskAssignees(true);
 
   // Check if user is Manager/Admin
   const isManagerOrAdmin = hasPermission("canEditProjects");
+  const canManageAssignments = isManagerOrAdmin || currentUser?.role === "Supervisor";
   const canApproveQC = hasPermission("canApproveTaskQC");
 
   const currentAssigneeIds = task ? assigneeIdsForTask(taskAssignees, task.id) : [];
@@ -50,12 +51,14 @@ export default function TaskDialog({
   // manager/admin) should be view-only — mirrors the tasks_update RLS policy.
   // Checks ALL active co-assignees, not just the single "primary" one, so a
   // task's 2nd/3rd assignee gets edit access too.
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(projectId ? String(projectId) : "");
+  const effectiveProjectId = task?.projectId ? String(task.projectId) : selectedProjectId;
+  const project = effectiveProjectId ? getProject(effectiveProjectId as any) : undefined;
+  const activeProjects = projects.filter((candidate: any) => candidate.status !== "Completed");
+  const isClosedProject = project?.status === "Completed";
   const isReadOnly =
     mode === "edit" &&
-    !canEditTask({ task, currentUserId: currentUser?.id, isManagerOrAdmin, teamMembers, assigneeIds: currentAssigneeIds });
-
-  // Get project to access phases
-  const project = getProject(projectId);
+    (isClosedProject || !canEditTask({ task, currentUserId: currentUser?.id, isManagerOrAdmin: canManageAssignments, teamMembers, assigneeIds: currentAssigneeIds }));
 
   const [formData, setFormData] = useState({
     title: "",
@@ -77,6 +80,7 @@ export default function TaskDialog({
   const [selectedTemplate, setSelectedTemplate] = useState<string>("");
 
   useEffect(() => {
+    setSelectedProjectId(task?.projectId ? String(task.projectId) : projectId ? String(projectId) : "");
     if (task) {
       setFormData({
         title: task.title || "",
@@ -106,7 +110,7 @@ export default function TaskDialog({
         complexity: "",
       });
     }
-  }, [task, open, defaultStatus]);
+  }, [task, open, defaultStatus, projectId]);
 
   // Assignee checklist starts empty for a brand-new task and re-syncs to the
   // task's real active assignees whenever the dialog (re)opens on an
@@ -151,9 +155,17 @@ export default function TaskDialog({
       toast.error("Task title is required");
       return;
     }
+    if (!effectiveProjectId) {
+      toast.error("Choose a project before creating the task");
+      return;
+    }
+    if (project?.status === "Completed") {
+      toast.error("This project is closed. New tasks cannot be added or changed.");
+      return;
+    }
 
     const taskData: any = {
-      projectId,
+      projectId: effectiveProjectId,
       title: formData.title,
       description: formData.description,
       status: formData.status,
@@ -181,20 +193,8 @@ export default function TaskDialog({
 
         const added = selectedAssigneeIds.filter((id) => !currentAssigneeIds.map(String).includes(id));
         const removed = currentAssigneeIds.map(String).filter((id) => !selectedAssigneeIds.includes(id));
-        for (const memberId of added) {
-          try {
-            await assignTaskMember(String(task.id), memberId);
-          } catch (assignError) {
-            console.error('Failed to assign team member:', assignError);
-          }
-        }
-        for (const memberId of removed) {
-          try {
-            await unassignTaskMember(String(task.id), memberId);
-          } catch (unassignError) {
-            console.error('Failed to unassign team member:', unassignError);
-          }
-        }
+        for (const memberId of added) await assignTaskMember(String(task.id), memberId);
+        for (const memberId of removed) await unassignTaskMember(String(task.id), memberId);
         toast.success("Task updated successfully");
       } else {
         // A brand-new task needs an initial assignee_id to seed the column
@@ -206,13 +206,7 @@ export default function TaskDialog({
         const created = await addTask(taskData);
         if (created?.id) {
           const remaining = selectedAssigneeIds.slice(1);
-          for (const memberId of remaining) {
-            try {
-              await assignTaskMember(String(created.id), memberId);
-            } catch (assignError) {
-              console.error('Failed to assign additional team member:', assignError);
-            }
-          }
+          for (const memberId of remaining) await assignTaskMember(String(created.id), memberId);
         }
         toast.success("Task created successfully");
       }
@@ -240,7 +234,7 @@ export default function TaskDialog({
       resetForm();
     } catch (error) {
       console.error('Failed to save task:', error);
-      toast.error("Failed to save task. Please try again.");
+      toast.error(error instanceof Error ? error.message : "Failed to save task. Please try again.");
     }
   };
 
@@ -277,11 +271,35 @@ export default function TaskDialog({
         </DialogHeader>
 
         <div className="space-y-[16px] mt-[16px]">
+          {mode === "add" && !projectId && (
+            <div>
+              <Label htmlFor="task-project" className="text-[10px]">Project *</Label>
+              <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
+                <SelectTrigger id="task-project" className="mt-[8px] text-[11px]">
+                  <SelectValue placeholder="Choose the project for this task" />
+                </SelectTrigger>
+                <SelectContent>
+                  {activeProjects.map((candidate: any) => (
+                    <SelectItem key={candidate.id} value={String(candidate.id)} className="text-[11px]">
+                      {candidate.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {activeProjects.length === 0 && (
+                <p className="font-['Roboto_Mono'] text-[9px] text-muted-foreground mt-[6px]">
+                  There are no open projects available. Create or reopen a project before adding work.
+                </p>
+              )}
+            </div>
+          )}
           {isReadOnly && (
             <div className="p-[10px] bg-warning/10 border border-warning/20 rounded-[8px] flex items-center gap-[8px]">
               <AlertCircle className="w-3.5 h-3.5 text-warning shrink-0" />
               <p className="font-['Roboto_Mono'] text-[10px] text-warning">
-                This task is assigned to someone else — you can view it but not make changes.
+                {isClosedProject
+                  ? "This project is closed. Its tasks are retained as read-only history."
+                  : "This task is assigned to someone else — you can view it but not make changes."}
               </p>
             </div>
           )}
@@ -579,14 +597,14 @@ export default function TaskDialog({
                         key={member.id}
                         htmlFor={`assignee-${member.id}`}
                         className={`flex items-center gap-[8px] px-[10px] py-[6px] text-[10px] ${
-                          isManagerOrAdmin ? "cursor-pointer hover:bg-accent/5" : "cursor-not-allowed opacity-70"
+                          canManageAssignments ? "cursor-pointer hover:bg-accent/5" : "cursor-not-allowed opacity-70"
                         }`}
                       >
                         <input
                           id={`assignee-${member.id}`}
                           type="checkbox"
                           checked={checked}
-                          disabled={!isManagerOrAdmin}
+                          disabled={!canManageAssignments}
                           onChange={() => toggleAssignee(memberId)}
                           className="w-3.5 h-3.5"
                         />
@@ -596,9 +614,9 @@ export default function TaskDialog({
                     );
                   })}
               </div>
-              {!isManagerOrAdmin && (
+              {!canManageAssignments && (
                 <p className="text-[9px] text-muted-foreground mt-[4px]">
-                  Only Managers/Admins can change who's assigned
+                  Only Managers/Admins or this project's Supervisor can change who's assigned
                 </p>
               )}
             </div>
@@ -650,7 +668,7 @@ export default function TaskDialog({
               only shown once the task actually exists (needs a real task_id
               for sessions to attach to). */}
           {mode === "edit" && task && (
-            <WorkSessionTimer taskId={String(task.id)} projectId={String(projectId)} />
+            <WorkSessionTimer taskId={String(task.id)} projectId={String(effectiveProjectId)} />
           )}
 
           {mode === "edit" && task && <TaskChecklistEditor taskId={String(task.id)} />}
@@ -658,7 +676,7 @@ export default function TaskDialog({
           {mode === "edit" && task && <TaskActivityFeed taskId={String(task.id)} />}
 
           {mode === "edit" && task && (
-            <TaskMediaEvidence projectId={String(projectId)} taskId={String(task.id)} />
+            <TaskMediaEvidence projectId={String(effectiveProjectId)} taskId={String(task.id)} />
           )}
 
           {/* Aura feedback for this task -- only renders once a real score

@@ -252,12 +252,34 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    box-sizing: border-box;
+  }
+
+  html,
+  body,
+  #root {
+    width: 100%;
+    max-width: 100%;
+    min-height: 100%;
+    overflow-x: clip;
   }
 
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-family-body);
     font-weight: var(--font-weight-normal);
+    margin: 0;
+    min-width: 0;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    overscroll-behavior-x: none;
+  }
+
+  img,
+  video,
+  canvas {
+    max-width: 100%;
+    height: auto;
   }
 }
 

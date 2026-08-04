@@ -23,6 +23,8 @@ interface TableFilterProps {
   onFilterChange: (filters: Record<string, any>) => void;
   searchPlaceholder?: string;
   sortOptions?: SortOption[];
+  defaultSortBy?: string;
+  defaultSortOrder?: "asc" | "desc";
 }
 
 export default function TableFilter({
@@ -30,14 +32,16 @@ export default function TableFilter({
   onFilterChange,
   searchPlaceholder = "Search...",
   sortOptions = [],
+  defaultSortBy = "",
+  defaultSortOrder = "asc",
 }: TableFilterProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
   const [dateTo, setDateTo] = useState<Date | undefined>();
   const [selectValues, setSelectValues] = useState<Record<string, string>>({});
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [sortBy, setSortBy] = useState<string>("");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  const [sortBy, setSortBy] = useState<string>(defaultSortBy);
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">(defaultSortOrder);
 
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
@@ -97,9 +101,9 @@ export default function TableFilter({
     setDateFrom(undefined);
     setDateTo(undefined);
     setSelectValues({});
-    setSortBy("");
-    setSortOrder("asc");
-    onFilterChange({ search: "", dateFrom: undefined, dateTo: undefined, selects: {}, sortBy: "", sortOrder: "asc" });
+    setSortBy(defaultSortBy);
+    setSortOrder(defaultSortOrder);
+    onFilterChange({ search: "", dateFrom: undefined, dateTo: undefined, selects: {}, sortBy: defaultSortBy, sortOrder: defaultSortOrder });
   };
 
   const hasActiveFilters = searchQuery || dateFrom || dateTo || Object.keys(selectValues).length > 0 || sortBy;
@@ -157,9 +161,9 @@ export default function TableFilter({
                   {sortBy && (
                     <button
                       onClick={() => {
-                        setSortBy("");
-                        setSortOrder("asc");
-                        updateFilters({ sortBy: "", sortOrder: "asc" });
+                        setSortBy(defaultSortBy);
+                        setSortOrder(defaultSortOrder);
+                        updateFilters({ sortBy: defaultSortBy, sortOrder: defaultSortOrder });
                       }}
                       className="font-['Roboto_Mono'] text-[9px] text-accent hover:text-accent/80 transition-colors"
                     >

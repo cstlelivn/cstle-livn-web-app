@@ -514,6 +514,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Task methods
   const addTask = async (task: Omit<Task, "id" | "createdAt">) => {
     try {
+      const project = realtimeProjects.find((p: any) => String(p.id) === String(task.projectId));
+      if (!project) {
+        throw new Error("Choose a valid project before creating the task");
+      }
+      if (project.status === "Completed") {
+        throw new Error("This project is closed. New tasks cannot be added.");
+      }
+
       // Every task must have an assignee -- default to the project's
       // supervisor (the person who owns QC/oversight for this project)
       // rather than leaving it unassigned, and rather than defaulting to
@@ -524,7 +532,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const rawAssignee = (task as any).assignee_id ?? task.assignee;
       let assignee = rawAssignee;
       if (!assignee || assignee === "" || assignee === "unassigned") {
-        const project = realtimeProjects.find((p: any) => p.id === task.projectId);
         if (project?.supervisorId) {
           assignee = String(project.supervisorId);
         } else {
