@@ -208,7 +208,9 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   instead of being mistaken for missing attribution. TypeScript, 7/7 tests,
   production build and diff checks pass. Migration
   `20240031_task_completion_attribution.sql` was run successfully in Supabase;
-  the matching frontend was pushed for the same production rollout.
+  a live read-back confirmed both the table and updated QC function. Frontend
+  commit `fe1a7d9` was pushed to `main`, and Vercel production was verified
+  serving `index-fd0rrBXA.js` with the automatic/manual attribution markers.
 
 - **QC timer-prerequisite fix deployed August 4, 2026.** Live
   Postgres logs confirmed `NO_FINISHED_WORK_SESSION` when a reviewer tried to
