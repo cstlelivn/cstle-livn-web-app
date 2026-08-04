@@ -199,6 +199,20 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
 
 ## Aura v3 + onsite task workspace (live; role QA still pending)
 
+- **QC timer-prerequisite fix deployed August 4, 2026.** Live
+  Postgres logs confirmed `NO_FINISHED_WORK_SESSION` when a reviewer tried to
+  QC a task placed directly into Pending QC. Migration
+  `20240030_qc_timer_optional.sql` removes that prerequisite: authorized QC
+  reviewers continue to see available timing evidence and use the existing
+  fast/on-time/slow plus corrections assessment, but may approve or reject
+  when no timer exists. Finished sessions still receive their QC result and
+  feed Aura; a no-session task keeps the reviewer-entered task rating without
+  fabricating session timing or contributor Aura. No extra admin form or
+  attestation workload is added. Migration `20240030_qc_timer_optional.sql`
+  was run successfully in Supabase. The matching frontend change surfaces the
+  real QC error instead of a generic retry message and was prepared for the
+  same production deployment.
+
 - Migration `20240029_aura_completion_and_task_reporting.sql` was run
   successfully in Supabase on August 1, 2026. It adds reviewable
   `pending/approved/rejected` delays, structured task progress/query/

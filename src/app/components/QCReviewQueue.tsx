@@ -140,7 +140,7 @@ export default function QCReviewQueue() {
       
       toast.success(`Task approved with rating ${metrics.calculatedRating}/5`, { id: "task-approve" });
     } catch (error) {
-      toast.error("Failed to approve task. Please try again.", { id: "task-approve" });
+      toast.error(error instanceof Error ? error.message : "Failed to approve task", { id: "task-approve" });
     }
   };
 
@@ -158,7 +158,7 @@ export default function QCReviewQueue() {
       
       toast.success("Changes requested - task sent back to worker", { id: "task-reject" });
     } catch (error) {
-      toast.error("Failed to reject task. Please try again.", { id: "task-reject" });
+      toast.error(error instanceof Error ? error.message : "Failed to reject task", { id: "task-reject" });
     }
   };
 
