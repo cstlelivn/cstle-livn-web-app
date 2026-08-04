@@ -199,6 +199,17 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
 
 ## Aura v3 + onsite task workspace (live; role QA still pending)
 
+- **Task completer attribution deployed August 4, 2026.** The
+  matching frontend and migration `20240031_task_completion_attribution.sql`
+  automatically show and record the employee name(s) from finished task
+  sessions. When no employee session exists, the QC reviewer selects a roster
+  member or enters an external person's name before approving/rejecting. This
+  adds no input to the normal employee path. Session-load failures fail closed
+  instead of being mistaken for missing attribution. TypeScript, 7/7 tests,
+  production build and diff checks pass. Migration
+  `20240031_task_completion_attribution.sql` was run successfully in Supabase;
+  the matching frontend was pushed for the same production rollout.
+
 - **QC timer-prerequisite fix deployed August 4, 2026.** Live
   Postgres logs confirmed `NO_FINISHED_WORK_SESSION` when a reviewer tried to
   QC a task placed directly into Pending QC. Migration

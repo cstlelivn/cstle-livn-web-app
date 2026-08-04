@@ -111,7 +111,8 @@ export default function QCReviewQueue() {
     taskId: number,
     rating: number,
     metrics: { speed: "fast" | "on-time" | "slow"; corrections: "none" | "minor" | "major"; calculatedRating: number },
-    feedback: string
+    feedback: string,
+    completionAttribution?: { teamMemberId?: string; externalName?: string }
   ) => {
     try {
       toast.loading("Approving task...", { id: "task-approve" });
@@ -130,6 +131,7 @@ export default function QCReviewQueue() {
         feedback: feedback || undefined,
         displayRating: metrics.calculatedRating,
         ratingMetrics: { speed: metrics.speed, corrections: metrics.corrections },
+        completionAttribution,
       });
 
       // ✅ WEBSOCKET AUTO-UPDATE: No need to refetch - WebSocket will update automatically
@@ -144,11 +146,11 @@ export default function QCReviewQueue() {
     }
   };
 
-  const handleRejectTask = async (taskId: number, feedback: string) => {
+  const handleRejectTask = async (taskId: number, feedback: string, completionAttribution?: { teamMemberId?: string; externalName?: string }) => {
     try {
       toast.loading("Requesting changes...", { id: "task-reject" });
       
-      await finalizeTaskQC({ taskId: String(taskId), qcResult: "Rejected", rework: true, feedback });
+      await finalizeTaskQC({ taskId: String(taskId), qcResult: "Rejected", rework: true, feedback, completionAttribution });
 
       // ✅ WEBSOCKET AUTO-UPDATE: No need to refetch - WebSocket will update automatically
       
@@ -423,6 +425,7 @@ export default function QCReviewQueue() {
           task={selectedTask}
           projectName={projects.find((p) => p.id === selectedTask.projectId)?.title}
           teamMember={getTeamMember(selectedTask.assignee) || { id: 0, name: "Unknown", role: "Unknown" }}
+          teamMembers={teamMembers.map((member) => ({ id: String(member.id), name: member.name }))}
           onApprove={handleApproveTask}
           onReject={handleRejectTask}
         />

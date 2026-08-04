@@ -61,6 +61,7 @@ export async function finalizeTaskQC(input: {
   feedback?: string;
   displayRating?: number;
   ratingMetrics?: Record<string, unknown>;
+  completionAttribution?: { teamMemberId?: string; externalName?: string };
 }) {
   const { data, error } = await supabase.rpc('finalize_task_qc', {
     p_task_id: input.taskId,
@@ -68,7 +69,13 @@ export async function finalizeTaskQC(input: {
     p_rework: input.rework,
     p_feedback: input.feedback ?? null,
     p_display_rating: input.displayRating ?? null,
-    p_rating_metrics: input.ratingMetrics ?? null,
+    p_rating_metrics: input.completionAttribution ? {
+      ...(input.ratingMetrics ?? {}),
+      completion_attribution: {
+        team_member_id: input.completionAttribution.teamMemberId ?? null,
+        external_name: input.completionAttribution.externalName ?? null,
+      },
+    } : input.ratingMetrics ?? null,
   });
   failIf(error, 'Failed to finalize task QC');
   return Number(data ?? 0);

@@ -18,9 +18,12 @@ interface TaskReviewDialogProps {
     name: string;
     role: string;
   };
-  onApprove: (taskId: number, rating: number, metrics: RatingMetrics, feedback: string) => void;
-  onReject: (taskId: number, feedback: string) => void;
+  teamMembers: Array<{ id: string; name: string }>;
+  onApprove: (taskId: number, rating: number, metrics: RatingMetrics, feedback: string, completionAttribution?: CompletionAttribution) => void;
+  onReject: (taskId: number, feedback: string, completionAttribution?: CompletionAttribution) => void;
 }
+
+interface CompletionAttribution { teamMemberId?: string; externalName?: string }
 
 interface RatingMetrics {
   speed: "fast" | "on-time" | "slow";
@@ -34,6 +37,7 @@ export default function TaskReviewDialog({
   task,
   projectName,
   teamMember,
+  teamMembers,
   onApprove,
   onReject,
 }: TaskReviewDialogProps) {
@@ -46,10 +50,16 @@ export default function TaskReviewDialog({
   const [corrections, setCorrections] = useState<"none" | "minor" | "major" | null>(null);
   const [additionalComments, setAdditionalComments] = useState("");
   const [sessions, setSessions] = useState<WorkSession[]>([]);
+  const [sessionsLoaded, setSessionsLoaded] = useState(false);
+  const [sessionsLoadFailed, setSessionsLoadFailed] = useState(false);
+  const [manualCompleter, setManualCompleter] = useState("");
+  const [externalCompleter, setExternalCompleter] = useState("");
 
   useEffect(() => {
     if (!isOpen || !task?.id) return;
-    listSessionsForTask(String(task.id)).then(setSessions).catch(() => {});
+    setSessionsLoaded(false);
+    setSessionsLoadFailed(false);
+    listSessionsForTask(String(task.id)).then(setSessions).catch(() => setSessionsLoadFailed(true)).finally(() => setSessionsLoaded(true));
   }, [isOpen, task?.id]);
 
   const decideDelay = async (session: WorkSession, approved: boolean) => {
@@ -79,8 +89,21 @@ export default function TaskReviewDialog({
   };
 
   const currentRating = speed && corrections ? calculateRating(speed, corrections) : 0;
+  const finishedSessions = sessions.filter((session) => session.status === 'finished');
+  const finishedContributorNames = Array.from(new Set(finishedSessions.map((session) => teamMembers.find((member) => member.id === session.teamMemberId)?.name).filter(Boolean))) as string[];
+  const needsManualCompleter = sessionsLoaded && !sessionsLoadFailed && finishedSessions.length === 0;
+  const completionAttribution = (): CompletionAttribution | undefined => {
+    if (!needsManualCompleter) return undefined;
+    return manualCompleter === 'external'
+      ? { externalName: externalCompleter.trim() }
+      : manualCompleter ? { teamMemberId: manualCompleter } : undefined;
+  };
+  const manualCompleterValid = !needsManualCompleter || (manualCompleter === 'external' ? externalCompleter.trim().length >= 2 : Boolean(manualCompleter));
 
   const handleApproveClick = () => {
+    if (!sessionsLoaded) return;
+    if (sessionsLoadFailed) { toast.error('Could not verify who completed this task. Reload and try again.'); return; }
+    if (!manualCompleterValid) { toast.error('Select who completed the task'); return; }
     setStep("rate");
   };
 
@@ -90,7 +113,9 @@ export default function TaskReviewDialog({
 
   const handleSubmitRejection = () => {
     if (rejectFeedback.trim()) {
-      onReject(task.id, rejectFeedback);
+      if (sessionsLoadFailed) { toast.error('Could not verify who completed this task. Reload and try again.'); return; }
+      if (!manualCompleterValid) { toast.error('Select who completed the task'); return; }
+      onReject(task.id, rejectFeedback, completionAttribution());
       resetDialog();
     }
   };
@@ -102,7 +127,8 @@ export default function TaskReviewDialog({
         task.id,
         rating,
         { speed, corrections, calculatedRating: rating },
-        additionalComments
+        additionalComments,
+        completionAttribution()
       );
       resetDialog();
     }
@@ -115,6 +141,8 @@ export default function TaskReviewDialog({
     setSpeed(null);
     setCorrections(null);
     setAdditionalComments("");
+    setManualCompleter("");
+    setExternalCompleter("");
     onClose();
   };
 
@@ -146,10 +174,29 @@ export default function TaskReviewDialog({
                     Task Awaiting QC Review
                   </p>
                   <p className="text-muted-foreground mt-[4px] font-['Roboto_Mono'] text-[11px]">
-                    Task was marked as complete by {teamMember.name}. Approve quality control approval.
+                    {finishedContributorNames.length > 0
+                      ? `Completed by ${finishedContributorNames.join(', ')}. Review the site work and record the QC result.`
+                      : sessionsLoadFailed
+                        ? 'Completion records could not be loaded. Reload before reviewing.'
+                        : sessionsLoaded
+                        ? 'No employee completion was recorded. Select who completed the work below.'
+                        : 'Loading completion record…'}
                   </p>
                 </div>
               </div>
+
+              {needsManualCompleter && (
+                <div className="p-[16px] bg-secondary/30 border border-border rounded-[8px] space-y-[10px]">
+                  <Label htmlFor="manual-completer" className="font-['Roboto_Mono'] text-[10px] uppercase tracking-wide">Who completed the task?</Label>
+                  <select id="manual-completer" value={manualCompleter} onChange={(event) => setManualCompleter(event.target.value)} className="w-full h-[40px] px-[10px] bg-background border border-border rounded-[6px] font-['Roboto_Mono'] text-[11px]">
+                    <option value="">Select a person</option>
+                    {teamMembers.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
+                    <option value="external">External person not in team list</option>
+                  </select>
+                  {manualCompleter === 'external' && <input value={externalCompleter} onChange={(event) => setExternalCompleter(event.target.value)} placeholder="Enter the person's name" className="w-full h-[40px] px-[10px] bg-background border border-border rounded-[6px] font-['Roboto_Mono'] text-[11px]" />}
+                  <p className="font-['Roboto_Mono'] text-[9px] text-muted-foreground">This is only required when no employee submitted a finished timer/session.</p>
+                </div>
+              )}
 
               {/* Task Details */}
               <div className="space-y-[16px]">
