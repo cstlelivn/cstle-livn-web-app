@@ -244,6 +244,13 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   last task or phase transition from silently archiving work before office
   close-out. Unauthorized roles see readiness but cannot close; Super Admin
   force-close remains reason-gated and audited.
+  Frontend commit `e58e060` was pushed to `main`; GitHub/Vercel reported the
+  Production deployment successful. The stable production alias
+  `https://cstle-livn-web-app.vercel.app` was verified serving
+  `index-BBOOiyvd.js`, and that live bundle contains the explicit project
+  chooser, closed-project rejection, Ready for Manager/Admin close-out, Date
+  Created sorting, and pagination markers. The live manifest and Apple touch
+  icon both return HTTP 200 (`image/png` for the icon).
 
 - **Task completer attribution deployed August 4, 2026.** The
   matching frontend and migration `20240031_task_completion_attribution.sql`
