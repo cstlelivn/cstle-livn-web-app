@@ -210,8 +210,9 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   fabricating session timing or contributor Aura. No extra admin form or
   attestation workload is added. Migration `20240030_qc_timer_optional.sql`
   was run successfully in Supabase. The matching frontend change surfaces the
-  real QC error instead of a generic retry message and was prepared for the
-  same production deployment.
+  real QC error instead of a generic retry message. Commit `b85391a` was
+  pushed to `main`, and Vercel production was verified serving the matching
+  `index-BkQnsysI.js` bundle.
 
 - Migration `20240029_aura_completion_and_task_reporting.sql` was run
   successfully in Supabase on August 1, 2026. It adds reviewable
