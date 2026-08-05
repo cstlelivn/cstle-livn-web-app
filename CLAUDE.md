@@ -425,6 +425,8 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   WebP only on click, converts it in-browser to JPEG at quality 0.90, downloads
   it with a `-social.jpg` suffix, and stores no duplicate in R2. Non-photo
   media downloads in its original format through the same action.
+- The social-download workflow shipped in commit `9cdf2b1`; Vercel production
+  served the matching fresh bundle `index-C4qGQXXy.js` on August 4, 2026.
 
 ## Mobile task submission, QC evidence, and project record — August 4, 2026
 
