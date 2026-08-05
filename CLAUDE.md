@@ -416,6 +416,10 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   when the task is Completed. A separate `Open file`/attachment link still
   opens the R2 asset itself without opening the task. Project-level files with
   no task association remain file-only.
+- Photo compression and project-record linking shipped in commit `9bbfeee` on
+  August 4, 2026. Vercel production served the matching fresh bundle
+  `index-CFm04Ph0.js`; existing R2 objects are unchanged and only new uploads
+  receive the tighter encoding.
 
 ## Mobile task submission, QC evidence, and project record — August 4, 2026
 
