@@ -417,7 +417,9 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   `20240034_submit_finished_sessions_to_qc.sql` adds a database trigger that
   moves every newly finished employee session to `Pending QC`; this covers
   online actions and offline queue replays. The existing task status trigger
-  stamps `submitted_at` automatically.
+  stamps `submitted_at` automatically. It also performs a guarded one-time
+  reconciliation for pre-deployment finished sessions that are still marked
+  In Progress, have no newer QC submission, and have no open timer.
 - Mobile start/pause/resume/finish now applies the RPC result immediately and
   refreshes session truth, so the displayed timer no longer waits for a
   Realtime delivery. Completion also refreshes tasks so the submitted task

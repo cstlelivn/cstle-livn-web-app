@@ -23,3 +23,22 @@ CREATE TRIGGER trg_submit_task_to_qc_after_session_finish
   FOR EACH ROW
   EXECUTE FUNCTION public.submit_task_to_qc_after_session_finish();
 
+-- Reconcile a completion that happened before this trigger was installed.
+-- submitted_at protects rejected/rework cycles: an older finished session is
+-- not treated as a fresh resubmission, and completed tasks are never reopened.
+UPDATE public.tasks AS task
+SET status = 'Pending QC'
+WHERE task.status = 'In Progress'
+  AND EXISTS (
+    SELECT 1
+    FROM public.task_work_sessions AS session
+    WHERE session.task_id = task.id
+      AND session.status = 'finished'
+      AND session.finished_at > COALESCE(task.submitted_at, '-infinity'::timestamptz)
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM public.task_work_sessions AS open_session
+    WHERE open_session.task_id = task.id
+      AND open_session.status IN ('running', 'paused')
+  );
