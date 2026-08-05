@@ -645,7 +645,7 @@ function AppContent() {
       {/* Main Content */}
       <div className="flex-1 min-w-0 max-w-full flex flex-col overflow-hidden">
         {/* Top Bar */}
-        <div className={`${currentView === "task-details" ? "hidden md:flex" : "flex"} h-[60px] border-b border-border bg-background px-[12px] md:px-[32px] items-center justify-between gap-[8px] shrink-0`}>
+        <div className={`${currentView === "task-details" ? "hidden md:flex" : "flex"} min-h-[calc(60px+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)] border-b border-border bg-background px-[12px] md:px-[32px] items-center justify-between gap-[8px] shrink-0`}>
           <div className="flex items-center gap-[8px] min-w-0">
             <button
               onClick={() => setMobileMenuOpen(true)}
@@ -692,7 +692,7 @@ function AppContent() {
           </ErrorBoundary>
         </div>
         {currentView !== "task-details" && (
-          <nav className="md:hidden h-[68px] shrink-0 border-t border-[var(--olive-300)] bg-[var(--grey-50)] grid grid-cols-4 px-3 z-30">
+          <nav className="md:hidden min-h-[calc(68px+env(safe-area-inset-bottom))] pb-[env(safe-area-inset-bottom)] shrink-0 border-t border-[var(--olive-300)] bg-[var(--grey-50)] grid grid-cols-4 px-3 z-30">
             {[
               { label: 'Home', icon: Home, action: () => handleNavigate('dashboard'), active: currentView === 'dashboard' },
               { label: 'Projects', icon: FolderKanban, action: () => handleNavigate('projects'), active: currentView === 'projects' },

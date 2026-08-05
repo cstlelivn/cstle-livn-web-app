@@ -410,6 +410,40 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   not browser-transcoded (jobsite phone CPU/battery/reliability); later in-app
   capture should record 720p directly if tighter video storage is needed.
 
+## Mobile task submission, QC evidence, and project record — August 4, 2026
+
+- Root cause of the missing QC item: `finish_work_session` closed the timer but
+  did not transition its task. Migration
+  `20240034_submit_finished_sessions_to_qc.sql` adds a database trigger that
+  moves every newly finished employee session to `Pending QC`; this covers
+  online actions and offline queue replays. The existing task status trigger
+  stamps `submitted_at` automatically.
+- Mobile start/pause/resume/finish now applies the RPC result immediately and
+  refreshes session truth, so the displayed timer no longer waits for a
+  Realtime delivery. Completion also refreshes tasks so the submitted task
+  leaves the active workspace and appears in the QC queue promptly. Declined
+  tasks are removed from the associate dashboard immediately after success.
+- Installed-PWA layouts now respect iOS safe-area insets at the app header,
+  task workspace header/footer, and bottom navigation. The active-project card
+  is constrained to the same 16px mobile content margins. The iOS status bar
+  style is `black` rather than translucent.
+- The QC dialog now includes the task's reports/questions and full R2 evidence
+  alongside session timing before the approve/request-changes decision.
+- Project Details has a `Files & Activity` tab aggregating every task and
+  project R2 file plus all dated reports, questions, issues, suggestions, and
+  change requests with task and reporter attribution. Mobile update composers
+  can attach files; uploads store `task_update_id` and the project record shows
+  those attachments on the exact report/question.
+- Project aggregation reuses the already-live authenticated project/task media
+  list routes in batches of four, and runs only when a user opens the project
+  record tab. There is no periodic polling. This fallback was chosen because
+  the Supabase dashboard reported `Deploy status unavailable` and the local CLI
+  has no deployment token; no Edge Function production change is required.
+- Migration 20240034 was applied in the Supabase SQL editor and returned
+  `Success. No rows returned`. TypeScript, production build, all 9 tests, and
+  `git diff --check` pass after the final fallback adjustment. No Edge Function
+  production change is required.
+
 ## Before you start
 
 1. Check `git log --oneline -30` for what actually shipped most recently —

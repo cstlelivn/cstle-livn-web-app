@@ -7,6 +7,8 @@ import { Badge } from "./ui/badge";
 import type { Task } from "./AppContext";
 import { listSessionsForTask, reviewTaskDelay, type WorkSession } from '../src/features/workSessions/api';
 import { toast } from 'sonner';
+import TaskActivityFeed from './TaskActivityFeed';
+import TaskMediaEvidence from './TaskMediaEvidence';
 
 interface TaskReviewDialogProps {
   isOpen: boolean;
@@ -348,6 +350,11 @@ export default function TaskReviewDialog({
                   ))}
                 </div>
               )}
+
+              <div className="space-y-[12px]">
+                <TaskActivityFeed taskId={String(task.id)} />
+                <TaskMediaEvidence projectId={String(task.projectId)} taskId={String(task.id)} />
+              </div>
 
               {/* QC Guidelines */}
               <div className="p-[16px] bg-secondary rounded-[8px]">

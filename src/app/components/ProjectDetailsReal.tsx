@@ -30,6 +30,7 @@ import {
   Grid3x3,
   Kanban,
   BarChart2
+  ,FolderOpen
 } from "lucide-react";
 import { useApp } from "./AppContext";
 import { useAuth } from "./AuthContext";
@@ -55,6 +56,7 @@ import { canEditTask } from "../src/features/tasks/permissions";
 import { ALL_TASK_STATUSES, getEmployeeActions } from "../src/features/tasks/statusWorkflow";
 import { calculateCompletion } from "../src/lib/progress";
 import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuSeparator } from "./ui/context-menu";
+import ProjectEvidenceHub from './ProjectEvidenceHub';
 
 // Task type definition
 interface AppTask {
@@ -144,7 +146,7 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
   const [taskView, setTaskView] = useState<"list" | "grid" | "calendar" | "kanban" | "gantt">("list");
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
-  const [currentTab, setCurrentTab] = useState<"tasks" | "phases">("tasks");
+  const [currentTab, setCurrentTab] = useState<"tasks" | "phases" | "record">("tasks");
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [filterAssignee, setFilterAssignee] = useState<string>("all");
   const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
@@ -956,6 +958,13 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
               <Kanban className="w-[13px] h-[13px]" />
               Phases
             </TabsTrigger>
+            <TabsTrigger
+              value="record"
+              className="flex items-center gap-[6px] px-[14px] py-[8px] data-[state=active]:bg-accent data-[state=active]:text-accent-foreground rounded-[7px] transition-colors font-['Roboto_Mono'] text-[11px]"
+            >
+              <FolderOpen className="w-[13px] h-[13px]" />
+              Files & Activity
+            </TabsTrigger>
           </TabsList>
 
           {currentTab === "tasks" && project.status !== "Completed" && (
@@ -1173,6 +1182,9 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
             </button>
           </div>
           <PhaseView projectId={projectId} />
+        </TabsContent>
+        <TabsContent value="record" className="mt-0">
+          <ProjectEvidenceHub projectId={String(projectId)} tasks={allProjectTasks} teamMembers={teamMembers} />
         </TabsContent>
       </Tabs>
 

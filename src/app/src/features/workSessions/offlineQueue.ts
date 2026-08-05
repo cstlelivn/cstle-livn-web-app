@@ -66,7 +66,7 @@ export interface SessionActionInput {
 // queued/offline outcome; throws only when the server has actively
 // rejected the action (so the UI can show a real error, not a false
 // "queued" success).
-export async function queueSessionAction(input: SessionActionInput): Promise<void> {
+export async function queueSessionAction(input: SessionActionInput): Promise<any | undefined> {
   const nowIso = new Date().toISOString();
 
   if (input.type === 'start') {
@@ -75,7 +75,7 @@ export async function queueSessionAction(input: SessionActionInput): Promise<voi
       const session = await startSession(input.taskId, { clientEventId: localKey, clientEventAt: nowIso });
       await mapLocalSessionKey(localKey, session.id);
       notify();
-      return;
+      return session;
     } catch (error: any) {
       if (!isNetworkError(error)) throw error;
       await addPendingAction({
@@ -97,7 +97,7 @@ export async function queueSessionAction(input: SessionActionInput): Promise<voi
         updatedAt: nowIso,
       });
       notify();
-      return;
+      return undefined;
     }
   }
 
@@ -119,10 +119,10 @@ export async function queueSessionAction(input: SessionActionInput): Promise<voi
 
   if (resolvedRealId) {
     try {
-      await rpcCall(resolvedRealId);
+      const session = await rpcCall(resolvedRealId);
       await clearSessionOverlay(overlayKey(input.taskId, input.teamMemberId));
       notify();
-      return;
+      return session;
     } catch (error: any) {
       if (!isNetworkError(error)) throw error;
       // fall through to queue below
@@ -165,6 +165,7 @@ export async function queueSessionAction(input: SessionActionInput): Promise<voi
     blocker: input.blocker ?? existing?.blocker,
   });
   notify();
+  return undefined;
 }
 
 // Merge server truth with any not-yet-synced local action for the same
@@ -178,7 +179,7 @@ export function effectiveSession(
 ): any | undefined {
   const overlay = overlays.find((o) => o.key === overlayKey(taskId, teamMemberId));
   if (!overlay) return realtimeSession;
-  if (overlay.status === 'finished') return realtimeSession; // nothing open locally to show
+  if (overlay.status === 'finished') return undefined; // hide stale server session immediately
   // A local overlay only exists while its action(s) haven't synced -- prefer
   // it over server truth (which would still show the pre-action state).
   return {

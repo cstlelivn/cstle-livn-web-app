@@ -13,6 +13,14 @@ export async function listTaskUpdates(taskId: string) {
   return data ?? [];
 }
 
+export async function listProjectUpdates(projectId: string) {
+  const { data, error } = await supabase.from('task_updates')
+    .select('id,task_id,project_id,team_member_id,update_type,body,status,created_at,updated_at')
+    .eq('project_id', projectId).order('created_at', { ascending: false }).limit(500);
+  failIf(error, 'Failed to load project activity');
+  return data ?? [];
+}
+
 export async function createTaskUpdate(taskId: string, projectId: string, authorId: string, updateType: TaskUpdateType, body: string) {
   const { data, error } = await supabase.from('task_updates').insert({
     task_id: taskId, project_id: projectId, team_member_id: authorId,

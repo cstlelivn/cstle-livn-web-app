@@ -92,12 +92,31 @@ export async function listTaskMedia(projectId: string, taskId: string) {
   return (result.media ?? []) as TaskMedia[];
 }
 
+export async function listProjectMedia(projectId: string, taskIds: string[]) {
+  // This is deliberately user-triggered (the Files & Activity tab), never a
+  // poll. Reuse the already-live authenticated routes so project history is
+  // available even when an Edge Function deployment is temporarily blocked.
+  const scopes = [null, ...taskIds];
+  const batches: TaskMedia[][] = [];
+  for (let index = 0; index < scopes.length; index += 4) {
+    const rows = await Promise.all(scopes.slice(index, index + 4).map(async (taskId) => {
+      const params = new URLSearchParams({ projectId });
+      if (taskId) params.set('taskId', taskId);
+      const result = await apiCall(`/media?${params}`, { requiresAuth: true });
+      return (result.media ?? []) as TaskMedia[];
+    }));
+    batches.push(...rows);
+  }
+  return batches.flat().sort((a, b) => b.created_at.localeCompare(a.created_at));
+}
+
 export async function uploadTaskMedia(
   projectId: string,
   taskId: string,
   file: File,
   evidenceStage: EvidenceStage,
   caption?: string,
+  taskUpdateId?: string,
 ) {
   assertMediaFileSize(file);
   const prepared = await apiCall('/media/upload-url', {
@@ -106,6 +125,7 @@ export async function uploadTaskMedia(
     body: {
       projectId,
       taskId,
+      taskUpdateId: taskUpdateId || null,
       fileName: file.name,
       contentType: file.type,
       byteSize: file.size,

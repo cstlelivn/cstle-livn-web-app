@@ -38,6 +38,7 @@ export default function MobileTaskDashboard({
   onNavigate,
 }: MobileTaskDashboardProps) {
   const { taskAssignees } = useTaskAssignees(true);
+  const [declinedTaskIds, setDeclinedTaskIds] = useState<Set<string>>(() => new Set());
 
   const myMember = teamMembers.find((m: any) => String(m.authUserId) === String(currentUser?.id));
 
@@ -55,7 +56,7 @@ export default function MobileTaskDashboard({
     return tasks
       .filter((t: any) => {
         const project = projects.find((p: any) => String(p.id) === String(t.projectId));
-        return myTaskIds.has(String(t.id)) && t.status !== "Completed" && project?.status !== "Completed";
+        return myTaskIds.has(String(t.id)) && !declinedTaskIds.has(String(t.id)) && t.status !== "Completed" && project?.status !== "Completed";
       })
       .sort((a: any, b: any) => {
         const aDelayed = a.dueDate && new Date(a.dueDate) < now;
@@ -63,7 +64,7 @@ export default function MobileTaskDashboard({
         if (aDelayed !== bDelayed) return aDelayed ? -1 : 1;
         return new Date(a.dueDate || a.startDate || 0).getTime() - new Date(b.dueDate || b.startDate || 0).getTime();
       });
-  }, [tasks, projects, myTaskIds]);
+  }, [tasks, projects, myTaskIds, declinedTaskIds]);
 
   const delayedCount = myTasks.filter((t: any) => t.dueDate && new Date(t.dueDate) < new Date()).length;
 
@@ -73,7 +74,7 @@ export default function MobileTaskDashboard({
   );
 
   return (
-    <div className="flex flex-col gap-[20px] pb-[24px]">
+    <div className="flex min-w-0 flex-col gap-[20px] pb-[24px] overflow-x-hidden">
       <div className="px-[16px] pt-[16px]">
         <h1
           className="text-foreground"
@@ -84,7 +85,7 @@ export default function MobileTaskDashboard({
       </div>
 
       {myActiveProjects.length > 0 && (
-        <div className="flex gap-[12px] overflow-x-auto px-[16px] snap-x snap-mandatory">
+        <div className="flex w-full gap-[12px] overflow-x-auto px-[16px] snap-x snap-mandatory scroll-px-[16px]">
           {myActiveProjects.map((project: any) => {
             const projectTasks = tasks.filter((t: any) => String(t.projectId) === String(project.id));
             const progress = projectTasks.length > 0 ? calculateCompletion(projectTasks).percent : project.progress || 0;
@@ -92,7 +93,7 @@ export default function MobileTaskDashboard({
               <button
                 key={project.id}
                 onClick={() => onNavigate("project-details", project.id)}
-                className="w-[85vw] max-w-[360px] shrink-0 snap-start text-left bg-[var(--green-900)] rounded-[20px] p-[24px] flex flex-col gap-[24px]"
+                className="w-[calc(100vw-32px)] max-w-[360px] shrink-0 snap-start text-left bg-[var(--green-900)] rounded-[20px] p-[24px] flex flex-col gap-[24px]"
               >
                 <p className="font-['Roboto_Mono'] text-[11px] uppercase tracking-wide text-[var(--olive-300)]">
                   Active Project
@@ -155,6 +156,7 @@ export default function MobileTaskDashboard({
                 taskAssignees={taskAssignees}
                 myMemberId={myMember ? String(myMember.id) : null}
                 onNavigate={onNavigate}
+                onDeclined={(id) => setDeclinedTaskIds((current) => new Set(current).add(id))}
               />
             ))}
           </div>
@@ -180,6 +182,7 @@ function TaskQueueRow({
   taskAssignees,
   myMemberId,
   onNavigate,
+  onDeclined,
 }: {
   task: any;
   isExpanded: boolean;
@@ -187,6 +190,7 @@ function TaskQueueRow({
   taskAssignees: any[];
   myMemberId: string | null;
   onNavigate: (view: string, id?: any) => void;
+  onDeclined: (id: string) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const isDelayed = task.dueDate && new Date(task.dueDate) < new Date();
@@ -237,6 +241,7 @@ function TaskQueueRow({
     setBusy(true);
     try {
       await declineTaskAssignment(String(task.id));
+      onDeclined(String(task.id));
       toast.success("Task declined");
     } catch (error: any) {
       toast.error(error?.message || "Failed to decline task");
