@@ -442,7 +442,9 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
 - Migration 20240034 was applied in the Supabase SQL editor and returned
   `Success. No rows returned`. TypeScript, production build, all 9 tests, and
   `git diff --check` pass after the final fallback adjustment. No Edge Function
-  production change is required.
+  production change is required. Frontend commit `e4b9d75` was pushed to
+  `main`; Vercel production subsequently served the matching fresh bundle
+  `index-xef1CVB6.js` at `https://cstle-livn-web-app.vercel.app`.
 
 ## Before you start
 
