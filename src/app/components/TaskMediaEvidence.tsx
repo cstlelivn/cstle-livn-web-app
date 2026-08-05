@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { useAuth } from './AuthContext';
 import {
   deleteTaskMedia,
+  downloadMediaForSocial,
   EvidenceStage,
   listTaskMedia,
   TaskMedia,
@@ -103,6 +104,15 @@ export default function TaskMediaEvidence({ projectId, taskId }: Props) {
     }
   };
 
+  const downloadForSocial = async (item: TaskMedia) => {
+    try {
+      await downloadMediaForSocial(item);
+      toast.success(item.media_kind === 'photo' ? 'Social JPEG downloaded' : 'File downloaded');
+    } catch (error: any) {
+      toast.error(error?.message || 'Could not prepare download');
+    }
+  };
+
   return (
     <section className="rounded-[8px] border border-border bg-secondary/10 p-[14px] space-y-[12px]">
       <div>
@@ -172,6 +182,9 @@ export default function TaskMediaEvidence({ projectId, taskId }: Props) {
                   <button type="button" onClick={() => remove(item)} className="text-muted-foreground hover:text-destructive" aria-label="Delete file"><Trash2 className="h-4 w-4" /></button>
                 </div>
                 {item.caption && <p className="text-[10px]">{item.caption}</p>}
+                <button type="button" onClick={() => downloadForSocial(item)} className="w-full rounded-full border border-border px-3 py-2 font-['Roboto_Mono'] text-[9px] uppercase text-accent hover:border-accent">
+                  {item.media_kind === 'photo' ? 'Download social JPEG' : 'Download for social'}
+                </button>
                 {canApprove && (
                   <div className="flex flex-wrap gap-x-3 gap-y-1 border-t border-border pt-[7px] text-[9px]">
                     <Label className="flex items-center gap-1 text-[9px]"><input type="checkbox" checked={item.client_visible} onChange={(e) => setApproval(item, 'client', e.target.checked)} /> Client visible</Label>

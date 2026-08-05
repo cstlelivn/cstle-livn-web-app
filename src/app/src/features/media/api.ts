@@ -175,3 +175,48 @@ export async function updateMediaApproval(
 export async function deleteTaskMedia(id: string) {
   await apiCall(`/media/${id}`, { method: 'DELETE', requiresAuth: true });
 }
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Produce a universally compatible social-media download without storing a
+ * second R2 object. Photos become high-quality JPEG; other media keeps its
+ * original format. The signed R2 URL is fetched only on this explicit click.
+ */
+export async function downloadMediaForSocial(item: TaskMedia) {
+  const response = await fetch(item.url);
+  if (!response.ok) throw new Error(`Could not download file (${response.status})`);
+  const source = await response.blob();
+  if (item.media_kind !== 'photo') {
+    downloadBlob(source, item.original_filename);
+    return;
+  }
+
+  let image: ImageBitmap | null = null;
+  try {
+    image = await createImageBitmap(source, { imageOrientation: 'from-image' });
+    const canvas = document.createElement('canvas');
+    canvas.width = image.width;
+    canvas.height = image.height;
+    const context = canvas.getContext('2d', { alpha: false });
+    if (!context) throw new Error('This browser could not prepare the JPEG');
+    context.fillStyle = '#ffffff';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0);
+    const jpeg = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+    if (!jpeg) throw new Error('This browser could not prepare the JPEG');
+    const baseName = item.original_filename.replace(/\.[^/.]+$/, '') || 'social-photo';
+    downloadBlob(jpeg, `${baseName}-social.jpg`);
+  } finally {
+    image?.close();
+  }
+}

@@ -420,6 +420,11 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   August 4, 2026. Vercel production served the matching fresh bundle
   `index-CFm04Ph0.js`; existing R2 objects are unchanged and only new uploads
   receive the tighter encoding.
+- Task evidence cards and the project Files & Activity archive now expose an
+  explicit `Download social JPEG` action for photos. It fetches the signed R2
+  WebP only on click, converts it in-browser to JPEG at quality 0.90, downloads
+  it with a `-social.jpg` suffix, and stores no duplicate in R2. Non-photo
+  media downloads in its original format through the same action.
 
 ## Mobile task submission, QC evidence, and project record — August 4, 2026
 

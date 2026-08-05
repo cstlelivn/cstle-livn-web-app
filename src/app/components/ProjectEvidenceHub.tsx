@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Camera, ExternalLink, FileText, Loader2, MessageSquareMore, Mic, Video } from 'lucide-react';
 import { listProjectMedia, type TaskMedia } from '../src/features/media/api';
+import { downloadMediaForSocial } from '../src/features/media/api';
 import { listProjectUpdates, type TaskUpdateType } from '../src/features/taskUpdates/api';
+import { toast } from 'sonner';
 
 const updateLabels: Record<TaskUpdateType, string> = {
   progress: 'Site update', query: 'Question', suggestion: 'Suggestion', issue: 'Issue', change_request: 'Change request',
@@ -26,6 +28,15 @@ export default function ProjectEvidenceHub({ projectId, tasks, teamMembers, onOp
   }, [projectId, tasks]);
   const taskNames = useMemo(() => new Map(tasks.map((task) => [String(task.id), task.title])), [tasks]);
   const memberNames = useMemo(() => new Map(teamMembers.map((member) => [String(member.id), member.name])), [teamMembers]);
+  const downloadForSocial = async (event: React.MouseEvent, item: TaskMedia) => {
+    event.stopPropagation();
+    try {
+      await downloadMediaForSocial(item);
+      toast.success(item.media_kind === 'photo' ? 'Social JPEG downloaded' : 'File downloaded');
+    } catch (error: any) {
+      toast.error(error?.message || 'Could not prepare download');
+    }
+  };
 
   if (loading) return <div className="flex items-center gap-2 p-6 font-['Roboto_Mono'] text-[11px] text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Loading project record</div>;
   return <div className="grid gap-[20px] xl:grid-cols-[1.2fr_.8fr]">
@@ -36,7 +47,7 @@ export default function ProjectEvidenceHub({ projectId, tasks, teamMembers, onOp
         {media.map((item) => { const linkedTask = item.task_id ? tasks.find((task) => String(task.id) === String(item.task_id)) : null; return <article key={item.id} role={linkedTask ? 'button' : undefined} tabIndex={linkedTask ? 0 : undefined} onClick={() => linkedTask && onOpenTask(linkedTask)} onKeyDown={(event) => { if (linkedTask && (event.key === 'Enter' || event.key === ' ')) onOpenTask(linkedTask); }} className={`overflow-hidden rounded-[10px] border border-border bg-background ${linkedTask ? 'cursor-pointer hover:border-accent focus:outline-none focus:ring-2 focus:ring-accent' : ''}`}>
           {item.media_kind === 'photo' && <img src={item.url} alt={item.caption || item.original_filename} className="h-[150px] w-full object-cover" />}
           {item.media_kind === 'video' && <video src={item.url} className="h-[150px] w-full bg-black object-contain" preload="metadata" />}
-          <div className="p-3"><p className="flex items-center gap-2 truncate font-['Roboto_Mono'] text-[10px]"><MediaIcon kind={item.media_kind} />{item.original_filename}</p><p className="mt-1 font-['Roboto_Mono'] text-[9px] text-muted-foreground">{item.task_id ? taskNames.get(String(item.task_id)) || 'Task file' : 'Project file'} · {new Date(item.created_at).toLocaleString()}</p>{item.caption && <p className="mt-2 font-['Roboto_Mono'] text-[10px]">{item.caption}</p>}<div className="mt-2 flex items-center justify-between gap-2"><span className="font-['Roboto_Mono'] text-[8px] uppercase text-accent">{linkedTask ? 'Open associated task' : 'Project-level file'}</span><a href={item.url} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()} className="flex items-center gap-1 font-['Roboto_Mono'] text-[8px] text-muted-foreground hover:text-accent"><ExternalLink className="h-3 w-3" />Open file</a></div></div>
+          <div className="p-3"><p className="flex items-center gap-2 truncate font-['Roboto_Mono'] text-[10px]"><MediaIcon kind={item.media_kind} />{item.original_filename}</p><p className="mt-1 font-['Roboto_Mono'] text-[9px] text-muted-foreground">{item.task_id ? taskNames.get(String(item.task_id)) || 'Task file' : 'Project file'} · {new Date(item.created_at).toLocaleString()}</p>{item.caption && <p className="mt-2 font-['Roboto_Mono'] text-[10px]">{item.caption}</p>}<button type="button" onClick={(event) => downloadForSocial(event, item)} className="mt-2 w-full rounded-full border border-border px-3 py-2 font-['Roboto_Mono'] text-[8px] uppercase text-accent hover:border-accent">{item.media_kind === 'photo' ? 'Download social JPEG' : 'Download for social'}</button><div className="mt-2 flex items-center justify-between gap-2"><span className="font-['Roboto_Mono'] text-[8px] uppercase text-accent">{linkedTask ? 'Open associated task' : 'Project-level file'}</span><a href={item.url} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()} className="flex items-center gap-1 font-['Roboto_Mono'] text-[8px] text-muted-foreground hover:text-accent"><ExternalLink className="h-3 w-3" />Open file</a></div></div>
         </article>; })}
       </div>}
     </section>
