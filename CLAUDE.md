@@ -404,11 +404,18 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   spending cap; the application-side 8 GiB upload refusal remains the storage
   hard stop.
 - **Upload optimization is implemented:** ordinary photos are resized client-
-  side to a maximum 1920-pixel edge and encoded as WebP at 0.78 quality only
-  when the result is smaller. Both client and Edge Function enforce caps of
+  side to a maximum 1920-pixel edge and encoded as WebP. The encoder now tries
+  quality levels 0.76, 0.66, 0.56, then 0.46 only as needed to target 850 KiB,
+  and keeps the smallest result only when it beats the original. It never
+  upscales a smaller source. Both client and Edge Function enforce caps of
   12 MB/photo, 50 MB/video, 20 MB/audio, and 25 MB/PDF. Video is deliberately
   not browser-transcoded (jobsite phone CPU/battery/reliability); later in-app
   capture should record 720p directly if tighter video storage is needed.
+- In Project Details -> Files & Activity, clicking a task-owned file or any
+  activity/report row opens that associated task's complete detail dialog even
+  when the task is Completed. A separate `Open file`/attachment link still
+  opens the R2 asset itself without opening the task. Project-level files with
+  no task association remain file-only.
 
 ## Mobile task submission, QC evidence, and project record — August 4, 2026
 

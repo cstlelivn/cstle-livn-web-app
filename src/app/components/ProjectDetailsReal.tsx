@@ -1184,7 +1184,7 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
           <PhaseView projectId={projectId} />
         </TabsContent>
         <TabsContent value="record" className="mt-0">
-          <ProjectEvidenceHub projectId={String(projectId)} tasks={allProjectTasks} teamMembers={teamMembers} />
+          <ProjectEvidenceHub projectId={String(projectId)} tasks={allProjectTasks} teamMembers={teamMembers} onOpenTask={(task) => handleEditTask(task as AppTask)} />
         </TabsContent>
       </Tabs>
 

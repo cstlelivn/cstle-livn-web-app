@@ -64,9 +64,19 @@ export async function optimizeMediaFile(file: File): Promise<File> {
     if (!context) return file;
     context.drawImage(image, 0, 0, width, height);
 
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/webp', 0.78));
-    if (!blob || blob.size >= file.size) return file;
-    return new File([blob], webpName(file.name), {
+    // Aim for a sub-megabyte upload while retaining a 1920px long edge. A
+    // lower-quality pass is only attempted when the previous result is still
+    // over target; this avoids needlessly degrading already-efficient photos.
+    const targetBytes = 850 * 1024;
+    let best: Blob | null = null;
+    for (const quality of [0.76, 0.66, 0.56, 0.46]) {
+      const candidate = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/webp', quality));
+      if (!candidate) continue;
+      if (!best || candidate.size < best.size) best = candidate;
+      if (candidate.size <= targetBytes) break;
+    }
+    if (!best || best.size >= file.size) return file;
+    return new File([best], webpName(file.name), {
       type: 'image/webp',
       lastModified: file.lastModified,
     });
