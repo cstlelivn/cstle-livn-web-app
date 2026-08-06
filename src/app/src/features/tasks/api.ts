@@ -10,7 +10,7 @@ const TASK_LIST_COLUMNS = [
   'phase_id', 'task_type', 'is_required', 'dependency_task_id', 'blocked_by',
   'completed_date', 'started_at', 'submitted_at', 'review_feedback', 'rating',
   'rating_metrics', 'estimated_hours', 'complexity', 'required_photo_count', 'supervisor_id',
-  'verification_criteria', 'photos_not_required', 'completion_note_required', 'created_at', 'updated_at',
+  'verification_criteria', 'photos_not_required', 'completion_note_required', 'crew_required', 'created_at', 'updated_at',
 ].join(',');
 
 // Helper to check if a value is a valid UUID
@@ -60,6 +60,7 @@ export interface TaskInput {
   photos_not_required?: boolean;
   estimated_hours?: number | null;
   complexity?: string | null;
+  crew_required?: number | null;
 }
 
 export interface TaskUpdate {
@@ -86,6 +87,7 @@ export interface TaskUpdate {
   photos_not_required?: boolean;
   estimated_hours?: number | null;
   complexity?: string | null;
+  crew_required?: number | null;
 }
 
 export async function listTasks(projectId?: string | number, page = 0, pageSize = 300) {
@@ -142,6 +144,7 @@ export async function createTask(input: TaskInput) {
     photos_not_required: input.photos_not_required ?? false,
     estimated_hours: input.estimated_hours ?? (input as any).estimatedHours ?? null,
     complexity: input.complexity || null,
+    crew_required: input.crew_required ?? (input as any).crewRequired ?? null,
     is_required: input.is_required ?? (input as any).is_required ?? true,
   };
 
@@ -241,6 +244,8 @@ export async function updateTask(id: string | number, updates: TaskUpdate) {
   if (updates.estimated_hours !== undefined) dbUpdates.estimated_hours = updates.estimated_hours;
   if ((updates as any).estimatedHours !== undefined) dbUpdates.estimated_hours = (updates as any).estimatedHours;
   if (updates.complexity !== undefined) dbUpdates.complexity = updates.complexity || null;
+  if (updates.crew_required !== undefined) dbUpdates.crew_required = updates.crew_required;
+  if ((updates as any).crewRequired !== undefined) dbUpdates.crew_required = (updates as any).crewRequired;
 
   dbUpdates.updated_at = now();
 

@@ -523,3 +523,22 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   TypeScript, all 9 automated tests, the production build, and
   `git diff --check` passed before deployment. No Edge Function change was
   required for this release.
+
+## Scarth Street commercial renovation plan — August 5, 2026
+
+- Migration `20240036_task_crew_required.sql` is live. `tasks.crew_required`
+  stores planned crew size independently from real `task_assignees`; the task
+  form, mobile workspace, and project task cards expose it.
+- Migration `20240037_scarth_street_project_plan.sql` is live and idempotent.
+  It updates project `8e05880a-93ce-4601-b642-ee3aeaac5fef` from the old
+  `KB - 1846 Scarth` placeholder to `Scarth Street Commercial Renovation (KB
+  1846 Scarth)`, with the supplied scope description and In Progress state.
+- The project previously contained 11 unused template phases, zero tasks, and
+  zero linked procurement, phase-QC, or inspection records. Those empty phase
+  placeholders were safely replaced with the requested 9-phase plan.
+- Live verification returned 9 phases, 44 tasks, 5 Completed tasks, 39 To Do
+  tasks, 132 total estimated hours, zero tasks missing planned crew size, and
+  76 approved material records. Phase 1 and Phase 2 are In Progress; later
+  phases are Not Started. Existing project Supervisor data is reused, while
+  Associate assignment remains intentionally unfilled until the actual crew is
+  chosen.

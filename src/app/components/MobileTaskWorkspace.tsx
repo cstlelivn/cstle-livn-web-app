@@ -130,7 +130,7 @@ export default function MobileTaskWorkspace({ taskId, onBack }: { taskId: string
 
       <main className="px-5 py-5 space-y-4">
         <h2 className="text-[30px] leading-[1.05]" style={display}>{task.title}</h2>
-        <p className="font-['Roboto_Mono'] text-[9px] uppercase text-muted-foreground">{task.phase || 'No phase'} · Associate: {assignedNames || 'Not assigned'} · Supervisor: {supervisorName || 'Not assigned'} · Due {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'not set'}</p>
+        <p className="font-['Roboto_Mono'] text-[9px] uppercase text-muted-foreground">{task.phase || 'No phase'} · Associate: {assignedNames || 'Not assigned'} · Crew: {(task as any).crew_required || '—'} · Supervisor: {supervisorName || 'Not assigned'} · Due {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'not set'}</p>
         {!inProgress && <div className="grid grid-cols-4 border-y border-[var(--olive-300)] py-4">
           {[['Priority', task.priority || 'Normal'], ['Estimate', estimatedHours ? `${estimatedHours} hr` : 'Not set'], ['Actual', `${actualHours.toFixed(1)} hr`], ['Remaining', estimatedHours ? `${(estimatedHours-actualHours).toFixed(1)} hr` : '—']].map(([label,value]) => <div key={label} className="px-2 border-r last:border-0 border-[var(--olive-300)]"><p className="font-['Roboto_Mono'] text-[8px] uppercase">{label}</p><p className="font-['Roboto_Mono'] text-[10px] uppercase mt-2 truncate">{value}</p></div>)}
         </div>}

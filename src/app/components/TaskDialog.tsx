@@ -80,6 +80,7 @@ export default function TaskDialog({
     supervisorId: "",
     verificationCriteria: "",
     photosNotRequired: false,
+    crewRequired: "1",
   });
   const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<string[]>([]);
 
@@ -106,6 +107,7 @@ export default function TaskDialog({
         supervisorId: (task as any).supervisor_id || (project as any)?.supervisorId || "",
         verificationCriteria: (task as any).verification_criteria || "",
         photosNotRequired: Boolean((task as any).photos_not_required),
+        crewRequired: (task as any).crew_required != null ? String((task as any).crew_required) : "1",
       });
     } else {
       setFormData({
@@ -124,6 +126,7 @@ export default function TaskDialog({
         supervisorId: (project as any)?.supervisorId || "",
         verificationCriteria: "",
         photosNotRequired: false,
+        crewRequired: "1",
       });
     }
   }, [task, open, defaultStatus, projectId]);
@@ -206,6 +209,7 @@ export default function TaskDialog({
       supervisor_id: formData.supervisorId || (project as any)?.supervisorId || null,
       verification_criteria: formData.verificationCriteria.trim() || null,
       photos_not_required: formData.photosNotRequired,
+      crew_required: formData.crewRequired ? Number(formData.crewRequired) : null,
     };
 
     try {
@@ -282,6 +286,7 @@ export default function TaskDialog({
       supervisorId: "",
       verificationCriteria: "",
       photosNotRequired: false,
+      crewRequired: "1",
     });
     setSaveAsTemplate(false);
     setTemplateName("");
@@ -686,7 +691,8 @@ export default function TaskDialog({
           </div>
 
           {/* Complexity */}
-          <div>
+          <div className="grid grid-cols-1 gap-[16px] sm:grid-cols-2">
+            <div>
             <Label htmlFor="complexity" className="text-[10px]">Complexity</Label>
             <Select value={formData.complexity || "unset"} onValueChange={(v) => setFormData({ ...formData, complexity: v === "unset" ? "" : v })}>
               <SelectTrigger className="mt-[8px] text-[10px]"><SelectValue placeholder="Not set" /></SelectTrigger>
@@ -697,6 +703,11 @@ export default function TaskDialog({
                 <SelectItem value="High" className="text-[10px]">High</SelectItem>
               </SelectContent>
             </Select>
+            </div>
+            <div>
+              <Label htmlFor="crewRequired" className="text-[10px]">Crew Required</Label>
+              <Input id="crewRequired" type="number" min="1" step="1" value={formData.crewRequired} onChange={(event) => setFormData({ ...formData, crewRequired: event.target.value })} className="mt-[8px] text-[10px]" />
+            </div>
           </div>
 
           {/* Work Session Timer -- per-assignee Start/Pause/Resume/Finish,

@@ -536,7 +536,7 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
             {durationRow}
           </div>
           <p className="font-['Roboto_Mono'] text-[9px] text-muted-foreground">
-            {(task as any).phase || 'No phase'} · Supervisor: {supervisor?.name || 'Not assigned'} · Est. {Number((task as any).estimated_hours || 0).toFixed(1)}h · Actual {actualHours.toFixed(1)}h
+            {(task as any).phase || 'No phase'} · Crew {(task as any).crew_required || '—'} · Supervisor: {supervisor?.name || 'Not assigned'} · Est. {Number((task as any).estimated_hours || 0).toFixed(1)}h · Actual {actualHours.toFixed(1)}h
           </p>
         </div>
 
@@ -557,7 +557,7 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
             <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground truncate">
               {task.description}
             </p>
-            <p className="mt-1 font-['Roboto_Mono'] text-[9px] text-muted-foreground truncate">{(task as any).phase || 'No phase'} · {supervisor?.name || 'No supervisor'} · {Number((task as any).estimated_hours || 0).toFixed(1)}h / {actualHours.toFixed(1)}h actual</p>
+            <p className="mt-1 font-['Roboto_Mono'] text-[9px] text-muted-foreground truncate">{(task as any).phase || 'No phase'} · Crew {(task as any).crew_required || '—'} · {supervisor?.name || 'No supervisor'} · {Number((task as any).estimated_hours || 0).toFixed(1)}h / {actualHours.toFixed(1)}h actual</p>
           </div>
 
           <TaskStatusControl
