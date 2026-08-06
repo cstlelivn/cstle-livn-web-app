@@ -35,6 +35,7 @@ import {
 import { useApp } from "./AppContext";
 import { useAuth } from "./AuthContext";
 import { useTaskAssignees, assigneeIdsForTask } from "../src/features/taskAssignees/useTaskAssignees";
+import { useWorkSessions } from "../src/features/workSessions/useWorkSessions";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "./ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
@@ -135,6 +136,7 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
 
   const { currentUser, hasPermission } = useAuth();
   const { taskAssignees } = useTaskAssignees(true);
+  const { workSessions } = useWorkSessions(true);
   const [forceCompleteOpen, setForceCompleteOpen] = useState(false);
   const [markingComplete, setMarkingComplete] = useState(false);
 
@@ -397,6 +399,10 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
     const durationDays = (task as any).start_date && task.dueDate
       ? Math.max(1, daysBetweenUTC((task as any).start_date, task.dueDate))
       : null;
+    const actualHours = workSessions
+      .filter((session: any) => String(session.taskId) === String(task.id))
+      .reduce((sum: number, session: any) => sum + Number(session.activeSeconds || 0), 0) / 3600;
+    const supervisor = getTeamMember((task as any).supervisor_id || (project as any)?.supervisorId);
 
     const handleAssigneeChange = async (memberId: string) => {
       try {
@@ -529,6 +535,9 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
             {dueDateRow}
             {durationRow}
           </div>
+          <p className="font-['Roboto_Mono'] text-[9px] text-muted-foreground">
+            {(task as any).phase || 'No phase'} · Supervisor: {supervisor?.name || 'Not assigned'} · Est. {Number((task as any).estimated_hours || 0).toFixed(1)}h · Actual {actualHours.toFixed(1)}h
+          </p>
         </div>
 
         {/* Desktop row: fixed-width grid columns instead of flex+min-w --
@@ -548,6 +557,7 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
             <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground truncate">
               {task.description}
             </p>
+            <p className="mt-1 font-['Roboto_Mono'] text-[9px] text-muted-foreground truncate">{(task as any).phase || 'No phase'} · {supervisor?.name || 'No supervisor'} · {Number((task as any).estimated_hours || 0).toFixed(1)}h / {actualHours.toFixed(1)}h actual</p>
           </div>
 
           <TaskStatusControl

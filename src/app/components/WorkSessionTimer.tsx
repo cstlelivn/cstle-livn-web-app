@@ -8,6 +8,7 @@ import { useWorkSessions } from "../src/features/workSessions/useWorkSessions";
 import { useElapsedTime, formatElapsed } from "../src/features/workSessions/useElapsedTime";
 import { queueSessionAction, effectiveSession, useOfflineOverlay } from "../src/features/workSessions/offlineQueue";
 import { toast } from "sonner";
+import { countReadyTaskPhotos } from '../src/features/taskUpdates/api';
 
 interface WorkSessionTimerProps {
   taskId: string;
@@ -20,7 +21,7 @@ interface WorkSessionTimerProps {
 // to touch either person's timer. Actions go through queueSessionAction,
 // which works the same online or offline (queues locally, syncs when back).
 export default function WorkSessionTimer({ taskId, projectId }: WorkSessionTimerProps) {
-  const { teamMembers } = useApp();
+  const { teamMembers, tasks } = useApp();
   const { currentUser } = useAuth();
   const { taskAssignees } = useTaskAssignees(true);
   const { workSessions } = useWorkSessions(true);
@@ -29,6 +30,7 @@ export default function WorkSessionTimer({ taskId, projectId }: WorkSessionTimer
   const assigneeIds = assigneeIdsForTask(taskAssignees, taskId);
   const myMember = teamMembers.find((m: any) => String(m.authUserId) === String(currentUser?.id));
   const myMemberId = myMember ? String(myMember.id) : null;
+  const task = tasks.find((row: any) => String(row.id) === String(taskId));
 
   if (assigneeIds.length === 0) {
     return (
@@ -77,6 +79,7 @@ export default function WorkSessionTimer({ taskId, projectId }: WorkSessionTimer
               totalFinishedSeconds={sessionsForPerson
                 .filter((s: any) => s.status === "finished")
                 .reduce((sum: number, s: any) => sum + (s.activeSeconds || 0), 0)}
+              photosNotRequired={Boolean((task as any)?.photos_not_required)}
             />
           );
         })}
@@ -94,6 +97,7 @@ function AssigneeSessionRow({
   session,
   finishedCount,
   totalFinishedSeconds,
+  photosNotRequired,
 }: {
   memberName: string;
   isMe: boolean;
@@ -103,6 +107,7 @@ function AssigneeSessionRow({
   session: any;
   finishedCount: number;
   totalFinishedSeconds: number;
+  photosNotRequired: boolean;
 }) {
   const [showPauseForm, setShowPauseForm] = useState(false);
   const [showFinishForm, setShowFinishForm] = useState(false);
@@ -110,6 +115,7 @@ function AssigneeSessionRow({
   const [delayReason, setDelayReason] = useState("");
   const [blocker, setBlocker] = useState("");
   const [busy, setBusy] = useState(false);
+  const [toolsCleared, setToolsCleared] = useState(false);
 
   const liveSeconds = useElapsedTime(session);
   const displaySeconds = session ? liveSeconds : totalFinishedSeconds;
@@ -120,6 +126,7 @@ function AssigneeSessionRow({
     setNotes("");
     setDelayReason("");
     setBlocker("");
+    setToolsCleared(false);
   };
 
   const run = async (fn: () => Promise<void>) => {
@@ -136,6 +143,7 @@ function AssigneeSessionRow({
 
   const handleStart = () =>
     run(async () => {
+      if (!photosNotRequired && await countReadyTaskPhotos(taskId, 'before') < 1) throw new Error('Add at least one Start photo below before starting the timer');
       await queueSessionAction({ type: "start", taskId, teamMemberId: memberId });
       toast.success("Timer started");
     });
@@ -162,6 +170,9 @@ function AssigneeSessionRow({
 
   const handleFinishSubmit = () =>
     run(async () => {
+      if (!notes.trim()) throw new Error('Add a short completion note');
+      if (!toolsCleared) throw new Error('Confirm tools and unused materials are cleared or secured');
+      if (!photosNotRequired && await countReadyTaskPhotos(taskId, 'after') < 1) throw new Error('Add at least one Completion photo below before finishing');
       await queueSessionAction({
         type: "finish",
         taskId,
@@ -260,10 +271,11 @@ function AssigneeSessionRow({
               <Textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Notes (optional)"
+                placeholder="Completion note *"
                 rows={2}
                 className="text-[10px]"
               />
+              <label className="flex items-start gap-2 font-['Roboto_Mono'] text-[9px]"><input type="checkbox" checked={toolsCleared} onChange={(event) => setToolsCleared(event.target.checked)} />Tools and unused materials are cleared or secured.</label>
               <Textarea
                 value={delayReason}
                 onChange={(e) => setDelayReason(e.target.value)}

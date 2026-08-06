@@ -11,6 +11,8 @@ import { countReadyTaskPhotos, createTaskUpdate, listTaskChecklist, listTaskUpda
 import TaskMediaEvidence from './TaskMediaEvidence';
 import AuraTaskFeedback from './AuraTaskFeedback';
 import { optimizeMediaFile, uploadTaskMedia } from '../src/features/media/api';
+import TaskToolsMaterials from './TaskToolsMaterials';
+import TaskDependencies from './TaskDependencies';
 
 const display = { fontFamily: 'Anybody', fontVariationSettings: "'wdth' 137", fontStretch: '137%', fontWeight: 800, letterSpacing: '-0.04em' } as const;
 const labels: Record<TaskUpdateType, string> = { progress: 'Site update', query: 'Ask a question', suggestion: 'Suggestion', issue: 'Report issue', change_request: 'Request change' };
@@ -38,12 +40,16 @@ export default function MobileTaskWorkspace({ taskId, onBack }: { taskId: string
   const [busy, setBusy] = useState(false);
   const [showEvidence, setShowEvidence] = useState(false);
   const [photoCount, setPhotoCount] = useState(0);
+  const [startPhotoCount, setStartPhotoCount] = useState(0);
+  const [completionPhotoCount, setCompletionPhotoCount] = useState(0);
+  const [completionNote, setCompletionNote] = useState('');
+  const [toolsCleared, setToolsCleared] = useState(false);
   const [updateFiles, setUpdateFiles] = useState<File[]>([]);
 
   useEffect(() => {
     if (!task) return;
-    Promise.all([listTaskChecklist(String(task.id)), listTaskUpdates(String(task.id)), countReadyTaskPhotos(String(task.id))])
-      .then(([items, activity, photos]) => { setChecklist(items); setUpdates(activity); setPhotoCount(photos); })
+    Promise.all([listTaskChecklist(String(task.id)), listTaskUpdates(String(task.id)), countReadyTaskPhotos(String(task.id)), countReadyTaskPhotos(String(task.id), 'before'), countReadyTaskPhotos(String(task.id), 'after')])
+      .then(([items, activity, photos, starts, completions]) => { setChecklist(items); setUpdates(activity); setPhotoCount(photos); setStartPhotoCount(starts); setCompletionPhotoCount(completions); })
       .catch(() => {});
   }, [task?.id]);
 
@@ -55,6 +61,10 @@ export default function MobileTaskWorkspace({ taskId, onBack }: { taskId: string
 
   const requiredIncomplete = checklist.filter((item) => item.is_required && !item.completed_at).length;
   const assignedNames = useMemo(() => task ? assigneeIdsForTask(taskAssignees, task.id).map((id) => teamMembers.find((m: any) => String(m.id) === id)?.name).filter(Boolean).join(' + ') : '', [task, taskAssignees, teamMembers]);
+  const supervisorName = useMemo(() => task ? teamMembers.find((member: any) => String(member.id) === String((task as any).supervisor_id || (project as any)?.supervisorId))?.name : '', [task, project, teamMembers]);
+  const actualSeconds = workSessions.filter((row: any) => String(row.taskId) === String(taskId)).reduce((sum: number,row: any)=>sum+Number(row.activeSeconds||0),0);
+  const actualHours = actualSeconds/3600;
+  const estimatedHours = Number((task as any)?.estimated_hours||0);
 
   if (!task) return <div className="p-6 font-['Roboto_Mono'] text-sm">Task not found.</div>;
 
@@ -66,16 +76,21 @@ export default function MobileTaskWorkspace({ taskId, onBack }: { taskId: string
   };
 
   const applySessionResult = async (result: any) => { if (result) setSessionOverride(result); await refreshSessions(); };
-  const start = () => run(() => queueSessionAction({ type: 'start', taskId: String(task.id), teamMemberId: memberId }), 'Task started', applySessionResult);
+  const refreshPhotoCounts = async () => { const [all, starts, completions] = await Promise.all([countReadyTaskPhotos(String(task.id)), countReadyTaskPhotos(String(task.id), 'before'), countReadyTaskPhotos(String(task.id), 'after')]); setPhotoCount(all); setStartPhotoCount(starts); setCompletionPhotoCount(completions); };
+  const start = () => {
+    if (!(task as any).photos_not_required && startPhotoCount < 1) { toast.error('Add at least one start photo before starting the timer'); setShowEvidence(true); return; }
+    run(() => queueSessionAction({ type: 'start', taskId: String(task.id), teamMemberId: memberId }), 'Task started', applySessionResult);
+  };
   const pause = () => session && run(() => queueSessionAction({ type: 'pause', taskId: String(task.id), teamMemberId: memberId, sessionId: session.id }), 'Task paused', applySessionResult);
   const resume = () => session && run(() => queueSessionAction({ type: 'resume', taskId: String(task.id), teamMemberId: memberId, sessionId: session.id }), 'Task resumed', applySessionResult);
   const finish = () => {
     if (requiredIncomplete > 0) { toast.error(`Complete ${requiredIncomplete} required checklist item${requiredIncomplete === 1 ? '' : 's'} first`); return; }
-    const requiredPhotos = Number(task.required_photo_count || 0);
-    if (photoCount < requiredPhotos) { toast.error(`Add ${requiredPhotos - photoCount} more required photo${requiredPhotos - photoCount === 1 ? '' : 's'} first`); return; }
+    if (!(task as any).photos_not_required && completionPhotoCount < 1) { toast.error('Add at least one completion photo before finishing'); setShowEvidence(true); return; }
+    if (!completionNote.trim()) { toast.error('Add a short completion note before finishing'); return; }
+    if (!toolsCleared) { toast.error('Confirm tools and unused materials are cleared or secured'); return; }
     if (!session) return;
     run(
-      () => queueSessionAction({ type: 'finish', taskId: String(task.id), teamMemberId: memberId, sessionId: session.id, notes: body || undefined }),
+      () => queueSessionAction({ type: 'finish', taskId: String(task.id), teamMemberId: memberId, sessionId: session.id, notes: completionNote.trim() }),
       'Task submitted for QC',
       async (result) => { if (result) setSessionOverride(result); await Promise.all([refreshSessions(), refreshTasks()]); },
     );
@@ -115,30 +130,38 @@ export default function MobileTaskWorkspace({ taskId, onBack }: { taskId: string
 
       <main className="px-5 py-5 space-y-4">
         <h2 className="text-[30px] leading-[1.05]" style={display}>{task.title}</h2>
+        <p className="font-['Roboto_Mono'] text-[9px] uppercase text-muted-foreground">{task.phase || 'No phase'} · Associate: {assignedNames || 'Not assigned'} · Supervisor: {supervisorName || 'Not assigned'} · Due {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'not set'}</p>
         {!inProgress && <div className="grid grid-cols-4 border-y border-[var(--olive-300)] py-4">
-          {[['Priority', task.priority || 'Normal'], ['Start', task.start_date ? new Date(task.start_date).toLocaleDateString([], { month:'short', day:'numeric' }) : 'Now'], ['Estimate', task.estimated_hours ? `${task.estimated_hours} hr` : 'Not set'], ['Assigned', assignedNames || '—']].map(([label,value]) => <div key={label} className="px-2 border-r last:border-0 border-[var(--olive-300)]"><p className="font-['Roboto_Mono'] text-[8px] uppercase">{label}</p><p className="font-['Roboto_Mono'] text-[10px] uppercase mt-2 truncate">{value}</p></div>)}
+          {[['Priority', task.priority || 'Normal'], ['Estimate', estimatedHours ? `${estimatedHours} hr` : 'Not set'], ['Actual', `${actualHours.toFixed(1)} hr`], ['Remaining', estimatedHours ? `${(estimatedHours-actualHours).toFixed(1)} hr` : '—']].map(([label,value]) => <div key={label} className="px-2 border-r last:border-0 border-[var(--olive-300)]"><p className="font-['Roboto_Mono'] text-[8px] uppercase">{label}</p><p className="font-['Roboto_Mono'] text-[10px] uppercase mt-2 truncate">{value}</p></div>)}
         </div>}
 
         {!inProgress && <section className="bg-[var(--green-900)] text-white rounded-[18px] p-5"><p className="font-['Roboto_Mono'] text-[9px] uppercase text-[var(--olive-300)]">What to do</p><p className="font-['Roboto_Mono'] text-[13px] leading-relaxed mt-3 whitespace-pre-wrap">{task.description || 'Complete the assigned work and document your progress.'}</p><p className="font-['Roboto_Mono'] text-[9px] uppercase text-[var(--olive-300)] mt-5">Site · {project?.location || 'See project details'}</p></section>}
 
+        {(task as any).verification_criteria && <section className="rounded-[14px] border border-[var(--olive-300)] bg-white p-4"><p className="font-['Roboto_Mono'] text-[9px] uppercase text-muted-foreground">Verification criteria</p><p className="mt-2 whitespace-pre-wrap font-['Roboto_Mono'] text-[11px]">{(task as any).verification_criteria}</p></section>}
+
+        <TaskDependencies taskId={String(task.id)} projectTasks={tasks.filter((row:any)=>String(row.projectId)===String(task.projectId))}/>
+        <TaskToolsMaterials taskId={String(task.id)}/>
+
         {checklist.length > 0 && <section className="border border-[var(--olive-300)] rounded-[14px] overflow-hidden bg-white"><div className="px-4 py-3 flex justify-between"><span className="font-['Roboto_Mono'] text-[10px] uppercase">Materials & checklist · {checklist.length} items</span><ChevronDown className="w-4 h-4" /></div>{checklist.map((item) => <button key={item.id} onClick={() => toggleItem(item)} className="w-full border-t border-[var(--olive-300)] px-4 py-3 text-left flex gap-3 items-center"><span className={`w-5 h-5 border rounded-sm flex items-center justify-center ${item.completed_at ? 'bg-[var(--green-900)] text-white' : ''}`}>{item.completed_at && <Check className="w-3 h-3" />}</span><span className="font-['Roboto_Mono'] text-[11px]">{item.label}{item.is_required ? ' *' : ''}</span></button>)}</section>}
 
+        <button onClick={() => setShowEvidence(!showEvidence)} className="w-full h-14 rounded-[12px] border border-[var(--olive-300)] bg-white flex items-center justify-center gap-3 font-['Roboto_Mono'] text-[11px] uppercase"><Camera className="w-5 h-5" />{inProgress ? 'Add photo, video or audio' : 'Add required start photo'}</button>
+        {showEvidence && <TaskMediaEvidence projectId={String(task.projectId)} taskId={String(task.id)} initialStage={inProgress ? 'progress' : 'before'} onUploaded={refreshPhotoCounts} />}
+
         {inProgress && <>
-          <button onClick={() => setShowEvidence(!showEvidence)} className="w-full h-14 rounded-[12px] border border-[var(--olive-300)] bg-white flex items-center justify-center gap-3 font-['Roboto_Mono'] text-[11px] uppercase"><Camera className="w-5 h-5" /> Add photo, video or audio</button>
           <p className="font-['Roboto_Mono'] text-[9px] uppercase text-center -mt-2">{photoCount} photo{photoCount === 1 ? '' : 's'} added{Number(task.required_photo_count || 0) > 0 ? ` · ${task.required_photo_count} required` : ''}</p>
-          {showEvidence && <TaskMediaEvidence projectId={String(task.projectId)} taskId={String(task.id)} />}
           <div className="grid grid-cols-2 gap-3">
             {([{type:'progress',icon:Send},{type:'query',icon:HelpCircle},{type:'suggestion',icon:Mic},{type:'issue',icon:CircleAlert},{type:'change_request',icon:Pencil}] as const).map(({type,icon:Icon}) => <button key={type} onClick={() => setComposer(type)} className={`min-h-14 px-3 rounded-[12px] border font-['Roboto_Mono'] text-[10px] uppercase flex items-center justify-center gap-2 ${composer===type ? 'bg-[var(--green-900)] text-white' : 'bg-white border-[var(--olive-300)]'}`}><Icon className="w-4 h-4" />{labels[type]}</button>)}
           </div>
           {composer && <div className="bg-white border border-[var(--olive-300)] rounded-[14px] p-3"><p className="font-['Roboto_Mono'] text-[9px] uppercase mb-2">{labels[composer]}</p><textarea value={body} onChange={(e)=>setBody(e.target.value)} rows={3} className="w-full resize-none bg-transparent font-['Roboto_Mono'] text-[12px] outline-none" placeholder="What did you complete or notice?"/><label className="mt-2 flex min-h-11 cursor-pointer items-center justify-center rounded-full border border-[var(--olive-300)] px-3 font-['Roboto_Mono'] text-[10px] uppercase"><Camera className="mr-2 h-4 w-4" />{updateFiles.length ? `${updateFiles.length} file${updateFiles.length === 1 ? '' : 's'} attached` : 'Attach files'}<input type="file" multiple className="hidden" accept="image/*,video/*,audio/*,application/pdf" onChange={(event) => setUpdateFiles(Array.from(event.target.files || []))} /></label><button onClick={submitUpdate} disabled={busy || !body.trim()} className="w-full mt-2 h-11 rounded-full bg-[var(--vermillion-500)] text-white font-['Roboto_Mono'] text-[11px] uppercase disabled:opacity-40">Submit</button></div>}
           {updates.length > 0 && <section><p className="font-['Roboto_Mono'] text-[9px] uppercase mb-2">Recent task activity</p>{updates.slice(0,3).map((u)=><div key={u.id} className="border-t border-[var(--olive-300)] py-3"><p className="font-['Roboto_Mono'] text-[9px] uppercase text-[var(--vermillion-700)]">{labels[u.update_type as TaskUpdateType]} · {u.status}</p><p className="font-['Roboto_Mono'] text-[11px] mt-1">{u.body}</p></div>)}</section>}
+          <section className="rounded-[14px] border border-[var(--olive-300)] bg-white p-3 space-y-3"><p className="font-['Roboto_Mono'] text-[9px] uppercase">Finish task requirements</p><textarea value={completionNote} onChange={(event) => setCompletionNote(event.target.value)} rows={2} className="w-full resize-none rounded-[8px] border border-[var(--olive-300)] p-3 font-['Roboto_Mono'] text-[11px]" placeholder="What was completed?"/><label className="flex items-start gap-2 font-['Roboto_Mono'] text-[10px]"><input type="checkbox" checked={toolsCleared} onChange={(event) => setToolsCleared(event.target.checked)} className="mt-0.5"/>Tools and unused materials are cleared or secured.</label><p className="font-['Roboto_Mono'] text-[9px] text-muted-foreground">Completion photos: {completionPhotoCount}{(task as any).photos_not_required ? ' · photos waived by supervisor' : ' · 1 required'}</p></section>
         </>}
 
         {memberId && <AuraTaskFeedback taskId={String(task.id)} teamMemberId={memberId} />}
       </main>
       <footer className="fixed md:hidden bottom-0 left-0 right-0 bg-[var(--grey-50)] border-t border-[var(--olive-300)] px-4 pt-4 pb-[calc(16px+env(safe-area-inset-bottom))] grid grid-cols-[.75fr_1.5fr] gap-3 z-30">
         {inProgress ? <button onClick={session?.status === 'paused' ? resume : pause} disabled={busy} className="h-12 border border-[var(--green-900)] rounded-full font-['Roboto_Mono'] text-[11px] uppercase flex items-center justify-center gap-2">{session?.status === 'paused' ? <Play className="w-4"/> : <Pause className="w-4"/>}{session?.status === 'paused' ? 'Resume':'Pause'}</button> : <button onClick={()=>setComposer('query')} className="h-12 border border-[var(--green-900)] rounded-full font-['Roboto_Mono'] text-[11px] uppercase">Request help</button>}
-        {inProgress ? <button onClick={finish} disabled={busy} className="h-12 bg-[var(--vermillion-500)] text-white rounded-full font-['Roboto_Mono'] text-[11px] uppercase flex items-center justify-center gap-2"><Square className="w-4"/>Complete task</button> : <button onClick={start} disabled={busy || !assigned || !memberId} className="h-12 bg-[var(--vermillion-500)] text-white rounded-full font-['Roboto_Mono'] text-[11px] uppercase flex items-center justify-center gap-2 disabled:opacity-40"><Play className="w-4"/>Start task</button>}
+        {inProgress ? <button onClick={finish} disabled={busy} className="h-12 bg-[var(--vermillion-500)] text-white rounded-full font-['Roboto_Mono'] text-[11px] uppercase flex items-center justify-center gap-2"><Square className="w-4"/>Finish task</button> : <button onClick={start} disabled={busy || !assigned || !memberId} className="h-12 bg-[var(--vermillion-500)] text-white rounded-full font-['Roboto_Mono'] text-[11px] uppercase flex items-center justify-center gap-2 disabled:opacity-40"><Play className="w-4"/>Start task</button>}
       </footer>
     </div>
   );

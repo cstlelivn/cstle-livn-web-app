@@ -45,7 +45,7 @@ function webpName(name: string) {
  * metadata while preserving enough resolution for QC, before/after evidence,
  * and later social use. Falls back safely for formats a browser cannot decode.
  */
-export async function optimizeMediaFile(file: File): Promise<File> {
+export async function optimizeMediaFile(file: File, marketing = false): Promise<File> {
   if (!file.type.startsWith('image/') || file.type === 'image/gif' || file.type === 'image/svg+xml') {
     return file;
   }
@@ -53,7 +53,7 @@ export async function optimizeMediaFile(file: File): Promise<File> {
   let image: ImageBitmap | null = null;
   try {
     image = await createImageBitmap(file, { imageOrientation: 'from-image' });
-    const maxEdge = 1920;
+    const maxEdge = marketing ? 2400 : 1920;
     const scale = Math.min(1, maxEdge / Math.max(image.width, image.height));
     const width = Math.max(1, Math.round(image.width * scale));
     const height = Math.max(1, Math.round(image.height * scale));
@@ -67,9 +67,9 @@ export async function optimizeMediaFile(file: File): Promise<File> {
     // Aim for a sub-megabyte upload while retaining a 1920px long edge. A
     // lower-quality pass is only attempted when the previous result is still
     // over target; this avoids needlessly degrading already-efficient photos.
-    const targetBytes = 850 * 1024;
+    const targetBytes = (marketing ? 1200 : 350) * 1024;
     let best: Blob | null = null;
-    for (const quality of [0.76, 0.66, 0.56, 0.46]) {
+    for (const quality of marketing ? [0.82, 0.78, 0.75] : [0.74, 0.70, 0.67, 0.65]) {
       const candidate = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/webp', quality));
       if (!candidate) continue;
       if (!best || candidate.size < best.size) best = candidate;

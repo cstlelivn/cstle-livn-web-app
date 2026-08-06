@@ -44,9 +44,11 @@ export async function setChecklistItem(itemId: string, completed: boolean) {
   return data;
 }
 
-export async function countReadyTaskPhotos(taskId: string) {
-  const { count, error } = await supabase.from('task_media').select('id', { count: 'exact', head: true })
+export async function countReadyTaskPhotos(taskId: string, stage?: 'before' | 'progress' | 'after') {
+  let query = supabase.from('task_media').select('id', { count: 'exact', head: true })
     .eq('task_id', taskId).eq('media_kind', 'photo').eq('upload_status', 'ready').is('deleted_at', null);
+  if (stage) query = query.eq('evidence_stage', stage);
+  const { count, error } = await query;
   failIf(error, 'Failed to check task photos');
   return count ?? 0;
 }

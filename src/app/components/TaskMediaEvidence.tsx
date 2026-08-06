@@ -20,6 +20,8 @@ import {
 interface Props {
   projectId: string;
   taskId: string;
+  initialStage?: EvidenceStage;
+  onUploaded?: () => void;
 }
 
 const stageLabels: Record<EvidenceStage, string> = {
@@ -36,15 +38,18 @@ function MediaIcon({ kind }: { kind: TaskMedia['media_kind'] }) {
   return <FileText className="h-4 w-4" />;
 }
 
-export default function TaskMediaEvidence({ projectId, taskId }: Props) {
+export default function TaskMediaEvidence({ projectId, taskId, initialStage = 'progress', onUploaded }: Props) {
   const { hasPermission } = useAuth();
   const canApprove = hasPermission('canApproveTaskQC') || hasPermission('canEditProjects');
   const inputRef = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<TaskMedia[]>([]);
-  const [stage, setStage] = useState<EvidenceStage>('progress');
+  const [stage, setStage] = useState<EvidenceStage>(initialStage);
   const [caption, setCaption] = useState('');
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [saveForMarketing, setSaveForMarketing] = useState(false);
+
+  useEffect(() => { setStage(initialStage); }, [initialStage]);
 
   const refresh = useCallback(async () => {
     try {
@@ -64,14 +69,16 @@ export default function TaskMediaEvidence({ projectId, taskId }: Props) {
     let uploaded = 0;
     try {
       for (const file of Array.from(files)) {
-        const optimized = await optimizeMediaFile(file);
-        await uploadTaskMedia(projectId, taskId, optimized, stage, caption);
+        const optimized = await optimizeMediaFile(file, saveForMarketing);
+        const uploadedItem = await uploadTaskMedia(projectId, taskId, optimized, stage, caption);
+        if (saveForMarketing && canApprove) await updateMediaApproval(uploadedItem.id, uploadedItem.client_visible, true);
         uploaded += 1;
       }
       toast.success(`${uploaded} file${uploaded === 1 ? '' : 's'} added to the task`);
       setCaption('');
       if (inputRef.current) inputRef.current.value = '';
       await refresh();
+      onUploaded?.();
     } catch (error: any) {
       toast.error(error?.message || 'File upload failed');
       await refresh();
@@ -156,6 +163,7 @@ export default function TaskMediaEvidence({ projectId, taskId }: Props) {
           <p className="mt-1 text-right text-[8px] text-muted-foreground">Photos optimize automatically</p>
         </div>
       </div>
+      {canApprove && <label className="flex items-center gap-2 font-['Roboto_Mono'] text-[9px]"><input type="checkbox" checked={saveForMarketing} onChange={(event)=>setSaveForMarketing(event.target.checked)}/>Save for Marketing (up to 2400px, higher quality)</label>}
 
       {loading ? (
         <div className="flex items-center gap-2 text-[10px] text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading evidence</div>

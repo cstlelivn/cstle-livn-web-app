@@ -476,3 +476,43 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
 3. Check whether the edge function's latest canonical version has actually
    been deployed (again, ask — git history isn't proof of deployment for
    this specific piece).
+# Reuse Existing Workflows First
+
+- Before adding a workflow, screen, status, permission, approval process, scoring system, or table, audit the application for an equivalent feature and integrate with it instead of creating a duplicate.
+- The existing Quality Control workflow is authoritative and must remain unchanged. Task completion submits into the existing QC flow, displays its current status, and consumes its returned outcome.
+- Do not add QC questions, QC forms, approval steps, scoring logic, or task-module QC tables. Supervisors continue to use the existing QC review interface and options.
+- Keep the existing task statuses. In particular, `Pending QC` is the application's existing submitted-for-QC state; do not add a second `Finished Awaiting QC` status. Existing correction/rejection handling remains authoritative.
+- The existing QC-to-Aura integration is authoritative. Task screens may display the resulting Aura feedback, but must not calculate or write Aura scores themselves.
+
+## Project task management core — August 5, 2026
+
+- Migration `20240035_task_management_core.sql` was applied successfully in
+  the Supabase SQL Editor on August 5, 2026. A live read-back confirmed
+  `task_dependencies`, `task_tools`, `task_materials`,
+  `task_time_corrections`, the task verification-criteria column, and the
+  first-start-photo trigger. Historical closed projects are deliberately
+  excluded from the normalized phase backfill because migration `20240033`
+  makes their task records immutable; they remain readable and unchanged.
+- New and edited tasks must select a normalized phase belonging to their
+  project. The task form records the assigned Supervisor, estimated hours,
+  verification criteria, and an explicit Supervisor/Admin photo waiver.
+  Estimated hours and complexity now persist through the task API rather than
+  being silently discarded.
+- The existing task statuses and QC/Aura implementation remain authoritative.
+  Finishing a session still enters the existing `Pending QC` queue; the task
+  module does not contain a second QC form, status set, or scoring engine.
+- A task's first timer session requires a ready R2 `before` photo unless an
+  authorized Supervisor/Admin has waived photos. Resume does not require a
+  second start photo. The Associate Finish Task UI requires a completion photo
+  (unless waived), completion note, required checklist items, and confirmation
+  that tools and unused materials are cleared or secured.
+- Tools and Materials are collapsed by default. Admins/Supervisors can add
+  complete draft records, copy approved lists from a prior task into independent
+  drafts, and approve them; Associates see only approved records. Dependencies
+  are same-project warnings and deliberately do not create a new Blocked status.
+- Ordinary photos target a 1920px longest edge and approximately 150–350KB
+  WebP output. `Save for Marketing` uses up to 2400px and higher quality.
+- Project task cards now show phase, Supervisor, estimated hours, and measured
+  actual hours. The mobile task page also shows Associate, Supervisor, phase,
+  due date, verification criteria, dependencies, tools/materials, evidence,
+  timer actions, the existing QC outcome, and existing Aura feedback.

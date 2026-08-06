@@ -16,6 +16,9 @@ import TaskChecklistEditor from './TaskChecklistEditor';
 import TaskActivityFeed from './TaskActivityFeed';
 import TaskMediaEvidence from "./TaskMediaEvidence";
 import { toast } from "sonner";
+import { useProjectPhases } from '../src/features/projectPhases/useProjectPhases';
+import TaskToolsMaterials from './TaskToolsMaterials';
+import TaskDependencies from './TaskDependencies';
 
 interface TaskDialogProps {
   open: boolean;
@@ -36,7 +39,7 @@ export default function TaskDialog({
   onSave,
   defaultStatus,
 }: TaskDialogProps) {
-  const { projects, teamMembers, addTask, updateTask, taskTemplates, saveTaskTemplate, getProject } = useApp();
+  const { projects, tasks, teamMembers, addTask, updateTask, taskTemplates, saveTaskTemplate, getProject } = useApp();
   const { hasPermission, currentUser } = useAuth();
   const { taskAssignees } = useTaskAssignees(true);
 
@@ -54,6 +57,7 @@ export default function TaskDialog({
   const [selectedProjectId, setSelectedProjectId] = useState<string>(projectId ? String(projectId) : "");
   const effectiveProjectId = task?.projectId ? String(task.projectId) : selectedProjectId;
   const project = effectiveProjectId ? getProject(effectiveProjectId as any) : undefined;
+  const { phases: normalizedPhases, loading: phasesLoading } = useProjectPhases(effectiveProjectId || null);
   const activeProjects = projects.filter((candidate: any) => candidate.status !== "Completed");
   const isClosedProject = project?.status === "Completed";
   const isReadOnly =
@@ -69,9 +73,13 @@ export default function TaskDialog({
     startDate: "",
     tags: "",
     phase: "",
+    phaseId: "",
     task_type: "Administrative",
     estimatedHours: "",
     complexity: "",
+    supervisorId: "",
+    verificationCriteria: "",
+    photosNotRequired: false,
   });
   const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<string[]>([]);
 
@@ -91,9 +99,13 @@ export default function TaskDialog({
         startDate: (task as any).start_date || "",
         tags: (task.tags || []).join(", "),
         phase: task.phase || "",
+        phaseId: (task as any).phase_id || "",
         task_type: (task as any).task_type || "Administrative",
         estimatedHours: (task as any).estimated_hours != null ? String((task as any).estimated_hours) : "",
         complexity: (task as any).complexity || "",
+        supervisorId: (task as any).supervisor_id || (project as any)?.supervisorId || "",
+        verificationCriteria: (task as any).verification_criteria || "",
+        photosNotRequired: Boolean((task as any).photos_not_required),
       });
     } else {
       setFormData({
@@ -105,9 +117,13 @@ export default function TaskDialog({
         startDate: "",
         tags: "",
         phase: "",
+        phaseId: "",
         task_type: "Administrative",
         estimatedHours: "",
         complexity: "",
+        supervisorId: (project as any)?.supervisorId || "",
+        verificationCriteria: "",
+        photosNotRequired: false,
       });
     }
   }, [task, open, defaultStatus, projectId]);
@@ -163,6 +179,12 @@ export default function TaskDialog({
       toast.error("This project is closed. New tasks cannot be added or changed.");
       return;
     }
+    if (!formData.phaseId) {
+      toast.error(normalizedPhases.length === 0 ? "Add a project phase before creating a task" : "Choose the phase for this task");
+      return;
+    }
+    const selectedPhase = normalizedPhases.find((phase: any) => String(phase.id) === formData.phaseId);
+    if (!selectedPhase) { toast.error("Choose a valid project phase"); return; }
 
     const taskData: any = {
       projectId: effectiveProjectId,
@@ -176,10 +198,14 @@ export default function TaskDialog({
         .split(",")
         .map((tag) => tag.trim())
         .filter((tag) => tag.length > 0),
-      phase: formData.phase === "no-phase" ? "" : formData.phase,
+      phase: selectedPhase.name,
+      phase_id: selectedPhase.id,
       task_type: formData.task_type,
       estimated_hours: formData.estimatedHours ? Number(formData.estimatedHours) : null,
       complexity: formData.complexity || null,
+      supervisor_id: formData.supervisorId || (project as any)?.supervisorId || null,
+      verification_criteria: formData.verificationCriteria.trim() || null,
+      photos_not_required: formData.photosNotRequired,
     };
 
     try {
@@ -249,7 +275,13 @@ export default function TaskDialog({
       startDate: "",
       tags: "",
       phase: "",
+      phaseId: "",
       task_type: "Administrative",
+      estimatedHours: "",
+      complexity: "",
+      supervisorId: "",
+      verificationCriteria: "",
+      photosNotRequired: false,
     });
     setSaveAsTemplate(false);
     setTemplateName("");
@@ -549,32 +581,35 @@ export default function TaskDialog({
             </div>
           </div>
 
-          {/* Phase Selection */}
-          {project && project.phases && project.phases.length > 0 && (
+          {/* Every task belongs to one normalized project phase. */}
+          <div>
+            <Label htmlFor="phase" className="text-[10px]">Project Phase *</Label>
+            <Select value={formData.phaseId} onValueChange={(value) => {
+              const phase = normalizedPhases.find((row: any) => String(row.id) === value);
+              setFormData({ ...formData, phaseId: value, phase: phase?.name || '' });
+            }} disabled={phasesLoading || normalizedPhases.length === 0}>
+              <SelectTrigger className="mt-[8px] text-[10px]"><SelectValue placeholder={phasesLoading ? "Loading phases…" : normalizedPhases.length ? "Choose phase" : "Add a phase first"} /></SelectTrigger>
+              <SelectContent>{normalizedPhases.map((phase: any) => <SelectItem key={phase.id} value={String(phase.id)} className="text-[10px]">{phase.name}</SelectItem>)}</SelectContent>
+            </Select>
+            {normalizedPhases.length === 0 && !phasesLoading && <p className="mt-1 font-['Roboto_Mono'] text-[9px] text-destructive">This project needs a phase before tasks can be added.</p>}
+          </div>
+
+          <div>
+            <Label htmlFor="verificationCriteria" className="text-[10px]">Verification Criteria</Label>
+            <Textarea id="verificationCriteria" value={formData.verificationCriteria} onChange={(event) => setFormData({ ...formData, verificationCriteria: event.target.value })} placeholder="Describe what properly completed work should look like" rows={3} className="mt-[8px] text-[11px]" />
+            <p className="mt-1 font-['Roboto_Mono'] text-[9px] text-muted-foreground">Guidance for workmanship—not a mandatory approval checklist.</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-[16px]">
             <div>
-              <Label htmlFor="phase" className="text-[10px]">
-                Project Phase
-              </Label>
-              <Select
-                value={formData.phase}
-                onValueChange={(value) => setFormData({ ...formData, phase: value })}
-              >
-                <SelectTrigger className="mt-[8px] text-[10px]">
-                  <SelectValue placeholder="Select phase (optional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="no-phase" className="text-[10px]">
-                    No Phase
-                  </SelectItem>
-                  {project.phases.map((phase, index) => (
-                    <SelectItem key={index} value={phase.name} className="text-[10px]">
-                      {phase.name} ({phase.days} days)
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+              <Label className="text-[10px]">Assigned Supervisor</Label>
+              <Select value={formData.supervisorId || 'project-supervisor'} onValueChange={(value) => setFormData({ ...formData, supervisorId: value === 'project-supervisor' ? '' : value })}>
+                <SelectTrigger className="mt-[8px] text-[10px]"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="project-supervisor" className="text-[10px]">Use project supervisor</SelectItem>{teamMembers.filter((member: any) => member.active && ['Supervisor','Admin','Manager','Super Admin','Quality Control'].includes(member.role)).map((member: any) => <SelectItem key={member.id} value={String(member.id)} className="text-[10px]">{member.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-          )}
+            <label className="flex items-center gap-3 rounded-[8px] border border-border px-3 py-3 mt-[18px] font-['Roboto_Mono'] text-[10px]"><input type="checkbox" checked={formData.photosNotRequired} onChange={(event) => setFormData({ ...formData, photosNotRequired: event.target.checked })} />Photos are not required for this task</label>
+          </div>
 
           {/* Assignees (multi-person) and Due Date */}
           <div className="grid grid-cols-2 gap-[16px]">
@@ -672,6 +707,10 @@ export default function TaskDialog({
           )}
 
           {mode === "edit" && task && <TaskChecklistEditor taskId={String(task.id)} />}
+
+          {mode === "edit" && task && <TaskDependencies taskId={String(task.id)} projectTasks={tasks.filter((row: any) => String(row.projectId) === String(effectiveProjectId))} />}
+
+          {mode === "edit" && task && <TaskToolsMaterials taskId={String(task.id)} />}
 
           {mode === "edit" && task && <TaskActivityFeed taskId={String(task.id)} />}
 

@@ -9,7 +9,8 @@ const TASK_LIST_COLUMNS = [
   'assignee_id', 'start_date', 'due_date', 'progress', 'tags', 'phase',
   'phase_id', 'task_type', 'is_required', 'dependency_task_id', 'blocked_by',
   'completed_date', 'started_at', 'submitted_at', 'review_feedback', 'rating',
-  'rating_metrics', 'estimated_hours', 'complexity', 'required_photo_count', 'created_at', 'updated_at',
+  'rating_metrics', 'estimated_hours', 'complexity', 'required_photo_count', 'supervisor_id',
+  'verification_criteria', 'photos_not_required', 'completion_note_required', 'created_at', 'updated_at',
 ].join(',');
 
 // Helper to check if a value is a valid UUID
@@ -54,6 +55,11 @@ export interface TaskInput {
   is_required?: boolean;
   dependency_task_id?: string;
   blocked_by?: string;
+  supervisor_id?: string;
+  verification_criteria?: string;
+  photos_not_required?: boolean;
+  estimated_hours?: number | null;
+  complexity?: string | null;
 }
 
 export interface TaskUpdate {
@@ -75,6 +81,11 @@ export interface TaskUpdate {
   rating_metrics?: any;
   blocked_by?: string;
   is_required?: boolean;
+  supervisor_id?: string;
+  verification_criteria?: string;
+  photos_not_required?: boolean;
+  estimated_hours?: number | null;
+  complexity?: string | null;
 }
 
 export async function listTasks(projectId?: string | number, page = 0, pageSize = 300) {
@@ -126,6 +137,11 @@ export async function createTask(input: TaskInput) {
     task_type: input.task_type || (input as any).task_type || 'Administrative',
     start_date: input.start_date || (input as any).startDate || undefined,
     phase_id: input.phase_id || (input as any).phase_id || undefined,
+    supervisor_id: input.supervisor_id || (input as any).supervisorId || undefined,
+    verification_criteria: input.verification_criteria || undefined,
+    photos_not_required: input.photos_not_required ?? false,
+    estimated_hours: input.estimated_hours ?? (input as any).estimatedHours ?? null,
+    complexity: input.complexity || null,
     is_required: input.is_required ?? (input as any).is_required ?? true,
   };
 
@@ -219,6 +235,12 @@ export async function updateTask(id: string | number, updates: TaskUpdate) {
   if (updates.phase_id !== undefined) dbUpdates.phase_id = updates.phase_id || null;
   if (updates.blocked_by !== undefined) dbUpdates.blocked_by = updates.blocked_by || null;
   if (updates.is_required !== undefined) dbUpdates.is_required = updates.is_required;
+  if (updates.supervisor_id !== undefined) dbUpdates.supervisor_id = updates.supervisor_id || null;
+  if (updates.verification_criteria !== undefined) dbUpdates.verification_criteria = updates.verification_criteria || null;
+  if (updates.photos_not_required !== undefined) dbUpdates.photos_not_required = updates.photos_not_required;
+  if (updates.estimated_hours !== undefined) dbUpdates.estimated_hours = updates.estimated_hours;
+  if ((updates as any).estimatedHours !== undefined) dbUpdates.estimated_hours = (updates as any).estimatedHours;
+  if (updates.complexity !== undefined) dbUpdates.complexity = updates.complexity || null;
 
   dbUpdates.updated_at = now();
 
