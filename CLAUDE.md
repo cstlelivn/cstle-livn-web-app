@@ -561,3 +561,6 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   only on their own supervised project. Supervisors can revise estimated hours
   before or after assignment; the existing estimate-change audit trigger
   records changes.
+- Commit `6a5dbfb` was pushed to `main`; production was verified serving
+  `index-ie0-VleY.js`, with the Add Task and pre-assignment estimate guidance
+  present. TypeScript, all 9 tests, the production build, and diff checks pass.
