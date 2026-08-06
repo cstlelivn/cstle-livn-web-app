@@ -648,3 +648,86 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   Phases view. `npm run build` (TypeScript + Vite) passed with no errors.
   Not yet re-verified on the deployed Vercel production build — pending
   commit and push.
+
+## Test-data cleanup, test-account creation, mobile bottom nav removal — August 6, 2026
+
+- **No new migration.** All data changes below were done as one-time direct
+  writes against the live Supabase database (through the browser, signed in
+  as Demilade/Super Admin), not schema changes — this section is a record of
+  *data* state, not code, except where noted.
+- **Sample-project cleanup.** The two non-production seed/test projects —
+  `sample` (`02b353bb-aa4f-4f41-a266-586474fb7452`) and
+  `__SAVE_TEMPLATE_TEST__` (`14e14632-4e1e-4607-8835-b4f5c7165c66`) — had
+  Demilade set as both `supervisor_id` and the primary/only assignee on
+  nearly every task (91 active `task_assignees` rows), which was polluting
+  the mobile dashboard's "Your tasks" and Supervisor Queue with fake work.
+  Both projects' `supervisor_id` were cleared to `null` and all 91 active
+  Demilade `task_assignees` rows were removed via `unassign_task_member`
+  (not raw deletes, so the sync trigger correctly nulled `tasks.assignee_id`
+  too). Real, completed production projects (the `FCC -`/`KB -` prefixed
+  ones) were deliberately left untouched — only the 2 confirmed sample
+  projects were touched.
+- **Removed 3 test team members**: Oluwakemi Isinkaiye ("Kemi"), "DY", and
+  "MJ". Verified first that none of the three had any `task_work_sessions`,
+  `task_aura_scores`, `task_updates`, or `task_completion_attributions` rows
+  (zero real Aura/QC history), and that every `task_assignees` row
+  referencing them was confined to the two sample projects above (plus one
+  row on Scarth Street that was this session's own verification-testing
+  artifact, not real data). Deleted those `task_assignees` rows (required
+  first — `team_members.id` is referenced `ON DELETE RESTRICT` from
+  `task_assignees`), then deleted the three `team_members` rows outright.
+  DY and Kemi had no Supabase Auth account (`auth_user_id` was null — they
+  were team-member-only records, never logins). **MJ did have a real
+  Supabase Auth login** (`a0adf7ae-b86d-4944-b6e9-257e1b96620e`); removing
+  their `team_members` row stops them from being assignable or appearing in
+  any UI, but their Auth account and `kv_store` "user" record still
+  technically exist — see the new endpoint below, which is required to
+  finish removing them and has **not been deployed yet**.
+- **Added a missing `DELETE /make-server-bcab437c/users/:id` edge function
+  route** (both `supabase/functions/make-server-bcab437c/index.ts` and its
+  required mirror `src/app/supabase/functions/server/index.ts`). The
+  Settings → Users "Delete User" button already existed in the frontend
+  (`UserManagement.tsx` → `AuthContext.deleteUser` → `userAPI.delete` → 
+  `DELETE /users/:id`) but silently 404'd because the backend route was
+  never implemented — this was a pre-existing gap, not something introduced
+  this session. The new route is Super-Admin/Manager-only, blocks
+  self-deletion, calls `supabase.auth.admin.deleteUser()` then deletes the
+  `kv_store` `user:<id>` record. **This still needs a manual Supabase
+  Dashboard/CLI deploy of `make-server-bcab437c` before the Delete User
+  button (or MJ's leftover Auth account specifically) actually works** —
+  per the "Edge function deploys are NOT automatic" rule above, pushing the
+  frontend to `main` does not deploy this.
+- **Created a one-time test account for a real associate ("Victor")**,
+  at the user's explicit request, to preview the Associate mobile experience
+  before handing over real credentials. Used the app's existing admin-set-
+  password signup path (`authAPI.signUp`, the same server-side flow that
+  created every other test account this project already has — Kemi, DY, MJ,
+  Test Admin) rather than building any new account-creation mechanism; this
+  was a deliberate choice to avoid introducing a bespoke "backdoor" login
+  path, per the user's explicit instruction. Auth account
+  `35da2176-ec38-4f44-8dab-046d8ee9ae35` (`victor@cstlelivn.ca`, a
+  placeholder — the user should replace it with Victor's real email in
+  Settings before handing off login access, since email-based password
+  reset is how they intend to hand the account to him) with role Associate,
+  password as given by the user. Matching `team_members` row
+  `a8921d26-70fb-4a95-8b21-bbe88cbb8b42` was created and 2 unassigned Scarth
+  Street tasks ("Dry Fit Reception Cabinets", "Site Setup and Protection")
+  were assigned to it via `assign_task_member` so there's something for
+  Victor's mobile view to show. This is meant to be temporary/one-time, not
+  a template for future onboarding — going forward, new team members should
+  go through the normal self-signup flow (`Login.tsx`'s sign-up form, which
+  only allows the caller to self-assign Associate/Contractor roles) rather
+  than an admin creating accounts with a chosen password.
+- **Removed the mobile bottom tab bar** (`src/app/App.tsx`, the `<nav
+  className="md:hidden ...">` block with Home/Projects/Updates/Profile
+  buttons that previously rendered under the page content on small screens)
+  at the user's request — the sidebar's mobile slide-in menu (hamburger icon
+  in the top bar) remains the only mobile navigation. Removed the now-dead
+  `Home`/`Bell` icon imports along with it.
+- Verified via the local dev server, signed in as Demilade: mobile dashboard
+  "Your tasks" now correctly shows 0 (previously showed the sample
+  projects' fake assigned-task backlog), the Supervisor Queue no longer
+  includes the sample projects, and no bottom tab bar renders at mobile
+  viewport width. `npm run build` passed with no errors. Not yet committed,
+  pushed, or verified on the deployed Vercel production build, and the new
+  `DELETE /users/:id` edge function route is not yet deployed to Supabase.

@@ -578,6 +578,38 @@ app.put("/make-server-bcab437c/users/:id", authMiddleware, async (c) => {
   return c.json({ user: updatedUser, roleChanged });
 });
 
+// Delete user -- removes both the Supabase Auth account and the KV user
+// record. Admin-only; a user cannot delete their own account through this
+// route (avoids accidental self-lockout -- use a different admin's session).
+app.delete("/make-server-bcab437c/users/:id", authMiddleware, async (c) => {
+  const userRole = c.get("userRole");
+  const currentUserId = c.get("userId");
+  const targetUserId = c.req.param("id");
+
+  if (userRole !== "Super Admin" && userRole !== "Manager") {
+    return c.json({ error: "Insufficient permissions" }, 403);
+  }
+  if (currentUserId === targetUserId) {
+    return c.json({ error: "You cannot delete your own account" }, 400);
+  }
+
+  const existingUser = await kv.get(`user:${targetUserId}`);
+  if (!existingUser) {
+    return c.json({ error: "User not found" }, 404);
+  }
+
+  const { error: deleteAuthError } = await supabase.auth.admin.deleteUser(targetUserId);
+  if (deleteAuthError && deleteAuthError.message && !deleteAuthError.message.includes("not found")) {
+    console.error("Failed to delete auth user:", deleteAuthError);
+    return c.json({ error: `Failed to delete account: ${deleteAuthError.message}` }, 500);
+  }
+
+  await kv.del(`user:${targetUserId}`);
+  console.log(`✓ Deleted user ${targetUserId} (auth + KV record)`);
+
+  return c.json({ success: true });
+});
+
 // One-time backfill: copy each KV-stored user's role into their Supabase Auth
 // app_metadata, so RLS policies (which read role from app_metadata, not the
 // user-editable user_metadata) work correctly for accounts created before

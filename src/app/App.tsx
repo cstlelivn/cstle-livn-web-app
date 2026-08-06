@@ -21,8 +21,6 @@ import {
   LayoutTemplate,
   Menu,
   X,
-  Home,
-  Bell,
 } from "lucide-react";
 import { AppProvider, useApp } from "./components/AppContext";
 import { AuthProvider, useAuth } from "./components/AuthContext";
@@ -691,20 +689,6 @@ function AppContent() {
             {renderView()}
           </ErrorBoundary>
         </div>
-        {currentView !== "task-details" && (
-          <nav className="md:hidden min-h-[calc(68px+env(safe-area-inset-bottom))] pb-[env(safe-area-inset-bottom)] shrink-0 border-t border-[var(--olive-300)] bg-[var(--grey-50)] grid grid-cols-4 px-3 z-30">
-            {[
-              { label: 'Home', icon: Home, action: () => handleNavigate('dashboard'), active: currentView === 'dashboard' },
-              { label: 'Projects', icon: FolderKanban, action: () => handleNavigate('projects'), active: currentView === 'projects' },
-              { label: 'Updates', icon: Bell, action: () => handleNavigate('dashboard'), active: false },
-              { label: 'Profile', icon: UserCircle, action: () => handleNavigate('profile'), active: currentView === 'profile' },
-            ].map(({ label, icon: Icon, action, active }) => (
-              <button key={label} onClick={action} className={`flex flex-col items-center justify-center gap-1 font-['Roboto_Mono'] text-[8px] uppercase ${active ? 'text-[var(--green-900)] font-bold' : 'text-[var(--grey-700)]'}`}>
-                <Icon className="w-5 h-5" />{label}<span className={`h-[2px] w-8 ${active ? 'bg-[var(--green-900)]' : 'bg-transparent'}`} />
-              </button>
-            ))}
-          </nav>
-        )}
       </div>
     </div>
   );
