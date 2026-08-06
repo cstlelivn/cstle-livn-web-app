@@ -56,6 +56,7 @@ import { formatDate } from "../src/lib/dates";
 import { canEditTask } from "../src/features/tasks/permissions";
 import { ALL_TASK_STATUSES, getEmployeeActions } from "../src/features/tasks/statusWorkflow";
 import { calculateCompletion } from "../src/lib/progress";
+import { sortTasksByPhase } from "../src/lib/taskOrder";
 import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuSeparator } from "./ui/context-menu";
 import ProjectEvidenceHub from './ProjectEvidenceHub';
 
@@ -295,13 +296,12 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
     const matchesAssignee = filterAssignee === "all" || taskAssigneeNames.includes(filterAssignee);
 
     return matchesSearch && matchesStatus && matchesPriority && matchesAssignee;
-  }).sort((a, b) => {
-    // Soonest due date first; tasks with no due date sort last
-    if (!a.dueDate && !b.dueDate) return 0;
-    if (!a.dueDate) return 1;
-    if (!b.dueDate) return -1;
-    return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
   });
+  // Work order, not edit order: the phase currently being worked comes
+  // first (matching the Phase summary card above), then due date within a
+  // phase -- so "task five of the phase we're on" is where the list starts,
+  // not wherever it happens to fall by date or last edit.
+  const sortedFilteredTasks = sortTasksByPhase(filteredTasks, normalizedPhases);
 
   const handleDeleteProject = () => {
     setDeleteConfirmOpen(true);
@@ -1142,7 +1142,7 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
         {/* Tasks Display */}
         {taskView === "list" && (
           <div className="space-y-[12px]">
-            {filteredTasks.map((task) => (
+            {sortedFilteredTasks.map((task) => (
               <TaskListItem key={task.id} task={task} onEdit={handleEditTask} />
             ))}
           </div>
@@ -1150,7 +1150,7 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
 
         {taskView === "grid" && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-[16px]">
-            {filteredTasks.map((task) => (
+            {sortedFilteredTasks.map((task) => (
               <TaskGridItem key={task.id} task={task} onEdit={handleEditTask} />
             ))}
           </div>
@@ -1158,7 +1158,7 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
 
         {taskView === "calendar" && (
           <TaskCalendarView
-            tasks={filteredTasks}
+            tasks={sortedFilteredTasks}
             getTeamMember={getTeamMember}
             onEditTask={handleEditTask}
             updateTask={updateTask}
@@ -1177,7 +1177,7 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
           <TaskGanttChart projectId={projectId} />
         )}
 
-        {filteredTasks.length === 0 && (taskView === "list" || taskView === "grid") && (
+        {sortedFilteredTasks.length === 0 && (taskView === "list" || taskView === "grid") && (
           <div className="bg-card border border-border rounded-[20px] p-[40px] text-center">
             <p className="font-['Roboto_Mono'] font-normal text-[14px] text-muted-foreground">
               No tasks found matching your filters

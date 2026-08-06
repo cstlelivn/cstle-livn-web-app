@@ -1,10 +1,12 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Clock } from "lucide-react";
 import { toast } from "sonner";
 import { calculateCompletion } from "../src/lib/progress";
 import { useTaskAssignees, assigneeIdsForTask } from "../src/features/taskAssignees/useTaskAssignees";
 import { queueSessionAction } from "../src/features/workSessions/offlineQueue";
-import { declineTaskAssignment } from "../src/features/taskAssignees/api";
+import { declineTaskAssignment, assignTaskMember } from "../src/features/taskAssignees/api";
+import { listPhasesForProjects } from "../src/features/projectPhases/api";
+import { sortTasksByPhase } from "../src/lib/taskOrder";
 import AuraProfileCard from "./AuraProfileCard";
 
 // Mobile-only, task-led dashboard for associates working on site: "what do I
@@ -37,10 +39,22 @@ export default function MobileTaskDashboard({
   currentUser,
   onNavigate,
 }: MobileTaskDashboardProps) {
-  const { taskAssignees } = useTaskAssignees(true);
+  const { taskAssignees, refresh: refreshAssignees } = useTaskAssignees(true);
   const [declinedTaskIds, setDeclinedTaskIds] = useState<Set<string>>(() => new Set());
+  const [phases, setPhases] = useState<any[]>([]);
 
   const myMember = teamMembers.find((m: any) => String(m.authUserId) === String(currentUser?.id));
+
+  // Projects this person supervises -- they're responsible for every task
+  // here regardless of who it's assigned to, separate from "Your tasks"
+  // (tasks actually assigned to them personally). See the Supervisor Queue
+  // section below.
+  const supervisedProjectIds = useMemo(() => {
+    if (!myMember) return new Set<string>();
+    return new Set(
+      projects.filter((p: any) => String(p.supervisorId) === String(myMember.id)).map((p: any) => String(p.id))
+    );
+  }, [projects, myMember]);
 
   const myTaskIds = useMemo(() => {
     if (!myMember) return new Set<string>();
@@ -51,26 +65,73 @@ export default function MobileTaskDashboard({
     );
   }, [taskAssignees, myMember]);
 
-  const myTasks = useMemo(() => {
-    const now = new Date();
-    return tasks
-      .filter((t: any) => {
-        const project = projects.find((p: any) => String(p.id) === String(t.projectId));
-        return myTaskIds.has(String(t.id)) && !declinedTaskIds.has(String(t.id)) && t.status !== "Completed" && project?.status !== "Completed";
-      })
-      .sort((a: any, b: any) => {
-        const aDelayed = a.dueDate && new Date(a.dueDate) < now;
-        const bDelayed = b.dueDate && new Date(b.dueDate) < now;
-        if (aDelayed !== bDelayed) return aDelayed ? -1 : 1;
-        return new Date(a.dueDate || a.startDate || 0).getTime() - new Date(b.dueDate || b.startDate || 0).getTime();
-      });
+  // Every task with at least one active assignee, regardless of who -- once
+  // a Supervisor hands a task to someone (or it's assigned to anyone else),
+  // it must drop out of the "To assign" queue immediately.
+  const assignedTaskIds = useMemo(() => {
+    return new Set(taskAssignees.map((a: any) => String(a.taskId)));
+  }, [taskAssignees]);
+
+  const myTasksUnsorted = useMemo(() => {
+    return tasks.filter((t: any) => {
+      const project = projects.find((p: any) => String(p.id) === String(t.projectId));
+      return myTaskIds.has(String(t.id)) && !declinedTaskIds.has(String(t.id)) && t.status !== "Completed" && project?.status !== "Completed";
+    });
   }, [tasks, projects, myTaskIds, declinedTaskIds]);
+
+  // Every task on a project this person supervises, that isn't already
+  // theirs and isn't done -- "responsible for it" doesn't mean "assigned to
+  // it." They can start it themselves or hand it to someone else from here.
+  const supervisorQueueUnsorted = useMemo(() => {
+    if (supervisedProjectIds.size === 0) return [];
+    return tasks.filter((t: any) => {
+      const project = projects.find((p: any) => String(p.id) === String(t.projectId));
+      return (
+        String(t.supervisor_id) &&
+        supervisedProjectIds.has(String(t.projectId)) &&
+        t.status !== "Completed" &&
+        project?.status !== "Completed" &&
+        !assignedTaskIds.has(String(t.id))
+      );
+    });
+  }, [tasks, projects, supervisedProjectIds, assignedTaskIds]);
+
+  const relevantProjectIds = useMemo(() => {
+    const ids = new Set<string>();
+    myTasksUnsorted.forEach((t: any) => ids.add(String(t.projectId)));
+    supervisorQueueUnsorted.forEach((t: any) => ids.add(String(t.projectId)));
+    supervisedProjectIds.forEach((id) => ids.add(id));
+    return [...ids];
+  }, [myTasksUnsorted, supervisorQueueUnsorted, supervisedProjectIds]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (relevantProjectIds.length === 0) {
+      setPhases([]);
+      return;
+    }
+    listPhasesForProjects(relevantProjectIds)
+      .then((p) => {
+        if (!cancelled) setPhases(p);
+      })
+      .catch(() => {
+        if (!cancelled) setPhases([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // Only re-fetch when the actual set of relevant projects changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [relevantProjectIds.join(",")]);
+
+  const myTasks = useMemo(() => sortTasksByPhase(myTasksUnsorted, phases), [myTasksUnsorted, phases]);
+  const supervisorQueue = useMemo(() => sortTasksByPhase(supervisorQueueUnsorted, phases), [supervisorQueueUnsorted, phases]);
 
   const delayedCount = myTasks.filter((t: any) => t.dueDate && new Date(t.dueDate) < new Date()).length;
 
   const myProjectIds = useMemo(() => new Set(myTasks.map((t: any) => String(t.projectId))), [myTasks]);
   const myActiveProjects = projects.filter(
-    (p: any) => myProjectIds.has(String(p.id)) && p.status !== "Completed"
+    (p: any) => (myProjectIds.has(String(p.id)) || supervisedProjectIds.has(String(p.id))) && p.status !== "Completed"
   );
 
   return (
@@ -78,7 +139,7 @@ export default function MobileTaskDashboard({
       <div className="px-[16px] pt-[16px]">
         <h1
           className="text-foreground"
-          style={{ fontFamily: "Anybody", fontVariationSettings: "'wdth' 137", fontWeight: 700, fontStretch: "137%", letterSpacing: "-0.04em" }}
+          style={{ fontFamily: "Anybody", fontVariationSettings: "'wdth' 137", fontWeight: 700, fontStretch: "137%", letterSpacing: "-0.04em", fontSize: "24px", lineHeight: 1.2 }}
         >
           Welcome Back{myMember?.name ? `, ${myMember.name.split(" ")[0]}` : ""}
         </h1>
@@ -101,7 +162,7 @@ export default function MobileTaskDashboard({
                 <div>
                   <h2
                     className="text-white line-clamp-2"
-                    style={{ fontFamily: "Anybody", fontVariationSettings: "'wdth' 137", fontWeight: 700, fontStretch: "137%", letterSpacing: "-0.04em", fontSize: "22px", lineHeight: 1.15 }}
+                    style={{ fontFamily: "Anybody", fontVariationSettings: "'wdth' 137", fontWeight: 700, fontStretch: "137%", letterSpacing: "-0.04em", fontSize: "18px", lineHeight: 1.2 }}
                   >
                     {project.title}
                   </h2>
@@ -128,7 +189,7 @@ export default function MobileTaskDashboard({
 
       <div className="px-[16px] flex flex-col gap-[12px]">
         <div className="flex items-baseline justify-between">
-          <h2 style={{ fontFamily: "Anybody", fontVariationSettings: "'wdth' 137", fontWeight: 700, fontStretch: "137%", letterSpacing: "-0.04em", fontSize: "22px" }}>
+          <h2 style={{ fontFamily: "Anybody", fontVariationSettings: "'wdth' 137", fontWeight: 700, fontStretch: "137%", letterSpacing: "-0.04em", fontSize: "18px" }}>
             Your tasks
           </h2>
           <div className="flex items-center gap-[10px] font-['Roboto_Mono'] text-[11px] uppercase tracking-wide">
@@ -163,12 +224,153 @@ export default function MobileTaskDashboard({
         )}
       </div>
 
+      {supervisedProjectIds.size > 0 && (
+        <div className="px-[16px] flex flex-col gap-[12px]">
+          <div className="flex items-baseline justify-between">
+            <h2 style={{ fontFamily: "Anybody", fontVariationSettings: "'wdth' 137", fontWeight: 700, fontStretch: "137%", letterSpacing: "-0.04em", fontSize: "18px" }}>
+              To assign
+            </h2>
+            <span className="font-['Roboto_Mono'] text-[11px] uppercase tracking-wide text-muted-foreground">
+              {supervisorQueue.length} on your project{supervisedProjectIds.size === 1 ? "" : "s"}
+            </span>
+          </div>
+          <p className="font-['Roboto_Mono'] text-[11px] text-muted-foreground -mt-[6px]">
+            You supervise this project -- these tasks aren't assigned to anyone yet. Start one yourself or assign it to someone.
+          </p>
+
+          {supervisorQueue.length === 0 ? (
+            <div className="bg-card border border-[var(--olive-300)] rounded-[20px] p-[24px] text-center">
+              <p className="font-['Roboto_Mono'] text-[12px] text-muted-foreground">
+                Everything on your project is already assigned.
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-[20px] overflow-hidden border border-[var(--olive-300)] divide-y divide-[var(--olive-300)]">
+              {supervisorQueue.map((task: any) => (
+                <SupervisorQueueRow
+                  key={task.id}
+                  task={task}
+                  teamMembers={teamMembers}
+                  myMemberId={myMember ? String(myMember.id) : null}
+                  onNavigate={onNavigate}
+                  onAssigned={() => refreshAssignees()}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {myMember && (
         <div className="px-[16px] flex flex-col gap-[12px]">
-          <h2 style={{ fontFamily: "Anybody", fontVariationSettings: "'wdth' 137", fontWeight: 700, fontStretch: "137%", letterSpacing: "-0.04em", fontSize: "22px" }}>
+          <h2 style={{ fontFamily: "Anybody", fontVariationSettings: "'wdth' 137", fontWeight: 700, fontStretch: "137%", letterSpacing: "-0.04em", fontSize: "18px" }}>
             Your Aura
           </h2>
           <AuraProfileCard teamMemberId={String(myMember.id)} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SupervisorQueueRow({
+  task,
+  teamMembers,
+  myMemberId,
+  onNavigate,
+  onAssigned,
+}: {
+  task: any;
+  teamMembers: any[];
+  myMemberId: string | null;
+  onNavigate: (view: string, id?: any) => void;
+  onAssigned: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [assigning, setAssigning] = useState(false);
+
+  const handleStartSelf = async () => {
+    if (!myMemberId) return;
+    setBusy(true);
+    try {
+      await assignTaskMember(String(task.id), myMemberId);
+      await queueSessionAction({ type: "start", taskId: String(task.id), teamMemberId: myMemberId });
+      onAssigned();
+      toast.success("Timer started");
+      onNavigate("task-details", task.id);
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to start task");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleAssignTo = async (teamMemberId: string) => {
+    if (!teamMemberId) return;
+    setBusy(true);
+    try {
+      const member = teamMembers.find((m: any) => String(m.id) === teamMemberId);
+      await assignTaskMember(String(task.id), teamMemberId);
+      onAssigned();
+      setAssigning(false);
+      toast.success(`Assigned to ${member?.name || "team member"}`);
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to assign task");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="bg-card p-[16px] flex flex-col gap-[10px]">
+      <button
+        onClick={() => onNavigate("task-details", task.id)}
+        className="text-left text-foreground"
+        style={{ fontFamily: "Anybody", fontVariationSettings: "'wdth' 137", fontWeight: 700, fontStretch: "137%", letterSpacing: "-0.04em", fontSize: "16px", lineHeight: 1.25 }}
+      >
+        {task.title}
+      </button>
+      <div className="flex items-center justify-between font-['Roboto_Mono'] text-[10px] text-muted-foreground uppercase tracking-wide">
+        <span>{task.phase || "No phase"}</span>
+        <span>{task.dueDate ? new Date(task.dueDate).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "No date"}</span>
+      </div>
+
+      {assigning ? (
+        <select
+          autoFocus
+          disabled={busy}
+          defaultValue=""
+          onChange={(e) => handleAssignTo(e.target.value)}
+          onBlur={() => setAssigning(false)}
+          className="h-[40px] rounded-[999px] border border-border px-[12px] font-['Roboto_Mono'] text-[12px] bg-input-background"
+        >
+          <option value="" disabled>
+            Choose a team member…
+          </option>
+          {teamMembers
+            .filter((m: any) => m.active)
+            .map((m: any) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+        </select>
+      ) : (
+        <div className="flex items-center gap-[10px]">
+          <button
+            onClick={() => setAssigning(true)}
+            disabled={busy}
+            className="flex-1 h-[40px] rounded-[999px] border border-border font-['Roboto_Mono'] font-bold uppercase tracking-wide text-[11px] text-foreground disabled:opacity-50"
+          >
+            Assign
+          </button>
+          <button
+            onClick={handleStartSelf}
+            disabled={busy || !myMemberId}
+            className="flex-1 h-[40px] rounded-[999px] bg-[var(--green-900)] font-['Roboto_Mono'] font-bold uppercase tracking-wide text-[11px] text-white disabled:opacity-50"
+          >
+            Start it myself
+          </button>
         </div>
       )}
     </div>
@@ -284,7 +486,7 @@ function TaskQueueRow({
         <button
           onClick={() => onNavigate("task-details", task.id)}
           className="text-foreground flex-1"
-          style={{ fontFamily: "Anybody", fontVariationSettings: "'wdth' 137", fontWeight: 700, fontStretch: "137%", letterSpacing: "-0.04em", fontSize: "26px", lineHeight: 1.2 }}
+          style={{ fontFamily: "Anybody", fontVariationSettings: "'wdth' 137", fontWeight: 700, fontStretch: "137%", letterSpacing: "-0.04em", fontSize: "19px", lineHeight: 1.25 }}
         >
           {task.title}
         </button>

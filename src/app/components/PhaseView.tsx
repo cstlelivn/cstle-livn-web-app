@@ -18,6 +18,8 @@ import { canEditTask } from "../src/features/tasks/permissions";
 import { calculateCompletion } from "../src/lib/progress";
 import TaskStatusControl from "./TaskStatusControl";
 import { useProjectPhases } from "../src/features/projectPhases/useProjectPhases";
+import { useTaskAssignees, assigneeIdsForTask } from "../src/features/taskAssignees/useTaskAssignees";
+import { assignTaskMember, unassignTaskMember } from "../src/features/taskAssignees/api";
 import {
   createProjectPhase,
   updateProjectPhase,
@@ -80,6 +82,7 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
   const isManagerOrAdmin = hasPermission("canEditProjects");
   const canApproveQC = hasPermission("canApproveTaskQC");
   const { phases, loading, refresh, updatePhase } = useProjectPhases(projectId);
+  const { taskAssignees, refresh: refreshAssignees } = useTaskAssignees(true);
   const [expandedPhases, setExpandedPhases] = useState<Set<string>>(new Set());
   const [phaseProcurement, setPhaseProcurement] = useState<Record<string, any[]>>({});
   const [phaseQC, setPhaseQC] = useState<Record<string, any>>({});
@@ -107,6 +110,10 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
   // a phase with some of their tasks only lists those, not everyone else's.
   const allProjectTasks = getTasksByProject(projectId);
   const myTeamMember = teamMembers.find((m: any) => String(m.authUserId) === String(currentUser?.id));
+  const phaseViewProject = getProject(projectId);
+  const isSupervisorHere = currentUser?.role === "Supervisor" && !!myTeamMember &&
+    String((phaseViewProject as any)?.supervisorId) === String(myTeamMember.id);
+  const canAssignTasks = isManagerOrAdmin || isSupervisorHere;
   const canSeeAllTasks = hasPermission("canViewAllProjects");
   const allTasks = canSeeAllTasks
     ? allProjectTasks
@@ -453,8 +460,17 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
                             {task.task_type && (
                               <span className="font-['Roboto_Mono'] text-[9px] text-muted-foreground bg-secondary px-[6px] py-[1px] rounded">{task.task_type}</span>
                             )}
-                            {assignee && (
-                              <span className="font-['Roboto_Mono'] text-muted-foreground">{assignee.name}</span>
+                            {canAssignTasks ? (
+                              <PhaseTaskAssigneePicker
+                                task={task}
+                                teamMembers={teamMembers}
+                                assignedIds={assigneeIdsForTask(taskAssignees, task.id)}
+                                onChanged={refreshAssignees}
+                              />
+                            ) : (
+                              assignee && (
+                                <span className="font-['Roboto_Mono'] text-muted-foreground">{assignee.name}</span>
+                              )
                             )}
                           </div>
                         );
@@ -743,5 +759,79 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
         );
       })()}
     </div>
+  );
+}
+
+// Compact assignee control for a task row inside the Phases tab -- lets a
+// Manager/Admin or the Supervisor of this project assign/reassign a task
+// without leaving the phase they're working in. Mirrors the picker pattern
+// used by the mobile Supervisor Queue (assign or leave unassigned); server
+// RPCs enforce who's actually allowed to write.
+function PhaseTaskAssigneePicker({
+  task,
+  teamMembers,
+  assignedIds,
+  onChanged,
+}: {
+  task: any;
+  teamMembers: any[];
+  assignedIds: string[];
+  onChanged: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const currentAssigneeId = assignedIds[0] ?? "";
+
+  const handleChange = async (teamMemberId: string) => {
+    setBusy(true);
+    try {
+      if (currentAssigneeId && currentAssigneeId !== teamMemberId) {
+        await unassignTaskMember(String(task.id), currentAssigneeId);
+      }
+      if (teamMemberId) {
+        await assignTaskMember(String(task.id), teamMemberId);
+      }
+      onChanged();
+      setEditing(false);
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to update assignee");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <select
+        autoFocus
+        disabled={busy}
+        defaultValue={currentAssigneeId}
+        onChange={(e) => handleChange(e.target.value)}
+        onBlur={() => setEditing(false)}
+        onClick={(e) => e.stopPropagation()}
+        className="h-[20px] rounded-full border border-border px-[4px] font-['Roboto_Mono'] text-[9px] bg-input-background shrink-0 max-w-[110px]"
+      >
+        <option value="">Unassigned</option>
+        {teamMembers
+          .filter((m: any) => m.active)
+          .map((m: any) => (
+            <option key={m.id} value={m.id}>
+              {m.name}
+            </option>
+          ))}
+      </select>
+    );
+  }
+
+  const assigneeName = teamMembers.find((m: any) => String(m.id) === currentAssigneeId)?.name;
+
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); setEditing(true); }}
+      className="font-['Roboto_Mono'] text-muted-foreground hover:text-foreground underline decoration-dotted underline-offset-2 shrink-0 truncate max-w-[90px]"
+      title="Change assignee"
+    >
+      {assigneeName || "Assign…"}
+    </button>
   );
 }

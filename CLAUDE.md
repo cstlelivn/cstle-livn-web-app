@@ -564,3 +564,87 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
 - Commit `6a5dbfb` was pushed to `main`; production was verified serving
   `index-ie0-VleY.js`, with the Add Task and pre-assignment estimate guidance
   present. TypeScript, all 9 tests, the production build, and diff checks pass.
+
+## Supervisor task queue, phase-ordered task lists, Phases-tab assignment — August 6, 2026
+
+- No new migration. This built entirely on the existing per-task
+  `supervisor_id` column (from the August 5 work above) and the existing
+  `assign_task_member`/`unassign_task_member` RPCs, which already enforce
+  Supervisor-scoped-to-their-project vs. company-wide Manager/Admin access
+  server-side.
+- Design decision, confirmed explicitly with the user: being the Supervisor of
+  a project does **not** mean tasks on that project auto-assign to the
+  Supervisor (that was deliberately rejected — see the August 5 section
+  above, and it applies identically whether or not the Supervisor also holds
+  a Super Admin/Manager login role, which is an independent field). Instead a
+  Supervisor sees every unassigned task on their supervised project(s) as a
+  queue and picks, per task, "Start it myself" (self-assigns + starts a timer
+  session) or "Assign" (delegates to someone else) — Aura attribution stays
+  tied to whoever actually files an assignment/timer record, never to a
+  passive "responsible party" default.
+- `src/app/components/MobileTaskDashboard.tsx`: added a "To assign" section
+  (rendered only when the signed-in team member supervises at least one
+  project) listing every non-Completed task on a supervised project that
+  currently has **no active assignee at all** (checked against `task_assignees`
+  company-wide, not just against the signed-in user — a task assigned to
+  someone else must also disappear from this queue). Each row is a new
+  `SupervisorQueueRow` component with "Assign" (reveals a team-member
+  `<select>`, calls `assignTaskMember`) and "Start it myself" (calls
+  `assignTaskMember` with the Supervisor's own id, then queues a timer-start
+  session action) — both call the existing `assignTaskMember` RPC, no new
+  write path. `myActiveProjects` (the mobile dashboard's hero "Active
+  Project" card) was also broadened to include projects the user supervises
+  even if they have zero personally-assigned tasks there.
+- Also on that screen: reduced several oversized font sizes inherited from
+  the default `--text-h1`/`--text-h2` tokens ("Welcome Back" heading, active
+  project card title, "Your tasks"/"Your Aura" section headings, expanded
+  task-queue row title) — they were rendering at 44px/22px/26px and are now
+  18–24px with tighter line-height, since the mobile associate/Supervisor
+  screen was designed to be read on-site on a phone, not as a desktop
+  headline.
+- New shared utility `src/app/src/lib/taskOrder.ts` (`sortTasksByPhase`,
+  `buildPhasePositionMap`): orders a task list by its normalized phase's
+  `project_phases.position` (i.e. current/earliest-incomplete phase first,
+  matching the existing phase-summary-card auto-advance logic), then by due
+  date within a phase; legacy tasks with no `phase_id` sort last rather than
+  interleaving randomly. New `listPhasesForProjects(projectIds)` was added to
+  `src/app/src/features/projectPhases/api.ts` as a one-shot, non-realtime bulk
+  phase fetch (phases change rarely) so a multi-project mobile view doesn't
+  need one query per project. This same utility now orders both the mobile
+  "Your tasks"/"To assign" queues and the desktop per-project Tasks tab
+  (`src/app/components/ProjectDetailsReal.tsx`, `sortedFilteredTasks`
+  replacing the old due-date-only `filteredTasks` sort) — previously the
+  desktop Tasks tab and the phase-summary card could show a different "what's
+  current" story; they now agree.
+- `src/app/components/PhaseView.tsx`: the Phases tab's per-task rows (inside
+  each expanded phase, previously status-only) gained a `PhaseTaskAssigneePicker`
+  — a click-to-edit `<select>` next to the existing status control, gated by
+  `canAssignTasks` (Manager/Admin, or the Supervisor of this specific project,
+  computed from `projects.supervisorId` vs. the signed-in team member — not
+  just the broader `canEditPhases` permission, which Supervisors don't hold).
+  It calls `unassignTaskMember` on the previous assignee (if any) then
+  `assignTaskMember` on the new one; non-privileged viewers still see the old
+  read-only assignee name. This lets a Supervisor reassign work without
+  leaving the Phases tab, addressing the specific complaint that finding a
+  task under the Tasks tab to reassign it was slower than drilling into the
+  phase they were already looking at.
+- Bug caught and fixed during browser verification: the "To assign" queue
+  filter originally excluded only tasks assigned to the *current* user
+  (`myTaskIds`), so a task assigned to someone else via the new Assign flow
+  stayed visibly stuck in the queue. Fixed by filtering against
+  `assignedTaskIds` (every task with any active `task_assignees` row,
+  regardless of who) instead.
+- Verified live against the local dev server (Scarth Street Commercial
+  Renovation, signed in as Demilade, the project's real Supervisor): mobile
+  font sizes read correctly at phone width; the "To assign" queue listed the
+  project's 43 then 38 (after test assignments) unassigned tasks with
+  "Site Setup and Protection" (Project Mobilization, the current phase)
+  correctly first; assigning it via the queue's "Assign" control removed it
+  from the queue immediately; the desktop Tasks tab listed all 44 tasks
+  grouped in phase order (Project Mobilization → Millwork Preparation →
+  Demolition → Steel Stud Framing → ... → Project Closeout) matching the
+  sidebar's "Current Phase: Project Mobilization"; and the Phases tab's new
+  picker successfully assigned and un-assigned a task without leaving the
+  Phases view. `npm run build` (TypeScript + Vite) passed with no errors.
+  Not yet re-verified on the deployed Vercel production build — pending
+  commit and push.

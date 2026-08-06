@@ -52,6 +52,24 @@ export async function listProjectPhases(projectId: string) {
   return data ?? [];
 }
 
+// Bulk variant for screens that need phase ordering across several projects
+// at once (e.g. a Supervisor's mobile task queue) without one hook/query per
+// project. Not realtime-subscribed -- phases change rarely enough that a
+// one-shot fetch on mount is fine here.
+export async function listPhasesForProjects(projectIds: string[]) {
+  if (projectIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from('project_phases')
+    .select('*')
+    .in('project_id', projectIds)
+    .order('position', { ascending: true });
+  if (error) {
+    if (isMissingTableError(error)) return [];
+    failIf(error, 'Failed to list project phases');
+  }
+  return data ?? [];
+}
+
 export async function createProjectPhase(input: ProjectPhaseInput) {
   const { data, error } = await supabase
     .from('project_phases')
