@@ -1,9 +1,17 @@
-// Shared "work order" for a project: phase position first (the phase
-// currently being worked comes first, matching the project's Phase summary
-// card), then due date within a phase. Used anywhere a task list should read
-// like a real work sequence instead of an arbitrary edit-order/date list --
-// the mobile associate/supervisor queue and the desktop per-project Tasks
-// tab both use this.
+// Shared "work order" for a project -- a hard rule, used everywhere a task
+// list is shown (mobile associate/supervisor queue, desktop per-project
+// Tasks tab) so the same task never appears in a different order depending
+// on which screen you're looking at it from:
+//
+//   1. Tasks with a due date, earliest first. A due date always wins --
+//      it's what drives the Gantt chart, so it can't be silently
+//      reordered around.
+//   2. Tasks with no due date, ordered by phase (the current/earliest
+//      incomplete phase first, matching the project's Phase summary card).
+//   3. Within the same phase, by `sequence` -- a manual order set by
+//      dragging tasks into place in the Phases tab. Only undated tasks are
+//      draggable there; dragging a dated task instead prompts to change
+//      its date.
 export function buildPhasePositionMap(phases: any[]): Record<string, number> {
   const map: Record<string, number> = {};
   for (const p of phases ?? []) {
@@ -21,17 +29,24 @@ function phasePositionForTask(task: any, phasePositionById: Record<string, numbe
   return Number.POSITIVE_INFINITY;
 }
 
-export function sortTasksByPhase<T extends { phase_id?: string; dueDate?: string; startDate?: string }>(
+export function sortTasksByPhase<T extends { phase_id?: string; dueDate?: string; sequence?: number | null }>(
   tasks: T[],
   phases: any[]
 ): T[] {
   const phasePositionById = buildPhasePositionMap(phases);
   return [...tasks].sort((a, b) => {
+    const da = a.dueDate ? new Date(a.dueDate).getTime() : null;
+    const db = b.dueDate ? new Date(b.dueDate).getTime() : null;
+    if (da !== null && db !== null && da !== db) return da - db;
+    if (da !== null && db === null) return -1;
+    if (da === null && db !== null) return 1;
+
     const pa = phasePositionForTask(a, phasePositionById);
     const pb = phasePositionForTask(b, phasePositionById);
     if (pa !== pb) return pa - pb;
-    const da = a.dueDate ? new Date(a.dueDate).getTime() : (a.startDate ? new Date(a.startDate).getTime() : Infinity);
-    const db = b.dueDate ? new Date(b.dueDate).getTime() : (b.startDate ? new Date(b.startDate).getTime() : Infinity);
-    return da - db;
+
+    const sa = typeof a.sequence === "number" ? a.sequence : Number.POSITIVE_INFINITY;
+    const sb = typeof b.sequence === "number" ? b.sequence : Number.POSITIVE_INFINITY;
+    return sa - sb;
   });
 }

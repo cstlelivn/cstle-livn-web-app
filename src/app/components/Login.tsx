@@ -8,6 +8,7 @@ import { Label } from "./ui/label";
 import { Checkbox } from "./ui/checkbox";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Loader2, Eye, EyeOff } from "lucide-react";
+import { isWorkPortalHost } from "../src/lib/workPortal";
 
 function Logo() {
   return (
@@ -246,7 +247,7 @@ export default function Login() {
               </div>
             )}
 
-            {isSignUp && (
+            {isSignUp && !isWorkPortalHost() && (
               <div>
                 <Label htmlFor="role" className="font-['Roboto_Mono'] text-[11px] font-bold">
                   Role
@@ -305,7 +306,12 @@ export default function Login() {
               : "Sign in with your registered account"
             }
           </p>
-          {isSignUp && (
+          {isSignUp && isWorkPortalHost() && (
+            <p className="font-['Roboto_Mono'] text-[9px] text-muted-foreground">
+              Create your account to see the tasks assigned to you and log your time on site.
+            </p>
+          )}
+          {isSignUp && !isWorkPortalHost() && (
             <div className="space-y-[4px]">
               <p className="font-['Roboto_Mono'] text-[9px] text-muted-foreground">
                 • <span className="text-foreground">Associate:</span> Can view projects, vendors, team, and inventory

@@ -10,7 +10,7 @@ const TASK_LIST_COLUMNS = [
   'phase_id', 'task_type', 'is_required', 'dependency_task_id', 'blocked_by',
   'completed_date', 'started_at', 'submitted_at', 'review_feedback', 'rating',
   'rating_metrics', 'estimated_hours', 'complexity', 'required_photo_count', 'supervisor_id',
-  'verification_criteria', 'photos_not_required', 'completion_note_required', 'crew_required', 'created_at', 'updated_at',
+  'verification_criteria', 'photos_not_required', 'completion_note_required', 'crew_required', 'sequence', 'created_at', 'updated_at',
 ].join(',');
 
 // Helper to check if a value is a valid UUID
@@ -61,6 +61,7 @@ export interface TaskInput {
   estimated_hours?: number | null;
   complexity?: string | null;
   crew_required?: number | null;
+  sequence?: number | null;
 }
 
 export interface TaskUpdate {
@@ -88,6 +89,7 @@ export interface TaskUpdate {
   estimated_hours?: number | null;
   complexity?: string | null;
   crew_required?: number | null;
+  sequence?: number | null;
 }
 
 export async function listTasks(projectId?: string | number, page = 0, pageSize = 300) {
@@ -246,6 +248,7 @@ export async function updateTask(id: string | number, updates: TaskUpdate) {
   if (updates.complexity !== undefined) dbUpdates.complexity = updates.complexity || null;
   if (updates.crew_required !== undefined) dbUpdates.crew_required = updates.crew_required;
   if ((updates as any).crewRequired !== undefined) dbUpdates.crew_required = (updates as any).crewRequired;
+  if (updates.sequence !== undefined) dbUpdates.sequence = updates.sequence;
 
   dbUpdates.updated_at = now();
 
@@ -263,6 +266,20 @@ export async function updateTask(id: string | number, updates: TaskUpdate) {
   
   failIf(error, 'Failed to update task');
   return { id: String(id), ...updates };
+}
+
+// Persists a manual drag-order for a phase's undated tasks (see
+// src/lib/taskOrder.ts for how `sequence` is used as the tiebreaker).
+// Only ever called with undated task ids -- a dated task can't be
+// reordered this way, since its due date already fixes its position and
+// drives the Gantt chart.
+export async function reorderPhaseTasks(orderedTaskIds: (string | number)[]) {
+  const updates = orderedTaskIds.map((id, index) =>
+    supabase.from('tasks').update({ sequence: index, updated_at: now() }).eq('id', String(id))
+  );
+  const results = await Promise.all(updates);
+  const failed = results.find((r) => r.error);
+  failIf(failed?.error, 'Failed to reorder tasks');
 }
 
 export async function deleteTask(id: string | number) {

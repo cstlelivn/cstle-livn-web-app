@@ -731,3 +731,97 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   viewport width. `npm run build` passed with no errors. Not yet committed,
   pushed, or verified on the deployed Vercel production build, and the new
   `DELETE /users/:id` edge function route is not yet deployed to Supabase.
+
+## Task-edit crash fix, hard task-ordering rule, work.cstlelivn.ca portal — August 6, 2026
+
+- **Task-edit crash root cause found and fixed.** `TaskDependencies.tsx`
+  (rendered inside every task edit -- desktop `TaskDialog` and the mobile
+  task screen) did `useEffect(load, [taskId])`, passing an `async` function
+  directly as the effect callback instead of calling it inside one. React
+  was turning that misuse into a thrown error, which tripped the app's
+  top-level `ErrorBoundary` into the generic "Something went wrong" any
+  time a task was opened for editing. Fixed to `useEffect(() => { load(); },
+  [taskId])`. Confirmed live: opening Edit Task no longer crashes and no
+  new console errors appear.
+- **Migration `20240039_task_manual_sequence.sql` is live.** Adds
+  `tasks.sequence` (nullable integer) plus a `(phase_id, sequence)` index.
+  **Caution for future work**: `src/app/src/features/tasks/api.ts`'s
+  `TASK_LIST_COLUMNS` now includes `sequence` in every `listTasks`/`getTask`
+  select -- if a future column is added to that list before its migration
+  actually runs, task loading breaks app-wide immediately (confirmed: this
+  happened for a few minutes on the local dev preview until the migration
+  was run, "Failed to list tasks: column tasks.sequence does not exist").
+  Always run a migration before pushing frontend code that selects the new
+  column.
+- **Task ordering is now a hard rule everywhere a task list is shown**
+  (mobile "Your tasks"/Supervisor Queue, desktop per-project Tasks tab):
+  1) a task with a due date sorts by that date, earliest first -- always,
+  2) a task with no due date falls back to phase order (current/earliest
+  incomplete phase first), 3) within the same phase, by the new `sequence`
+  column. `src/app/src/lib/taskOrder.ts`'s `sortTasksByPhase` was rewritten
+  for this priority (previously phase was primary and date was only a
+  same-phase tiebreaker). A due date is never overridden by manual
+  ordering -- dragging a dated task is blocked in the UI and prompts the
+  user to change its date instead, since date is also what drives the
+  Gantt chart.
+  - New `reorderPhaseTasks(orderedTaskIds)` in `tasks/api.ts` persists a
+    manual order as `sequence = index` for the given (always undated)
+    task ids.
+  - `PhaseView.tsx`'s per-phase task list (Phases tab) is the reorder
+    surface. **First attempt used `react-dnd` + `react-dnd-html5-backend`**
+    (matching `EditProjectPhasesDialog.tsx`'s phase-reorder pattern) but
+    this was abandoned after the user tried it live and it did not work —
+    native HTML5 drag-and-drop doesn't function on touch devices at all,
+    which matters here since Supervisors use this on phones/tablets on
+    site (unlike the phase reorder it was copied from, which is a
+    desktop-only admin screen). Replaced with plain up/down
+    (`ChevronUp`/`ChevronDown`) move buttons per undated task row, which
+    persist immediately on click (no separate drag/drop step) — reliable
+    on any input device. A task with a due date shows greyed-out,
+    disabled-looking chevrons that surface a toast ("This task is due ...
+    — change its due date to move it...") on click instead of moving it.
+    The Phases tab's old 8-task-per-phase display cap was removed so the
+    full order is visible and editable.
+  - Also fixed during this pass: the assignee text in each Phases-tab task
+    row (`PhaseTaskAssigneePicker` and its read-only fallback) had no
+    explicit font-size class at all, so it rendered at the browser/button
+    default instead of matching the row's 9-10px scale — visually much
+    larger than the rest of the line. Both now explicitly set `text-[9px]`.
+  - Verified live end-to-end, with real clicks (not drag simulation) on
+    the up/down buttons: clicking "Move down" swapped two undated Scarth
+    Street tasks' `sequence` values and the desktop Tasks tab immediately
+    reflected the new order, confirming persistence and the shared sort
+    utility are wired correctly end to end.
+- **work.cstlelivn.ca "associate portal" mode is built app-side** (the
+  actual domain/DNS is not yet configured -- see Known gaps). New
+  `src/app/src/lib/workPortal.ts` `isWorkPortalHost()` detects the
+  `work.` hostname prefix (or `?portal=work` for local testing, since this
+  sandbox can't own the real domain). When true: `Dashboard.tsx` always
+  renders the mobile task-led `MobileTaskDashboard` (not just under
+  `md:hidden`) even at desktop width; `App.tsx`'s sidebar collapses to a
+  single "My Tasks" item regardless of role/permissions; the browser tab
+  title changes to "Cstle Livn — My Tasks"; and `Login.tsx` hides the
+  Associate/Contractor role picker and the admin-flavored "Getting
+  Started"/role-permission copy on sign-up, replacing it with a plain
+  one-line associate-facing message. This exists so a link handed to an
+  associate never looks or feels like logging into the admin back office.
+  **Still needed from the user**: add `work.cstlelivn.ca` as a domain on
+  the Vercel project (Project → Settings → Domains) and point its DNS at
+  Vercel per Vercel's instructions -- no separate app deploy is needed
+  once that's done, since the behavior is purely hostname-driven at
+  runtime.
+- **Test account "Victor" (Associate)**: `team_members` row
+  `a8921d26-70fb-4a95-8b21-bbe88cbb8b42`, Auth account
+  `35da2176-ec38-4f44-8dab-046d8ee9ae35` (`victor@cstlelivn.ca`, a
+  placeholder pending the real email), 2 Scarth Street tasks assigned
+  ("Dry Fit Reception Cabinets", "Site Setup and Protection" -- note
+  "Site Setup and Protection" now also has a due date of Aug 5, 2026 set
+  during testing). Not signed into directly by the agent per this
+  project's standing rule (never type/submit a password to authenticate,
+  even for an account it created itself, even with explicit user
+  authorization) -- verified only by reading Victor's assigned tasks from
+  an authenticated admin session. The user should sign in as Victor
+  themselves to confirm the mobile view end to end before handing off
+  real credentials.
+- `npm run build` (TypeScript + Vite) passes. Not yet committed/pushed at
+  time of writing this entry.

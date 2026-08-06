@@ -12,6 +12,7 @@ import MobileTaskDashboard from "./MobileTaskDashboard";
 import ErrorBoundary from "./ErrorBoundary";
 import { useState, useMemo } from "react";
 import { operationalTasks } from "../src/features/projects/lifecycle";
+import { isWorkPortalHost } from "../src/lib/workPortal";
 
 interface DashboardProps {
   onNavigate: (view: string, id?: number) => void;
@@ -219,13 +220,19 @@ export default function Dashboard({ onNavigate, onNewProject }: DashboardProps) 
     }
   };
 
+  // work.cstlelivn.ca always shows the task-led associate view, even at
+  // desktop width -- that hostname exists specifically so it never looks
+  // like the admin back office, regardless of who's viewing it or on what
+  // device.
+  const isWorkPortal = isWorkPortalHost();
+
   return (
     <>
       {/* Mobile: task-led view for associates working on site -- see
           MobileTaskDashboard.tsx. Desktop keeps the company-wide overview
           below, unchanged, since that audience (admins/office) is fine
           with the existing layout. */}
-      <div className="md:hidden -mx-[16px] -my-[16px]">
+      <div className={`${isWorkPortal ? "" : "md:hidden"} -mx-[16px] -my-[16px]`}>
         <MobileTaskDashboard
           projects={projects}
           tasks={tasks}
@@ -234,7 +241,7 @@ export default function Dashboard({ onNavigate, onNewProject }: DashboardProps) 
           onNavigate={onNavigate}
         />
       </div>
-      <div className="hidden md:flex flex-col gap-[29px] w-full px-[0px] py-[32px]">
+      <div className={`${isWorkPortal ? "hidden" : "hidden md:flex"} flex-col gap-[29px] w-full px-[0px] py-[32px]`}>
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-[16px]">
         <div>

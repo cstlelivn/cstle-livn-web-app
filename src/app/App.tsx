@@ -45,6 +45,7 @@ import TemplateBuilder from "./components/TemplateBuilder";
 import TeamProductivityReport from "./components/TeamProductivityReport";
 import MobileTaskWorkspace from "./components/MobileTaskWorkspace";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { isWorkPortalHost } from "./src/lib/workPortal";
 import { startOfflineSync } from "./src/features/workSessions/offlineQueue";
 import svgPaths from "./imports/svg-ydinhr03gq";
 
@@ -85,6 +86,14 @@ function CollapsedLogo() {
 function AppContent() {
   const { currentUser, hasPermission, isAuthenticated, isLoading, signOut, refreshUser } = useAuth();
   const { tasks } = useApp();
+  // work.cstlelivn.ca is a separate hostname on the same deployment, handed
+  // to associates as their link so it never looks like an admin login --
+  // see src/lib/workPortal.ts. It strips the sidebar down to just "My
+  // Tasks" and forces the mobile task-led dashboard even at desktop width.
+  const isWorkPortal = isWorkPortalHost();
+  useEffect(() => {
+    if (isWorkPortal) document.title = "Cstle Livn — My Tasks";
+  }, [isWorkPortal]);
   const [currentView, setCurrentView] = useState<ViewType>("dashboard");
   const [projectsSubView, setProjectsSubView] = useState<SubViewType["projects"]>("projects");
   const [teamsSubView, setTeamsSubView] = useState<SubViewType["teams"]>("team");
@@ -283,7 +292,7 @@ function AppContent() {
   const menuItems = [
     {
       id: "dashboard",
-      label: "Dashboard",
+      label: isWorkPortal ? "My Tasks" : "Dashboard",
       icon: LayoutDashboard,
       show: hasPermission("canViewDashboard"),
     },
@@ -347,7 +356,7 @@ function AppContent() {
       icon: Settings,
       show: hasPermission("canViewSettings"),
     },
-  ].filter((item) => item.show);
+  ].filter((item) => item.show && (!isWorkPortal || item.id === "dashboard"));
 
   // Route-level permission gate. The sidebar already hides links a role
   // can't use, but currentView is just component state -- anything that

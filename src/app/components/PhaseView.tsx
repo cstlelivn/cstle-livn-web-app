@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import {
-  ChevronDown, ChevronRight, Plus, Trash2,
+  ChevronDown, ChevronUp, ChevronRight, Plus, Trash2,
   AlertCircle, Package, ClipboardCheck, Search,
   MoreHorizontal, ArrowUpDown, Calendar, User,
 } from "lucide-react";
@@ -15,7 +15,9 @@ import { toast } from "sonner";
 import { useApp } from "./AppContext";
 import { useAuth } from "./AuthContext";
 import { canEditTask } from "../src/features/tasks/permissions";
+import { reorderPhaseTasks } from "../src/features/tasks/api";
 import { calculateCompletion } from "../src/lib/progress";
+import { sortTasksByPhase } from "../src/lib/taskOrder";
 import TaskStatusControl from "./TaskStatusControl";
 import { useProjectPhases } from "../src/features/projectPhases/useProjectPhases";
 import { useTaskAssignees, assigneeIdsForTask } from "../src/features/taskAssignees/useTaskAssignees";
@@ -77,7 +79,7 @@ interface PhaseViewProps {
 }
 
 export default function PhaseView({ projectId }: PhaseViewProps) {
-  const { getTasksByProject, teamMembers, getTeamMember, updateTask, getProject, updateProject } = useApp();
+  const { getTasksByProject, teamMembers, getTeamMember, updateTask, getProject, updateProject, refreshTasks } = useApp();
   const { currentUser, hasPermission } = useAuth();
   const isManagerOrAdmin = hasPermission("canEditProjects");
   const canApproveQC = hasPermission("canApproveTaskQC");
@@ -87,6 +89,9 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
   const [phaseProcurement, setPhaseProcurement] = useState<Record<string, any[]>>({});
   const [phaseQC, setPhaseQC] = useState<Record<string, any>>({});
   const [qcReadiness, setQcReadiness] = useState<Record<string, any>>({});
+  // Which phase currently has an up/down reorder request in flight, to
+  // disable its move buttons until refreshTasks() brings back the new order.
+  const [reordering, setReordering] = useState<string | null>(null);
 
   // Dialogs
   const [addPhaseOpen, setAddPhaseOpen] = useState(false);
@@ -428,58 +433,102 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
             {/* Phase detail (expanded) */}
             {isExpanded && (
               <div className="border-t border-border px-[16px] py-[16px] space-y-[16px]">
-                {/* Tasks summary */}
+                {/* Tasks summary -- ordered by the same hard rule as everywhere
+                    else (due date first, then this manual order for undated
+                    tasks). This is also the reorder surface: undated tasks
+                    get up/down move buttons; a dated task is pinned by its
+                    date, which drives the Gantt chart. */}
                 <div>
-                  <h5 className="font-['Roboto_Mono'] font-bold text-[10px] text-muted-foreground uppercase tracking-wider mb-[8px]">
-                    Tasks ({phaseTasks.length})
+                  <h5 className="font-['Roboto_Mono'] font-bold text-[10px] text-muted-foreground uppercase tracking-wider mb-[8px] flex items-center justify-between">
+                    <span>Tasks ({phaseTasks.length})</span>
+                    {phaseTasks.some((t: any) => !t.dueDate) && (
+                      <span className="normal-case font-normal text-[9px]">
+                        Use ▲▼ to reorder undated tasks
+                      </span>
+                    )}
                   </h5>
                   {phaseTasks.length === 0 ? (
                     <p className="font-['Roboto_Mono'] text-[10px] text-muted-foreground">No tasks in this phase.</p>
                   ) : (
                     <div className="space-y-[6px]">
-                      {phaseTasks.slice(0, 8).map((task: any) => {
-                        const assignee = getTeamMember(task.assignee);
-                        const taskCanEdit = canEditTask({
-                          task,
-                          currentUserId: currentUser?.id,
-                          isManagerOrAdmin,
-                          teamMembers,
-                        });
-                        return (
-                          <div key={task.id} className="flex items-center gap-[8px] text-[10px]">
-                            <span className="font-['Roboto_Mono'] text-foreground flex-1 truncate">{task.title}</span>
-                            <TaskStatusControl
-                              status={task.status}
-                              canEdit={taskCanEdit}
-                              canApproveQC={canApproveQC}
-                              onChange={(status) => updateTask(task.id, { status })}
-                              showLabel
-                              triggerClassName="w-fit h-[20px] px-[6px] gap-[4px] border border-border bg-secondary/40 shadow-none rounded-full shrink-0 cursor-pointer hover:bg-accent/10 hover:border-accent/30 transition-colors [&>svg:last-child]:hidden"
-                              iconSize="w-2.5 h-2.5"
-                            />
-                            {task.task_type && (
-                              <span className="font-['Roboto_Mono'] text-[9px] text-muted-foreground bg-secondary px-[6px] py-[1px] rounded">{task.task_type}</span>
-                            )}
-                            {canAssignTasks ? (
-                              <PhaseTaskAssigneePicker
-                                task={task}
-                                teamMembers={teamMembers}
-                                assignedIds={assigneeIdsForTask(taskAssignees, task.id)}
-                                onChanged={refreshAssignees}
+                      {(() => {
+                        const orderedTasks = sortTasksByPhase(phaseTasks, phases);
+                        const undatedIds = orderedTasks.filter((t: any) => !t.dueDate).map((t: any) => String(t.id));
+                        const move = async (taskId: string, direction: -1 | 1) => {
+                          const pos = undatedIds.indexOf(taskId);
+                          const swapWith = pos + direction;
+                          if (pos < 0 || swapWith < 0 || swapWith >= undatedIds.length) return;
+                          const next = [...undatedIds];
+                          [next[pos], next[swapWith]] = [next[swapWith], next[pos]];
+                          setReordering(phase.id);
+                          try {
+                            await reorderPhaseTasks(next);
+                            await refreshTasks();
+                          } catch (error: any) {
+                            toast.error(error?.message || "Failed to save task order");
+                          } finally {
+                            setReordering(null);
+                          }
+                        };
+                        return orderedTasks.map((task: any) => {
+                          const assignee = getTeamMember(task.assignee);
+                          const taskCanEdit = canEditTask({
+                            task,
+                            currentUserId: currentUser?.id,
+                            isManagerOrAdmin,
+                            teamMembers,
+                          });
+                          const undatedPos = undatedIds.indexOf(String(task.id));
+                          return (
+                            <PhaseTaskRow
+                              key={task.id}
+                              task={task}
+                              canReorder={canAssignTasks}
+                              canMoveUp={undatedPos > 0}
+                              canMoveDown={undatedPos >= 0 && undatedPos < undatedIds.length - 1}
+                              busy={reordering === phase.id}
+                              onMoveUp={() => move(String(task.id), -1)}
+                              onMoveDown={() => move(String(task.id), 1)}
+                              onDatedMoveAttempt={() => {
+                                toast.info(
+                                  `This task is due ${new Date(task.dueDate).toLocaleDateString()} — change its due date to move it. Date order can't be reordered manually, since it also drives the Gantt chart.`
+                                );
+                              }}
+                            >
+                              <span className="font-['Roboto_Mono'] text-foreground flex-1 truncate">{task.title}</span>
+                              {task.dueDate && (
+                                <span className="font-['Roboto_Mono'] text-[9px] text-muted-foreground shrink-0">
+                                  {new Date(task.dueDate).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                                </span>
+                              )}
+                              <TaskStatusControl
+                                status={task.status}
+                                canEdit={taskCanEdit}
+                                canApproveQC={canApproveQC}
+                                onChange={(status) => updateTask(task.id, { status })}
+                                showLabel
+                                triggerClassName="w-fit h-[20px] px-[6px] gap-[4px] border border-border bg-secondary/40 shadow-none rounded-full shrink-0 cursor-pointer hover:bg-accent/10 hover:border-accent/30 transition-colors [&>svg:last-child]:hidden"
+                                iconSize="w-2.5 h-2.5"
                               />
-                            ) : (
-                              assignee && (
-                                <span className="font-['Roboto_Mono'] text-muted-foreground">{assignee.name}</span>
-                              )
-                            )}
-                          </div>
-                        );
-                      })}
-                      {phaseTasks.length > 8 && (
-                        <p className="font-['Roboto_Mono'] text-[9px] text-muted-foreground">
-                          +{phaseTasks.length - 8} more tasks — switch to Tasks view to see all
-                        </p>
-                      )}
+                              {task.task_type && (
+                                <span className="font-['Roboto_Mono'] text-[9px] text-muted-foreground bg-secondary px-[6px] py-[1px] rounded">{task.task_type}</span>
+                              )}
+                              {canAssignTasks ? (
+                                <PhaseTaskAssigneePicker
+                                  task={task}
+                                  teamMembers={teamMembers}
+                                  assignedIds={assigneeIdsForTask(taskAssignees, task.id)}
+                                  onChanged={refreshAssignees}
+                                />
+                              ) : (
+                                assignee && (
+                                  <span className="font-['Roboto_Mono'] text-[9px] text-muted-foreground shrink-0 truncate max-w-[90px]">{assignee.name}</span>
+                                )
+                              )}
+                            </PhaseTaskRow>
+                          );
+                        });
+                      })()}
                     </div>
                   )}
                 </div>
@@ -762,6 +811,74 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
   );
 }
 
+// Up/down move buttons instead of drag-and-drop: reliable on the phones and
+// tablets a Supervisor actually uses on site, where native HTML5
+// drag-and-drop (used elsewhere in this app for phase reordering, on a
+// desktop-only admin screen) doesn't work at all.
+function PhaseTaskRow({
+  task,
+  canReorder,
+  canMoveUp,
+  canMoveDown,
+  onMoveUp,
+  onMoveDown,
+  busy,
+  onDatedMoveAttempt,
+  children,
+}: {
+  task: any;
+  canReorder: boolean;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  busy: boolean;
+  onDatedMoveAttempt: () => void;
+  children: any;
+}) {
+  const isDated = !!task.dueDate;
+
+  return (
+    <div className="flex items-center gap-[8px] text-[10px]">
+      {canReorder && (
+        isDated ? (
+          <button
+            type="button"
+            onClick={onDatedMoveAttempt}
+            className="shrink-0 flex flex-col text-muted-foreground/50 cursor-not-allowed"
+            title="This task has a due date -- change the date to move it"
+          >
+            <ChevronUp className="w-3 h-3 -mb-[2px]" />
+            <ChevronDown className="w-3 h-3 -mt-[2px]" />
+          </button>
+        ) : (
+          <div className="shrink-0 flex flex-col">
+            <button
+              type="button"
+              onClick={onMoveUp}
+              disabled={!canMoveUp || busy}
+              className="text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed -mb-[2px]"
+              title="Move up"
+            >
+              <ChevronUp className="w-3 h-3" />
+            </button>
+            <button
+              type="button"
+              onClick={onMoveDown}
+              disabled={!canMoveDown || busy}
+              className="text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed -mt-[2px]"
+              title="Move down"
+            >
+              <ChevronDown className="w-3 h-3" />
+            </button>
+          </div>
+        )
+      )}
+      {children}
+    </div>
+  );
+}
+
 // Compact assignee control for a task row inside the Phases tab -- lets a
 // Manager/Admin or the Supervisor of this project assign/reassign a task
 // without leaving the phase they're working in. Mirrors the picker pattern
@@ -828,7 +945,7 @@ function PhaseTaskAssigneePicker({
   return (
     <button
       onClick={(e) => { e.stopPropagation(); setEditing(true); }}
-      className="font-['Roboto_Mono'] text-muted-foreground hover:text-foreground underline decoration-dotted underline-offset-2 shrink-0 truncate max-w-[90px]"
+      className="font-['Roboto_Mono'] text-[9px] text-muted-foreground hover:text-foreground underline decoration-dotted underline-offset-2 shrink-0 truncate max-w-[90px]"
       title="Change assignee"
     >
       {assigneeName || "Assign…"}

@@ -5,7 +5,7 @@ import {useAuth} from './AuthContext';
 import {addTaskDependency,listTaskDependencies,removeTaskDependency} from '../src/features/taskPlanning/api';
 export default function TaskDependencies({taskId,projectTasks}:{taskId:string;projectTasks:any[]}){
  const {hasPermission,currentUser}=useAuth();const canManage=hasPermission('canEditProjects')||currentUser?.role==='Supervisor';const [items,setItems]=useState<any[]>([]),[selected,setSelected]=useState('');
- const load=()=>listTaskDependencies(taskId).then(setItems).catch(()=>{});useEffect(load,[taskId]);
+ const load=()=>listTaskDependencies(taskId).then(setItems).catch(()=>{});useEffect(()=>{load();},[taskId]);
  const add=async()=>{if(!selected)return;try{await addTaskDependency(taskId,selected);setSelected('');load();}catch(e:any){toast.error(e.message);}};
  const remove=async(id:string)=>{try{await removeTaskDependency(taskId,id);load();}catch(e:any){toast.error(e.message);}};
  const unfinished=items.filter(row=>row.tasks?.status!=='Completed');
