@@ -542,3 +542,7 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   phases are Not Started. Existing project Supervisor data is reused, while
   Associate assignment remains intentionally unfilled until the actual crew is
   chosen.
+- Frontend/data commit `6eefcb7` was pushed to `main`. Vercel production was
+  verified serving `index-sdg20iuB.js`, and a direct bundle check confirmed the
+  new Crew Required field. TypeScript, all 9 tests, the production build, and
+  `git diff --check` passed. No Edge Function change was required.
