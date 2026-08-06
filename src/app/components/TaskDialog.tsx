@@ -687,6 +687,7 @@ export default function TaskDialog({
                 placeholder="e.g. 4"
                 className="mt-[8px] text-[10px]"
               />
+              <p className="mt-1 font-['Roboto_Mono'] text-[9px] text-muted-foreground">You can set or revise this before assigning a worker.</p>
             </div>
           </div>
 

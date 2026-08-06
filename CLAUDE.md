@@ -546,3 +546,18 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   verified serving `index-sdg20iuB.js`, and a direct bundle check confirmed the
   new Crew Required field. TypeScript, all 9 tests, the production build, and
   `git diff --check` passed. No Edge Function change was required.
+
+## Supervisor planning before assignment — August 5, 2026
+
+- Migration `20240038_supervisor_unassigned_task_planning.sql` is live. A
+  Supervisor may create tasks only inside a project they supervise; Managers
+  and Admins retain company-wide creation authority, and Associates still
+  cannot create tasks.
+- New tasks no longer silently assign the project Supervisor as the worker.
+  They may remain unassigned while scope, phase, estimated hours, crew size,
+  verification criteria, and materials are planned. `task_assignees` remains
+  the explicit source of truth for who can perform/timer-track the work.
+- The Add Task action is now hidden from Associates and visible to a Supervisor
+  only on their own supervised project. Supervisors can revise estimated hours
+  before or after assignment; the existing estimate-change audit trigger
+  records changes.

@@ -522,23 +522,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         throw new Error("This project is closed. New tasks cannot be added.");
       }
 
-      // Every task must have an assignee -- default to the project's
-      // supervisor (the person who owns QC/oversight for this project)
-      // rather than leaving it unassigned, and rather than defaulting to
-      // whoever happens to be creating the task (which could be anyone with
-      // task-creation access, not necessarily who should own unassigned work).
-      // Callers pass either `assignee` or `assignee_id`, so both need to be
-      // covered here or the raw one gets picked up downstream over this default.
+      // Planning and assignment are separate. A Manager/Admin/Supervisor may
+      // create an unassigned task, set its scope and estimate, and choose the
+      // actual worker later. Never silently turn the project Supervisor into
+      // the worker: supervision controls oversight/QC, while task_assignees
+      // controls who can start the timer and perform the work.
       const rawAssignee = (task as any).assignee_id ?? task.assignee;
-      let assignee = rawAssignee;
-      if (!assignee || assignee === "" || assignee === "unassigned") {
-        if (project?.supervisorId) {
-          assignee = String(project.supervisorId);
-        } else {
-          const currentMember = (realtimeTeam as any[]).find((m) => String(m.authUserId) === String(user?.id));
-          assignee = currentMember ? String(currentMember.id) : assignee;
-        }
-      }
+      const assignee = rawAssignee && rawAssignee !== "unassigned" ? rawAssignee : "";
 
       const result = await tasksAPI.createTask({
         ...task,

@@ -137,6 +137,7 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
   const { currentUser, hasPermission } = useAuth();
   const { taskAssignees } = useTaskAssignees(true);
   const { workSessions } = useWorkSessions(true);
+  const currentTeamMember = teamMembers.find((member: any) => String(member.authUserId) === String(currentUser?.id));
   const [forceCompleteOpen, setForceCompleteOpen] = useState(false);
   const [markingComplete, setMarkingComplete] = useState(false);
 
@@ -144,6 +145,10 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
   const project = useMemo(() => {
     return getProject(projectId);
   }, [projectId, projects]); // Only re-run when projectId or projects array changes
+  const canCreateTask = hasPermission("canEditProjects") || (
+    currentUser?.role === "Supervisor"
+    && String(currentTeamMember?.id) === String((project as any)?.supervisorId)
+  );
   
   const [taskView, setTaskView] = useState<"list" | "grid" | "calendar" | "kanban" | "gantt">("list");
   const [searchQuery, setSearchQuery] = useState("");
@@ -977,7 +982,7 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
             </TabsTrigger>
           </TabsList>
 
-          {currentTab === "tasks" && project.status !== "Completed" && (
+          {currentTab === "tasks" && project.status !== "Completed" && canCreateTask && (
             <button
               onClick={handleAddTask}
               className="flex items-center gap-[8px] px-[16px] py-[8px] bg-accent text-accent-foreground rounded-[6px] hover:bg-accent/90 transition-colors"
