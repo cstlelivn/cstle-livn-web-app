@@ -516,3 +516,10 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   actual hours. The mobile task page also shows Associate, Supervisor, phase,
   due date, verification criteria, dependencies, tools/materials, evidence,
   timer actions, the existing QC outcome, and existing Aura feedback.
+- Frontend commit `9386271` was pushed to `main` on August 5, 2026. Vercel's
+  stable production alias was verified serving `index-DbKIwoxx.js`; a direct
+  bundle read confirmed the required phase selection, start-photo enforcement,
+  Finish Task clearance confirmation, and Copy from Existing Task workflow.
+  TypeScript, all 9 automated tests, the production build, and
+  `git diff --check` passed before deployment. No Edge Function change was
+  required for this release.
