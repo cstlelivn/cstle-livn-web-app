@@ -95,8 +95,6 @@ export default function MobileTaskWorkspace({ taskId, onBack }: { taskId: string
   const finish = () => {
     if (requiredIncomplete > 0) { toast.error(`Complete ${requiredIncomplete} required checklist item${requiredIncomplete === 1 ? '' : 's'} first`); return; }
     if (!(task as any).photos_not_required && completionPhotoCount < 1) { toast.error('Add at least one finish photo before finishing'); setShowFinishEvidence(true); return; }
-    if (!completionNote.trim()) { toast.error('Add a short completion note before finishing'); return; }
-    if (!toolsCleared) { toast.error('Confirm tools and unused materials are cleared or secured'); return; }
     if (!session) return;
     run(
       () => queueSessionAction({ type: 'finish', taskId: String(task.id), teamMemberId: memberId, sessionId: session.id, notes: completionNote.trim() }),
@@ -181,8 +179,8 @@ export default function MobileTaskWorkspace({ taskId, onBack }: { taskId: string
           {updates.length > 0 && <section><p className="font-['Roboto_Mono'] text-[10px] font-bold uppercase mb-2">Recent task activity</p>{updates.slice(0,3).map((u)=><div key={u.id} className="border-t border-[var(--olive-300)] py-3"><p className="font-['Roboto_Mono'] text-[9px] uppercase text-[var(--vermillion-700)]">{labels[u.update_type as TaskUpdateType]} · {u.status}</p><p className="font-['Roboto_Mono'] text-[11px] mt-1">{u.body}</p></div>)}</section>}
           <section className="rounded-[14px] border border-[var(--olive-300)] bg-white p-3 space-y-3">
             <p className="font-['Roboto_Mono'] text-[11px] font-bold uppercase">Finish task requirements</p>
-            <textarea value={completionNote} onChange={(event) => setCompletionNote(event.target.value)} rows={2} className="w-full resize-none rounded-[8px] border border-[var(--olive-300)] p-3 font-['Roboto_Mono'] text-[11px]" placeholder="What was completed?"/>
-            <label className="flex items-start gap-2 font-['Roboto_Mono'] text-[10px]"><input type="checkbox" checked={toolsCleared} onChange={(event) => setToolsCleared(event.target.checked)} className="mt-0.5"/>Tools and unused materials are cleared or secured.</label>
+            <textarea value={completionNote} onChange={(event) => setCompletionNote(event.target.value)} rows={2} className="w-full resize-none rounded-[8px] border border-[var(--olive-300)] p-3 font-['Roboto_Mono'] text-[11px]" placeholder="What was completed? (optional)"/>
+            <label className="flex items-start gap-2 font-['Roboto_Mono'] text-[10px]"><input type="checkbox" checked={toolsCleared} onChange={(event) => setToolsCleared(event.target.checked)} className="mt-0.5"/>Tools and unused materials are cleared or secured. (optional)</label>
             <button type="button" onClick={() => setShowFinishEvidence(!showFinishEvidence)} className="w-full h-12 rounded-[10px] border border-[var(--olive-300)] bg-white flex items-center justify-center gap-2 font-['Roboto_Mono'] text-[10px] font-bold uppercase">
               <Camera className="w-4 h-4" />
               {(task as any).photos_not_required

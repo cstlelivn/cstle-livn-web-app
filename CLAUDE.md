@@ -1128,4 +1128,15 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   Phases tab, the existing photo lightbox still works inside it, and the
   warranty-task client-side gap above was caught specifically because this
   verification attempted the real end-to-end flow instead of stopping at
-  "the code compiles."
+  "the code compiles." Also verified at 375px mobile width: task-title
+  clicks, the full-width panel fallback, and the lightbox all work
+  identically there.
+- **Reduced finish-task friction on `MobileTaskWorkspace.tsx`** per explicit
+  user feedback ("make sure the Aura gates are not a lot on the tasks...
+  so people on site are not frustrated"): the completion note and the
+  "tools/materials cleared" checkbox are no longer blocking requirements to
+  finish a task -- both are now labeled "(optional)" and `finish()` no
+  longer throws on them. Required checklist items and the finish photo
+  remain mandatory (evidence/QC integrity, and the photo requirement was an
+  explicit earlier user request) -- only the two fields with no QC/evidence
+  value were relaxed.
