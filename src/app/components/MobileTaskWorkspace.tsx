@@ -180,13 +180,18 @@ export default function MobileTaskWorkspace({ taskId, onBack }: { taskId: string
           <section className="rounded-[14px] border border-[var(--olive-300)] bg-white p-3 space-y-3">
             <p className="font-['Roboto_Mono'] text-[11px] font-bold uppercase">Finish task requirements</p>
             <textarea value={completionNote} onChange={(event) => setCompletionNote(event.target.value)} rows={2} className="w-full resize-none rounded-[8px] border border-[var(--olive-300)] p-3 font-['Roboto_Mono'] text-[11px]" placeholder="What was completed? (optional)"/>
-            <label className="flex items-start gap-2 font-['Roboto_Mono'] text-[10px]"><input type="checkbox" checked={toolsCleared} onChange={(event) => setToolsCleared(event.target.checked)} className="mt-0.5"/>Tools and unused materials are cleared or secured. (optional)</label>
+            <label className="flex items-start gap-2 font-['Roboto_Mono'] text-[10px]"><input type="checkbox" checked={toolsCleared} onChange={(event) => setToolsCleared(event.target.checked)} className="mt-0.5"/>Remember to clear your tools and unused materials before you go. (optional)</label>
             <button type="button" onClick={() => setShowFinishEvidence(!showFinishEvidence)} className="w-full h-12 rounded-[10px] border border-[var(--olive-300)] bg-white flex items-center justify-center gap-2 font-['Roboto_Mono'] text-[10px] font-bold uppercase">
               <Camera className="w-4 h-4" />
               {(task as any).photos_not_required
                 ? 'Add finish photo (waived by supervisor)'
                 : `Add finish photo${completionPhotoCount > 0 ? ` (${completionPhotoCount} added)` : ' (required)'}`}
             </button>
+            {!(task as any).photos_not_required && (
+              <p className="font-['Roboto_Mono'] text-[9px] text-muted-foreground">
+                Does your finish photo show the area cleared and tools put away? A tidy site keeps everyone safe -- make that part of the shot.
+              </p>
+            )}
             {showFinishEvidence && <TaskMediaEvidence projectId={String(task.projectId)} taskId={String(task.id)} lockedStage="after" onUploaded={refreshPhotoCounts} />}
           </section>
         </>}

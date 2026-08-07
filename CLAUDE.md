@@ -1140,3 +1140,16 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   remain mandatory (evidence/QC integrity, and the photo requirement was an
   explicit earlier user request) -- only the two fields with no QC/evidence
   value were relaxed.
+- **Kept the tools-cleared habit alive without making it a hard gate again**,
+  per explicit follow-up feedback ("we need to keep the habit of keeping
+  the workplace clean"): the optional checkbox copy now reads "Remember to
+  clear your tools and unused materials before you go," and a short
+  reminder line was added under the finish-photo button asking whether the
+  photo itself shows the area cleared/tools put away. Still non-blocking --
+  this is a nudge, not a requirement, consistent with the friction-reduction
+  request right above it. Verified via `npm run build` and code review only
+  (copy-only change reusing the existing `photos_not_required` conditional
+  already used one line above it) -- did not start a live timer session to
+  screenshot the real finish screen, since doing so would have written a
+  real, permanent `task_work_sessions` row for a task that hasn't actually
+  been worked yet.
