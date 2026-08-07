@@ -519,8 +519,21 @@ function AppContent() {
       );
     });
 
+  // h-[100dvh] + overflow-hidden (not min-h) is load-bearing: this is the
+  // root flex row for the whole authenticated app shell, and the
+  // sidebar/main-content panes below are each their own `overflow-y-auto`
+  // box that's only able to scroll internally if this ancestor is height-
+  // *capped* at the viewport, not just height-floored. With min-h, this
+  // row silently grows taller than the viewport to fit content instead of
+  // clipping it, so the inner panes never actually overflow (nothing to
+  // scroll) and the browser falls back to scrolling <html> itself. That's
+  // what broke every dropdown in this app when deep in a long list: Radix
+  // Select's on-open positioning/scroll-into-view logic expects a real
+  // contained scroll box, and with none, it operated on <html>, causing
+  // the whole page to jump back to scrollTop 0 with a stuck scroll-lock.
+  // Confirmed live before/after this specific change.
   return (
-    <div className="flex min-h-[100dvh] w-full max-w-full min-w-0 overflow-x-clip bg-background">
+    <div className="flex h-[100dvh] w-full max-w-full min-w-0 overflow-hidden bg-background">
       {/* Mobile nav drawer -- hidden entirely above the md breakpoint, where
           the hover sidebar below takes over. Backdrop tap or picking an item
           closes it. */}

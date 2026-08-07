@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Camera, FileText, Loader2, Mic, Paperclip, Trash2, Upload, Video } from 'lucide-react';
+import { Camera, FileText, Loader2, Mic, Paperclip, Trash2, Upload, Video, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -54,6 +54,7 @@ export default function TaskMediaEvidence({ projectId, taskId, initialStage = 'p
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [saveForMarketing, setSaveForMarketing] = useState(false);
+  const [lightboxItem, setLightboxItem] = useState<TaskMedia | null>(null);
 
   useEffect(() => { if (!lockedStage) setStage(initialStage); }, [initialStage, lockedStage]);
 
@@ -185,7 +186,16 @@ export default function TaskMediaEvidence({ projectId, taskId, initialStage = 'p
         <div className="grid grid-cols-2 gap-[8px] sm:grid-cols-3">
           {items.map((item) => (
             <article key={item.id} className="overflow-hidden rounded-[7px] border border-border bg-background">
-              {item.media_kind === 'photo' && <img src={item.url} alt={item.caption || item.original_filename} className="h-[80px] w-full object-cover" />}
+              {item.media_kind === 'photo' && (
+                <button
+                  type="button"
+                  onClick={() => setLightboxItem(item)}
+                  className="block h-[80px] w-full cursor-zoom-in"
+                  title="Click to view full size"
+                >
+                  <img src={item.url} alt={item.caption || item.original_filename} className="h-[80px] w-full object-cover" />
+                </button>
+              )}
               {item.media_kind === 'video' && <video src={item.url} controls preload="metadata" className="h-[80px] w-full bg-black object-contain" />}
               {item.media_kind === 'audio' && <audio src={item.url} controls preload="metadata" className="w-full p-[10px]" />}
               {item.media_kind === 'document' && (
@@ -214,6 +224,35 @@ export default function TaskMediaEvidence({ projectId, taskId, initialStage = 'p
               </div>
             </article>
           ))}
+        </div>
+      )}
+
+      {/* Full-size photo viewer -- QC reviewers need to actually see the
+          work, not just a cropped 80px thumbnail, to confirm it's done. */}
+      {lightboxItem && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4"
+          onClick={() => setLightboxItem(null)}
+        >
+          <button
+            type="button"
+            onClick={() => setLightboxItem(null)}
+            className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+            aria-label="Close"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <img
+            src={lightboxItem.url}
+            alt={lightboxItem.caption || lightboxItem.original_filename}
+            className="max-h-full max-w-full rounded-[8px] object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+          {lightboxItem.caption && (
+            <p className="absolute bottom-6 left-1/2 -translate-x-1/2 max-w-[90%] rounded-full bg-black/60 px-4 py-2 text-center font-['Roboto_Mono'] text-[11px] text-white">
+              {lightboxItem.caption}
+            </p>
+          )}
         </div>
       )}
     </section>

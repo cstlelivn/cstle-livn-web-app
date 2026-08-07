@@ -56,6 +56,7 @@ export default function TaskReviewDialog({
   const [sessionsLoadFailed, setSessionsLoadFailed] = useState(false);
   const [manualCompleter, setManualCompleter] = useState("");
   const [externalCompleter, setExternalCompleter] = useState("");
+  const [confirmedBestInterest, setConfirmedBestInterest] = useState(false);
 
   useEffect(() => {
     if (!isOpen || !task?.id) return;
@@ -106,10 +107,12 @@ export default function TaskReviewDialog({
     if (!sessionsLoaded) return;
     if (sessionsLoadFailed) { toast.error('Could not verify who completed this task. Reload and try again.'); return; }
     if (!manualCompleterValid) { toast.error('Select who completed the task'); return; }
+    if (!confirmedBestInterest) { toast.error('Confirm the QC attestation before approving'); return; }
     setStep("rate");
   };
 
   const handleRequestChanges = () => {
+    if (!confirmedBestInterest) { toast.error('Confirm the QC attestation before requesting changes'); return; }
     setShowRejectInput(true);
   };
 
@@ -145,6 +148,7 @@ export default function TaskReviewDialog({
     setAdditionalComments("");
     setManualCompleter("");
     setExternalCompleter("");
+    setConfirmedBestInterest(false);
     onClose();
   };
 
@@ -356,32 +360,36 @@ export default function TaskReviewDialog({
                 <TaskMediaEvidence projectId={String(task.projectId)} taskId={String(task.id)} />
               </div>
 
-              {/* QC Guidelines */}
+              {/* QC attestation -- an explicit reminder of who this review is
+                  for, required before Approve/Request Changes can be used.
+                  Not a description of what the buttons do (that's obvious
+                  from the buttons themselves); this is a check on judgment,
+                  since a rushed approval or an unfair rejection both cost
+                  the company, the project, and the client. */}
               <div className="p-[16px] bg-secondary rounded-[8px]">
                 <div className="flex items-start gap-[12px]">
                   <input
                     type="checkbox"
                     id="qc-guidelines"
+                    checked={confirmedBestInterest}
+                    onChange={(e) => setConfirmedBestInterest(e.target.checked)}
                     className="mt-[2px] w-4 h-4 rounded border-border"
                   />
                   <label htmlFor="qc-guidelines" className="flex-1">
                     <h4 className="text-foreground font-['Roboto_Mono'] font-bold text-[12px] mb-[4px]">
-                      Quality Control Guidelines
+                      Quality Control Attestation
                     </h4>
                     <p className="text-muted-foreground font-['Roboto_Mono'] text-[10px]">
-                      I have reviewed this task and will decide whether to:
+                      I have reviewed the work and evidence above, and my decision reflects the best interest of Cstle Livn, this project, and the client -- not convenience or speed.
                     </p>
-                    <ul className="mt-[8px] space-y-[4px] ml-[4px]">
-                      <li className="text-muted-foreground font-['Roboto_Mono'] text-[10px]">
-                        <strong className="text-foreground">Approve:</strong> Task meets quality standards - Rate the performance
-                      </li>
-                      <li className="text-muted-foreground font-['Roboto_Mono'] text-[10px]">
-                        <strong className="text-foreground">Request Changes:</strong> Task work corrections - Send back with feedback
-                      </li>
-                    </ul>
                   </label>
                 </div>
               </div>
+              {!confirmedBestInterest && (
+                <p className="-mt-[8px] font-['Roboto_Mono'] text-[9px] text-muted-foreground">
+                  Confirm the attestation above before approving or requesting changes.
+                </p>
+              )}
 
               {/* Reject Feedback Section */}
               {showRejectInput && (
@@ -420,7 +428,8 @@ export default function TaskReviewDialog({
                     <button
                       type="button"
                       onClick={handleRequestChanges}
-                      className="w-full sm:w-auto justify-center flex items-center gap-[8px] px-[16px] py-[10px] sm:py-[8px] bg-transparent border border-destructive/40 text-destructive rounded-[6px] hover:bg-destructive/5 transition-colors font-['Roboto_Mono'] text-[11px]"
+                      disabled={!confirmedBestInterest}
+                      className="w-full sm:w-auto justify-center flex items-center gap-[8px] px-[16px] py-[10px] sm:py-[8px] bg-transparent border border-destructive/40 text-destructive rounded-[6px] hover:bg-destructive/5 transition-colors font-['Roboto_Mono'] text-[11px] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                     >
                       <XCircle className="w-[14px] h-[14px]" />
                       Request Changes
@@ -428,7 +437,8 @@ export default function TaskReviewDialog({
                     <button
                       type="button"
                       onClick={handleApproveClick}
-                      className="w-full sm:w-auto justify-center flex items-center gap-[8px] px-[16px] py-[10px] sm:py-[8px] bg-accent text-white rounded-[6px] hover:opacity-90 transition-opacity font-['Roboto_Mono'] text-[11px]"
+                      disabled={!confirmedBestInterest}
+                      className="w-full sm:w-auto justify-center flex items-center gap-[8px] px-[16px] py-[10px] sm:py-[8px] bg-accent text-white rounded-[6px] hover:opacity-90 transition-opacity font-['Roboto_Mono'] text-[11px] disabled:opacity-40 disabled:cursor-not-allowed"
                       style={{ backgroundColor: "var(--accent)" }}
                     >
                       <CheckCircle className="w-[14px] h-[14px]" />

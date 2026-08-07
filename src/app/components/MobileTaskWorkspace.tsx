@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Camera, Check, ChevronDown, CircleAlert, HelpCircle, Mic, Pause, Pencil, Play, Send, Square } from 'lucide-react';
+import { ArrowLeft, Camera, Check, ChevronDown, CircleAlert, HelpCircle, Mic, Pause, Pencil, Play, Send, ShieldCheck, Square } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApp } from './AppContext';
 import { useAuth } from './AuthContext';
@@ -78,7 +78,15 @@ export default function MobileTaskWorkspace({ taskId, onBack }: { taskId: string
 
   const applySessionResult = async (result: any) => { if (result) setSessionOverride(result); await refreshSessions(); };
   const refreshPhotoCounts = async () => { const [all, starts, completions] = await Promise.all([countReadyTaskPhotos(String(task.id)), countReadyTaskPhotos(String(task.id), 'before'), countReadyTaskPhotos(String(task.id), 'after')]); setPhotoCount(all); setStartPhotoCount(starts); setCompletionPhotoCount(completions); };
+  // A task that's already been submitted (Pending QC) or blocked (Under
+  // Review) can only move again through a supervisor/QC action -- never by
+  // starting a fresh session. A finished session leaves no "in progress"
+  // state behind, so without this check the Start button silently
+  // reappeared and let someone re-start work that was already awaiting
+  // review.
+  const blockedStatus = task.status === 'Pending QC' || task.status === 'Under Review';
   const start = () => {
+    if (blockedStatus) { toast.error(task.status === 'Pending QC' ? 'This task is submitted and waiting on QC review.' : 'This task is under review -- a supervisor needs to clear it first.'); return; }
     if (!(task as any).photos_not_required && startPhotoCount < 1) { toast.error('Add at least one start photo before starting the timer'); setShowEvidence(true); return; }
     run(() => queueSessionAction({ type: 'start', taskId: String(task.id), teamMemberId: memberId }), 'Task started', applySessionResult);
   };
@@ -136,6 +144,16 @@ export default function MobileTaskWorkspace({ taskId, onBack }: { taskId: string
       <main className="px-5 py-5 space-y-4">
         <h2 className="text-[30px] leading-[1.05]" style={display}>{task.title}</h2>
         <p className="font-['Roboto_Mono'] text-[9px] uppercase text-muted-foreground">{task.phase || 'No phase'} · Associate: {assignedNames || 'Not assigned'} · Crew: {(task as any).crew_required || '—'} · Supervisor: {supervisorName || 'Not assigned'} · Due {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'not set'}</p>
+        {!inProgress && blockedStatus && (
+          <div className="flex items-center gap-2 rounded-[12px] bg-[var(--olive-100)] border border-[var(--olive-300)] px-4 py-3">
+            <ShieldCheck className="w-4 h-4 shrink-0" />
+            <p className="font-['Roboto_Mono'] text-[10px]">
+              {task.status === 'Pending QC'
+                ? 'Submitted -- waiting on QC review. A supervisor must request a revision before this can restart.'
+                : 'Under review -- a supervisor needs to clear this before work can continue.'}
+            </p>
+          </div>
+        )}
         {!inProgress && <div className="grid grid-cols-4 border-y border-[var(--olive-300)] py-4">
           {[['Priority', task.priority || 'Normal'], ['Estimate', estimatedHours ? `${estimatedHours} hr` : 'Not set'], ['Actual', `${actualHours.toFixed(1)} hr`], ['Remaining', estimatedHours ? `${(estimatedHours-actualHours).toFixed(1)} hr` : '—']].map(([label,value]) => <div key={label} className="px-2 border-r last:border-0 border-[var(--olive-300)]"><p className="font-['Roboto_Mono'] text-[8px] uppercase">{label}</p><p className="font-['Roboto_Mono'] text-[10px] uppercase mt-2 truncate">{value}</p></div>)}
         </div>}
@@ -179,7 +197,7 @@ export default function MobileTaskWorkspace({ taskId, onBack }: { taskId: string
       </main>
       <footer className="fixed md:hidden bottom-0 left-0 right-0 bg-[var(--grey-50)] border-t border-[var(--olive-300)] px-4 pt-4 pb-[calc(16px+env(safe-area-inset-bottom))] grid grid-cols-[.75fr_1.5fr] gap-3 z-30">
         {inProgress ? <button onClick={session?.status === 'paused' ? resume : pause} disabled={busy} className="h-12 border border-[var(--green-900)] rounded-full font-['Roboto_Mono'] text-[11px] uppercase flex items-center justify-center gap-2">{session?.status === 'paused' ? <Play className="w-4"/> : <Pause className="w-4"/>}{session?.status === 'paused' ? 'Resume':'Pause'}</button> : <button onClick={()=>setComposer('query')} className="h-12 border border-[var(--green-900)] rounded-full font-['Roboto_Mono'] text-[11px] uppercase">Request help</button>}
-        {inProgress ? <button onClick={finish} disabled={busy} className="h-12 bg-[var(--vermillion-500)] text-white rounded-full font-['Roboto_Mono'] text-[11px] uppercase flex items-center justify-center gap-2"><Square className="w-4"/>Finish task</button> : <button onClick={start} disabled={busy || !assigned || !memberId} className="h-12 bg-[var(--vermillion-500)] text-white rounded-full font-['Roboto_Mono'] text-[11px] uppercase flex items-center justify-center gap-2 disabled:opacity-40"><Play className="w-4"/>Start task</button>}
+        {inProgress ? <button onClick={finish} disabled={busy} className="h-12 bg-[var(--vermillion-500)] text-white rounded-full font-['Roboto_Mono'] text-[11px] uppercase flex items-center justify-center gap-2"><Square className="w-4"/>Finish task</button> : <button onClick={start} disabled={busy || !assigned || !memberId || blockedStatus} className="h-12 bg-[var(--vermillion-500)] text-white rounded-full font-['Roboto_Mono'] text-[11px] uppercase flex items-center justify-center gap-2 disabled:opacity-40"><Play className="w-4"/>{blockedStatus ? (task.status === 'Pending QC' ? 'Awaiting QC' : 'Under review') : 'Start task'}</button>}
       </footer>
     </div>
   );

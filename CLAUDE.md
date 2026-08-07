@@ -908,3 +908,83 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   reviews these for QC should know the finish photos are missing and
   decide whether to require them retroactively (via the desktop Edit Task
   evidence panel) before approving.
+
+## Dropdown-freeze bug (real root cause), restart-after-submit bug, QC review fixes — August 7, 2026
+
+- **Found and fixed the actual root cause of the app-wide dropdown bug**
+  (not the mobile-only workaround from the previous entry -- this affected
+  every `Select` everywhere, desktop and mobile, exactly as reported).
+  Reproduced live: opening a status/assignee dropdown deep in a scrolled
+  list intermittently jumped the whole page back to `scrollTop 0` and left
+  it frozen -- `document.body` got `style="pointer-events: none"` (Radix's
+  own scroll-lock, applied whenever a `Select` opens) with nothing visible
+  to click to dismiss it, since the dropdown itself rendered off-viewport.
+  Root cause: the app's authenticated shell root (`App.tsx`) used
+  `min-h-[100dvh]` on the top-level flex row instead of `h-[100dvh]` with
+  `overflow-hidden`. `min-h` only sets a floor, so that row silently grew
+  taller than the viewport to fit content instead of being clipped at it
+  -- which meant the inner `flex-1 overflow-y-auto` panes (sidebar, main
+  content) never actually had anything to scroll internally, and the
+  browser fell back to scrolling `<html>` itself. Radix Select's on-open
+  positioning/focus logic assumes a real contained scroll box; with none,
+  it operated on `<html>`, which is what caused the jump-to-top-and-freeze.
+  **Fixed by changing that one class** (`min-h-[100dvh]` →
+  `h-[100dvh] overflow-hidden`) so the existing `overflow-y-auto` panes
+  scroll internally as originally intended. Confirmed live, repeatedly:
+  the same dropdown that reliably broke before now opens exactly where
+  clicked with no scroll jump and no freeze, at every scroll depth tested.
+  (A same-file `position="item-aligned"` experiment was tried first and
+  discarded -- it did not fix it and does not appear in the final diff;
+  `ui/select.tsx` still uses Radix's default `position="popper"`, which
+  turned out never to be the actual problem.)
+- **Fixed a real task-integrity bug**: a task already `Pending QC` or
+  `Under Review` (submitted, awaiting someone else's action) could still
+  be re-started from the mobile "Your tasks" queue and from
+  `MobileTaskWorkspace.tsx` directly -- neither checked `task.status`
+  before allowing Start, only whether a *session* was currently open. Since
+  a finished session leaves no "in progress" state behind, the ordinary
+  Start button simply reappeared once QC review was pending, silently
+  inviting a duplicate work session on an already-submitted task. Both
+  surfaces now block Start (with an explanatory message: "submitted --
+  waiting on QC review" / "under review -- a supervisor needs to clear
+  this") whenever `status` is `Pending QC` or `Under Review`. Matches the
+  existing status-workflow semantics exactly (`statusWorkflow.ts`'s
+  `getEmployeeActions` already returned no actions for those states for
+  the desktop status control -- the mobile flow just wasn't consulting it)
+  -- a QC-capable person picking "In Progress" from Pending QC (the
+  existing reject/send-back action) is what reopens it.
+- **`TaskMediaEvidence.tsx` photo thumbnails now open full-size on click**
+  (a simple fixed-position lightbox overlay, close via the X or clicking
+  outside the image) -- reviewers can now actually see the uploaded photo
+  instead of judging a task from an 80px crop. Verified live against two
+  real onsite photos.
+- **`TaskReviewDialog.tsx`'s QC checkbox was decorative** -- it had no
+  `checked`/`onChange` state at all and didn't gate anything, and its copy
+  just restated what the Approve/Request Changes buttons already do.
+  Replaced with a real attestation ("I have reviewed the work and evidence
+  above, and my decision reflects the best interest of Cstle Livn, this
+  project, and the client -- not convenience or speed"), wired to state,
+  and now required (both buttons are disabled, with a toast reminder on
+  click) before either action is available.
+- **Corrected two real `submitted_at` timestamps** that were wrong because
+  of the previous session's manual `finish_work_session` correction: I'd
+  passed the current time as the finish timestamp instead of when the
+  associate actually paused the work, so both tasks showed a submitted-for-
+  QC time of ~06:35 UTC (today) instead of when the work really stopped
+  the day before. Corrected using the real `pause` event timestamps already
+  recorded in `task_work_session_events` (immutable audit log, so the true
+  times were recoverable): "Site Setup and Protection" → 2026-08-06
+  20:22:28 UTC (~22.5 min session), "Dry Fit Reception Cabinets" → 2026-08-06
+  23:07:26 UTC (~2h36m session). Updated `task_work_sessions.finished_at`,
+  the matching `task_work_session_events` `finish` row, and
+  `tasks.submitted_at` for both. **Lesson for any future manual session
+  correction**: always pull the real time from `task_work_session_events`
+  rather than using "now" as a stand-in.
+- `npm run build` (TypeScript + Vite) passes for all of the above. Not yet
+  committed/pushed at time of writing this entry.
+- **Open design question, not yet decided or built**: the user wants to
+  add a task to a project that's already `Completed`/closed (a warranty
+  callback) and asked whether closed projects should get a "reopen" action
+  or a separate "warranty task" concept, noting a project arguably
+  shouldn't close until final balance is received. Not implemented --
+  needs a decision first (see conversation).

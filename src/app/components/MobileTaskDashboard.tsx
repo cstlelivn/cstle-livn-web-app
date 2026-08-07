@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Clock } from "lucide-react";
+import { Clock, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { calculateCompletion } from "../src/lib/progress";
 import { useTaskAssignees, assigneeIdsForTask } from "../src/features/taskAssignees/useTaskAssignees";
@@ -498,27 +498,46 @@ function TaskQueueRow({
         </span>
       </div>
 
-      <div className="flex items-center gap-[12px]">
-        <button
-          onClick={handleDecline}
-          disabled={busy}
-          className="flex-1 h-[48px] rounded-[999px] border border-border font-['Roboto_Mono'] font-bold uppercase tracking-wide text-[13px] text-foreground disabled:opacity-50"
-        >
-          Decline
-        </button>
-        <button
-          onClick={handleStart}
-          disabled={busy}
-          className="flex-1 h-[48px] rounded-[999px] bg-[var(--green-900)] font-['Roboto_Mono'] font-bold uppercase tracking-wide text-[13px] text-white disabled:opacity-50"
-        >
-          Start
-        </button>
-      </div>
+      {/* Once a task is submitted (Pending QC) or blocked (Under Review), it
+          can only move again via a supervisor/QC action -- never by tapping
+          Start again. Without this gate, a finished session leaves no
+          "in progress" state behind, so the ordinary Start button reappeared
+          and silently let someone re-start a task that was already awaiting
+          review. */}
+      {task.status === "Pending QC" || task.status === "Under Review" ? (
+        <div className="flex items-center gap-[6px] text-muted-foreground bg-secondary/40 rounded-[10px] px-[12px] py-[10px]">
+          <ShieldCheck className="w-4 h-4 shrink-0" />
+          <span className="font-['Roboto_Mono'] text-[10px]">
+            {task.status === "Pending QC"
+              ? "Submitted -- waiting on QC review. A supervisor must request a revision before you can restart it."
+              : "Under review -- a supervisor needs to clear this before work can continue."}
+          </span>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center gap-[12px]">
+            <button
+              onClick={handleDecline}
+              disabled={busy}
+              className="flex-1 h-[48px] rounded-[999px] border border-border font-['Roboto_Mono'] font-bold uppercase tracking-wide text-[13px] text-foreground disabled:opacity-50"
+            >
+              Decline
+            </button>
+            <button
+              onClick={handleStart}
+              disabled={busy}
+              className="flex-1 h-[48px] rounded-[999px] bg-[var(--green-900)] font-['Roboto_Mono'] font-bold uppercase tracking-wide text-[13px] text-white disabled:opacity-50"
+            >
+              Start
+            </button>
+          </div>
 
-      <div className="flex items-center gap-[6px] text-muted-foreground -mt-[4px]">
-        <Clock className="w-3 h-3" />
-        <span className="font-['Roboto_Mono'] text-[10px]">Tap Start to begin your timer for this task</span>
-      </div>
+          <div className="flex items-center gap-[6px] text-muted-foreground -mt-[4px]">
+            <Clock className="w-3 h-3" />
+            <span className="font-['Roboto_Mono'] text-[10px]">Tap Start to begin your timer for this task</span>
+          </div>
+        </>
+      )}
     </div>
   );
 }
