@@ -1154,3 +1154,25 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   optional (not part of this reversal). Verified via `npm run build` only
   (copy/logic-only change, same reasoning as above about not wanting to
   write a real permanent work-session row just to screenshot it).
+- **Caught two real UI bugs while doing the requested visual QA pass** on
+  the just-created Stapleford Cr warranty task (not new regressions --
+  both pre-existed, this was the first time an existing warranty task was
+  actually reopened for editing): (1) `TaskDialog.tsx` populated its due
+  date field straight from `task.dueDate`, which holds a full ISO
+  timestamp (`2026-08-08T00:00:00+00:00`) -- an `<input type="date">`
+  silently rejects anything that isn't exactly `YYYY-MM-DD` and renders
+  empty, so every task's due date appeared blank the moment you reopened
+  it to edit, even though the real value was saved correctly. Fixed by
+  slicing to the first 10 characters when populating form state (same fix
+  applied to `start_date`). (2) The "Warranty / Callback Task" banner and
+  phase-requirement skip were gated on `isWarrantyAdd` alone (`mode ===
+  "add"`), so editing an *existing* warranty task after creation fell
+  through to the normal "Project Phase *" required dropdown -- which
+  would have crashed on save (`selectedPhase.name` on a null
+  `selectedPhase`) or blocked the edit entirely. Introduced a combined
+  `isWarranty = isWarrantyAdd || isWarrantyTask` and used it everywhere
+  the phase requirement is skipped (the closed-project guard, the phase
+  validation block, the `phase`/`phase_id` assignment, and the banner
+  render condition). Verified live: reopened the Stapleford task, due
+  date now shows `2026-08-08`, and the Warranty banner renders instead of
+  a phase picker.

@@ -66,6 +66,10 @@ export default function TaskDialog({
   // moment of creating one; `isWarrantyTask` covers editing it afterward.
   const isWarrantyTask = Boolean((task as any)?.is_warranty);
   const isWarrantyAdd = mode === "add" && project?.status === "Completed";
+  // Covers both "creating a warranty task right now" and "editing one that
+  // already exists" -- both skip the normal phase requirement, since a
+  // warranty task was never part of the (now closed) project phase plan.
+  const isWarranty = isWarrantyAdd || isWarrantyTask;
   const isClosedProject = project?.status === "Completed" && !isWarrantyTask;
   const isReadOnly =
     mode === "edit" &&
@@ -103,8 +107,8 @@ export default function TaskDialog({
         description: task.description || "",
         status: task.status || "To Do",
         priority: task.priority || "Medium",
-        dueDate: task.dueDate || "",
-        startDate: (task as any).start_date || "",
+        dueDate: task.dueDate ? String(task.dueDate).slice(0, 10) : "",
+        startDate: (task as any).start_date ? String((task as any).start_date).slice(0, 10) : "",
         tags: (task.tags || []).join(", "),
         phase: task.phase || "",
         phaseId: (task as any).phase_id || "",
@@ -185,12 +189,12 @@ export default function TaskDialog({
       toast.error("Choose a project before creating the task");
       return;
     }
-    if (project?.status === "Completed" && !isWarrantyAdd) {
+    if (project?.status === "Completed" && !isWarranty) {
       toast.error("This project is closed. New tasks cannot be added or changed.");
       return;
     }
     let selectedPhase: any = null;
-    if (!isWarrantyAdd) {
+    if (!isWarranty) {
       if (!formData.phaseId) {
         toast.error(normalizedPhases.length === 0 ? "Add a project phase before creating a task" : "Choose the phase for this task");
         return;
@@ -214,8 +218,8 @@ export default function TaskDialog({
       // A warranty task isn't part of the project's original phase plan --
       // those phases are closed along with everything else -- so it's
       // filed under a plain "Warranty" label instead of a normalized phase.
-      phase: isWarrantyAdd ? "Warranty" : selectedPhase.name,
-      phase_id: isWarrantyAdd ? null : selectedPhase.id,
+      phase: isWarranty ? "Warranty" : selectedPhase.name,
+      phase_id: isWarranty ? null : selectedPhase.id,
       is_warranty: isWarrantyAdd || undefined,
       task_type: formData.task_type,
       estimated_hours: formData.estimatedHours ? Number(formData.estimatedHours) : null,
@@ -606,7 +610,7 @@ export default function TaskDialog({
           {/* Every normal task belongs to one normalized project phase --
               a warranty task doesn't, since the project's phase plan is
               closed along with everything else. */}
-          {isWarrantyAdd ? (
+          {isWarranty ? (
             <div className="p-[12px] bg-warning/10 border border-warning/20 rounded-[8px]">
               <p className="font-['Roboto_Mono'] text-[11px] font-bold text-foreground">Warranty / Callback Task</p>
               <p className="mt-1 font-['Roboto_Mono'] text-[10px] text-muted-foreground">
