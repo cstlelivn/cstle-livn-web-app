@@ -1140,16 +1140,17 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   remain mandatory (evidence/QC integrity, and the photo requirement was an
   explicit earlier user request) -- only the two fields with no QC/evidence
   value were relaxed.
-- **Kept the tools-cleared habit alive without making it a hard gate again**,
-  per explicit follow-up feedback ("we need to keep the habit of keeping
-  the workplace clean"): the optional checkbox copy now reads "Remember to
-  clear your tools and unused materials before you go," and a short
-  reminder line was added under the finish-photo button asking whether the
-  photo itself shows the area cleared/tools put away. Still non-blocking --
-  this is a nudge, not a requirement, consistent with the friction-reduction
-  request right above it. Verified via `npm run build` and code review only
-  (copy-only change reusing the existing `photos_not_required` conditional
-  already used one line above it) -- did not start a live timer session to
-  screenshot the real finish screen, since doing so would have written a
-  real, permanent `task_work_sessions` row for a task that hasn't actually
-  been worked yet.
+- **Tools/materials-cleared checkbox went optional -> reminder-only -> back
+  to a required gate, same day**, tracking the user's own back-and-forth:
+  first relaxed for friction, then the user asked to "keep the habit"
+  (added reminder copy but stayed non-blocking), then explicitly asked to
+  make it a gate again. `finish()` now throws `'Confirm tools and unused
+  materials are cleared or secured'` if `toolsCleared` is false, same as the
+  original behavior before this day's changes; the checkbox label lost its
+  "(optional)" suffix and gained a `*` to match the required-checklist-item
+  convention used elsewhere on this screen. The finish-photo reminder line
+  ("Does your finish photo show the area cleared...") stays -- it's still a
+  useful nudge alongside the hard gate. The completion note remains
+  optional (not part of this reversal). Verified via `npm run build` only
+  (copy/logic-only change, same reasoning as above about not wanting to
+  write a real permanent work-session row just to screenshot it).
