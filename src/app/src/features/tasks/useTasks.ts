@@ -69,7 +69,20 @@ export function useTasks(enabled = true, role = '', userId = '') {
 
     (async () => {
       try {
-        const data = await listTasks();
+        let data;
+        try {
+          data = await listTasks();
+        } catch (firstError) {
+          // The very first fetch right after sign-in can lose a race with
+          // Supabase finishing session/token restoration -- it fails once,
+          // silently, and nothing else ever retries it, which is exactly
+          // what made the dashboard come up blank until a manual reload.
+          // One short retry covers that startup race without masking a
+          // real, persistent failure (which still surfaces as an empty
+          // list rather than an infinite spinner).
+          await new Promise((resolve) => setTimeout(resolve, 1200));
+          data = await listTasks();
+        }
         // API already transforms the data, don't transform again
         setRows(data);
         setLoading(false);

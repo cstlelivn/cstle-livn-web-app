@@ -1055,3 +1055,77 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
     warranty door adjustment") to `KB - 119 Stapleford Cr`, a real closed
     project, for tomorrow. Once the migration is run, that specific task
     should be created for them.
+
+## Task side panel, clickable task rows, dashboard startup race, warranty task gap — August 7, 2026
+
+- **Migration `20240040_warranty_tasks.sql` is confirmed live** (queried
+  `tasks.is_warranty` directly against the real database this session —
+  succeeds). **Migration `20240041_warranty_task_phase_exempt.sql` is
+  written but NOT yet run** -- confirmed live by attempting to actually
+  create the "Stapleford Cr warranty door adjustment" task through the real
+  UI: it failed with `PHASE_REQUIRED: add/select a project phase before
+  creating a task`, the exact `require_valid_task_phase()` (from
+  `20240035`) trigger that `20240041` patches. **Once the user runs
+  `20240041`, retry creating that task** for `KB - 119 Stapleford Cr`
+  (project id `6a878771-5999-4f3a-acb9-30895bca0265`) -- title "Stapleford
+  Cr warranty door adjustment", due 2026-08-08, assigned to Demilade.
+- **Found and fixed a second, independent closed-project gap in the
+  original warranty-task work**: `AppContext.tsx`'s `addTask()` has its own
+  client-side guard (`if (project.status === "Completed") throw ...`)
+  that was never updated when warranty tasks were added -- so even with
+  both DB migrations live, the warranty-task flow would still fail
+  client-side before ever reaching the API. Fixed by exempting
+  `task.is_warranty` from that guard, mirroring the DB-level exemption.
+  Caught live: the first attempt to create the Stapleford task via the UI
+  failed with "This project is closed. New tasks cannot be added." even
+  though the `TaskDialog.tsx` warranty-mode banner was showing correctly --
+  this is why 20240040 alone wasn't sufficient and testing the actual UI
+  flow (not just the DB trigger) mattered.
+- **`TaskDialog.tsx` converted from a centered `Dialog` to a right-side
+  `Sheet` panel** (`ui/sheet.tsx`'s `Sheet`/`SheetContent`, `side="right"`,
+  `sm:max-w-xl` so the content-heavy task form has room), per explicit user
+  request ("if on the desktop, if I click on the task, it could open as a
+  side panel instead of a dialogue box"). All existing call sites
+  (`ProjectDetailsReal.tsx`, `PhaseView.tsx`, `TaskManagement.tsx`,
+  `TaskKanban.tsx`, `TaskGanttChart.tsx`) get this automatically since they
+  all render the same `TaskDialog` component. Fixed a latent bug this
+  exposed in `ui/sheet.tsx`: `SheetOverlay` wasn't wrapped in
+  `React.forwardRef` (unlike `DialogOverlay`, which was), causing a
+  "Function components cannot be given refs" console warning the first
+  time `Sheet` was actually used from a Radix `Portal`/`Presence` context --
+  fixed to match `DialogOverlay`'s pattern.
+- **Task titles are now clickable everywhere a task list is shown** to open
+  that same side panel directly, instead of requiring the separate Edit
+  pencil icon: `ProjectDetailsReal.tsx`'s mobile card, desktop list row, and
+  grid item `<h4>` titles; and `PhaseView.tsx`'s per-task row title inside
+  each expanded phase (which previously had no task-detail entry point at
+  all -- `PhaseView.tsx` gained its own local `TaskDialog` instance,
+  `selectedTask`/`taskDialogOpen` state, mode `"edit"`). Addresses "if I
+  just click on a task, it should be able to show me that dialogue...
+  whether in phases or in tasks."
+- **Investigated the "dashboard comes up blank on login, sometimes needs
+  several reloads" report.** Hypothesis: `AuthContext`'s async
+  `initSession()` does a `supabase.auth.getUser()` network round-trip
+  before `user`/role are available, and several data hooks
+  (`useTasks`, `useProjects`, `useTaskAssignees`, `useTeamMembers`) do a
+  single, un-retried initial fetch gated on that role being ready --  the
+  very first fetch right after sign-in can lose that race, fail once
+  silently (empty `catch`), and nothing else ever retries it. Applied a
+  "wait 1200ms, retry once" fallback to all four hooks' initial fetch.
+  **Not root-caused with certainty** -- reproducing the original intermittent
+  blank-dashboard-on-login symptom directly wasn't possible in this
+  session (the existing dev session was already signed in), so this is a
+  plausible-and-safe mitigation verified only by build/typecheck passing
+  and by confirming the dashboard loads its data normally with the change
+  in place, not by reproducing the original bug and watching it disappear.
+  If the user still sees a blank dashboard after this ships, the next step
+  is adding a visible retry/error state instead of a silent one, and
+  actually instrumenting the real timing race.
+- `npm run build` (TypeScript + Vite) passes for all of the above. Verified
+  live against the local dev server (which points at the same, single
+  Supabase project used by production -- there is no separate local DB):
+  the Sheet side panel opens correctly from both the Tasks tab and the
+  Phases tab, the existing photo lightbox still works inside it, and the
+  warranty-task client-side gap above was caught specifically because this
+  verification attempted the real end-to-end flow instead of stopping at
+  "the code compiles."

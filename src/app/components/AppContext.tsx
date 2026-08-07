@@ -518,7 +518,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (!project) {
         throw new Error("Choose a valid project before creating the task");
       }
-      if (project.status === "Completed") {
+      if (project.status === "Completed" && !(task as any).is_warranty) {
         throw new Error("This project is closed. New tasks cannot be added.");
       }
 

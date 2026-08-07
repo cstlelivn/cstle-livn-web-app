@@ -80,7 +80,15 @@ export function useTaskAssignees(enabled = true) {
 
     (async () => {
       try {
-        const data = await listActiveTaskAssignees();
+        let data;
+        try {
+          data = await listActiveTaskAssignees();
+        } catch (firstError) {
+          // Same sign-in startup race as tasks/projects -- one retry
+          // instead of silently coming up empty until a manual reload.
+          await new Promise((resolve) => setTimeout(resolve, 1200));
+          data = await listActiveTaskAssignees();
+        }
         setRows(data);
         setLoading(false);
 

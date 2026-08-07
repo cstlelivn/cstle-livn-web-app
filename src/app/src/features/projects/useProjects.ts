@@ -49,7 +49,17 @@ export function useProjects(enabled = true, role = '', userId = '') {
 
     (async () => {
       try {
-        const data = await listProjects();
+        let data;
+        try {
+          data = await listProjects();
+        } catch (firstError) {
+          // Same startup race as tasks: the first fetch right after sign-in
+          // can lose to Supabase still restoring the session, fail once
+          // silently, and never retry -- leaving the dashboard blank until
+          // a manual reload. One short retry covers it.
+          await new Promise((resolve) => setTimeout(resolve, 1200));
+          data = await listProjects();
+        }
         setRows(data);
         setLoading(false);
 

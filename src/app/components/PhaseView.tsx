@@ -42,6 +42,7 @@ import {
 import { createClient } from "../utils/supabase/client.tsx";
 import PhaseCompletionEmailModal from "./PhaseCompletionEmailModal";
 import { getClient } from "../src/features/clients/api";
+import TaskDialog from "./TaskDialog";
 
 const supabase = createClient();
 
@@ -92,6 +93,11 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
   // Which phase currently has an up/down reorder request in flight, to
   // disable its move buttons until refreshTasks() brings back the new order.
   const [reordering, setReordering] = useState<string | null>(null);
+  // Task detail view -- clicking a task row here opens the same TaskDialog
+  // side panel used everywhere else, instead of only the status/assignee
+  // inline controls this view otherwise offers.
+  const [selectedTask, setSelectedTask] = useState<any>(null);
+  const [taskDialogOpen, setTaskDialogOpen] = useState(false);
 
   // Dialogs
   const [addPhaseOpen, setAddPhaseOpen] = useState(false);
@@ -495,7 +501,13 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
                                 );
                               }}
                             >
-                              <span className="font-['Roboto_Mono'] text-foreground flex-1 truncate">{task.title}</span>
+                              <span
+                                className="font-['Roboto_Mono'] text-foreground flex-1 truncate cursor-pointer hover:text-accent"
+                                onClick={() => { setSelectedTask(task); setTaskDialogOpen(true); }}
+                                title="View task details"
+                              >
+                                {task.title}
+                              </span>
                               {task.dueDate && (
                                 <span className="font-['Roboto_Mono'] text-[9px] text-muted-foreground shrink-0">
                                   {new Date(task.dueDate).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
@@ -807,6 +819,14 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
           />
         );
       })()}
+
+      <TaskDialog
+        open={taskDialogOpen}
+        onOpenChange={setTaskDialogOpen}
+        projectId={projectId}
+        task={selectedTask}
+        mode="edit"
+      />
     </div>
   );
 }

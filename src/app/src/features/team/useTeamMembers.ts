@@ -86,7 +86,15 @@ export function useTeamMembers(enabled = true) {
 
     (async () => {
       try {
-        const data = await listTeamMembers();
+        let data;
+        try {
+          data = await listTeamMembers();
+        } catch (firstError) {
+          // Same sign-in startup race as tasks/projects -- one retry
+          // instead of silently coming up empty until a manual reload.
+          await new Promise((resolve) => setTimeout(resolve, 1200));
+          data = await listTeamMembers();
+        }
         // Transform snake_case to camelCase for frontend compatibility
         const transformed = data.map(transformTeamMemberRow);
         setRows(transformed);

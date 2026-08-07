@@ -529,7 +529,11 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
         <div className="md:hidden flex flex-col gap-[10px] p-[16px] bg-card border border-border rounded-[8px] hover:shadow-sm transition-all">
           <div className="flex items-start justify-between gap-[8px]">
             <div className="min-w-0 flex-1">
-              <h4 className="font-['Roboto_Mono'] font-bold text-[14px] text-foreground mb-[2px] break-words">
+              <h4
+                className="font-['Roboto_Mono'] font-bold text-[14px] text-foreground mb-[2px] break-words cursor-pointer hover:text-accent"
+                onClick={() => onEdit(task)}
+                title="View task details"
+              >
                 {task.title}
                 {(task as any).is_warranty && <span className="ml-[6px] align-middle px-[6px] py-[1px] rounded-full bg-warning/15 text-warning text-[9px] font-medium">Warranty</span>}
               </h4>
@@ -574,7 +578,11 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
           style={{ gridTemplateColumns: "1fr 130px 140px 110px 50px 90px 68px" }}
         >
           <div className="min-w-0">
-            <h4 className="font-['Roboto_Mono'] font-bold text-[14px] text-foreground mb-[4px] truncate">
+            <h4
+              className="font-['Roboto_Mono'] font-bold text-[14px] text-foreground mb-[4px] truncate cursor-pointer hover:text-accent"
+              onClick={() => onEdit(task)}
+              title="View task details"
+            >
               {task.title}
               {(task as any).is_warranty && <span className="ml-[6px] align-middle px-[6px] py-[1px] rounded-full bg-warning/15 text-warning text-[9px] font-medium">Warranty</span>}
             </h4>
@@ -638,7 +646,11 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
       <div className="bg-card border border-border rounded-[20px] p-[20px] hover:shadow-md transition-all">
         <div className="flex items-start justify-between mb-[12px]">
           <div className="flex-1 min-w-0">
-            <h4 className="font-['Roboto_Mono'] font-bold text-[14px] text-foreground mb-[4px]">
+            <h4
+              className="font-['Roboto_Mono'] font-bold text-[14px] text-foreground mb-[4px] cursor-pointer hover:text-accent"
+              onClick={() => onEdit(task)}
+              title="View task details"
+            >
               {task.title}
               {(task as any).is_warranty && <span className="ml-[6px] align-middle px-[6px] py-[1px] rounded-full bg-warning/15 text-warning text-[9px] font-medium">Warranty</span>}
             </h4>

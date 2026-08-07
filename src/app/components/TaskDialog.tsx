@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { X, Save, Copy, Bookmark, Tag as TagIcon, Calendar as CalendarIcon, User, Users, AlertCircle } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "./ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "./ui/sheet";
 import { Label } from "./ui/label";
 import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
@@ -308,18 +308,21 @@ export default function TaskDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="font-['Roboto_Mono'] font-bold text-[14px]">
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="right"
+        className="w-full max-w-full sm:max-w-xl overflow-y-auto p-6"
+      >
+        <SheetHeader className="p-0">
+          <SheetTitle className="font-['Roboto_Mono'] font-bold text-[14px]">
             {mode === "edit" ? "Edit Task" : "Create New Task"}
-          </DialogTitle>
-          <DialogDescription className="font-['Roboto_Mono'] text-[10px] text-muted-foreground">
-            {mode === "edit" 
-              ? "Update task details and progress. Changes will be saved immediately." 
+          </SheetTitle>
+          <SheetDescription className="font-['Roboto_Mono'] text-[10px] text-muted-foreground">
+            {mode === "edit"
+              ? "Update task details and progress. Changes will be saved immediately."
               : "Fill in the task details below. You can save this as a template for future use."}
-          </DialogDescription>
-        </DialogHeader>
+          </SheetDescription>
+        </SheetHeader>
 
         <div className="space-y-[16px] mt-[16px]">
           {mode === "add" && !projectId && (
@@ -828,7 +831,7 @@ export default function TaskDialog({
             )}
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 }
