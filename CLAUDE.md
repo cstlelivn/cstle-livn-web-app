@@ -889,3 +889,22 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   touch/scroll experience on a physical phone. The user should do one real
   start-photo → start → finish-photo → finish cycle on a real device before
   trusting this for daily use.
+- **Confirmed the fix is live in production** the same day: the deployed
+  bundle at `https://cstle-livn-web-app.vercel.app` is `index-DabrF749.js`,
+  byte-identical to the local post-fix build, and was confirmed (by
+  fetching and grepping it) to contain the new locked-stage/"Add finish
+  photo" code.
+- **Manually finished two real Scarth Street work sessions Demilade
+  couldn't finish onsite on August 6** because they hit the bug above:
+  "Dry Fit Reception Cabinets" (session `14d80301...`, ~2.6h) and "Site
+  Setup and Protection" (session `ee5ab0ec...`, ~22.5min), both left
+  `paused`. Called `finish_work_session` directly for each with a note
+  explaining the admin override; the existing
+  `trg_submit_task_to_qc_after_session_finish` trigger correctly moved
+  both tasks to `Pending QC` automatically. **Neither has a completion
+  ("after") photo attached** -- `finish_work_session` has no server-side
+  photo requirement (only `start_work_session` does), so bypassing the
+  client-side check via direct RPC call skipped it entirely. Whoever
+  reviews these for QC should know the finish photos are missing and
+  decide whether to require them retroactively (via the desktop Edit Task
+  evidence panel) before approving.
