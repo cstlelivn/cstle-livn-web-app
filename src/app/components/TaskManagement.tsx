@@ -145,9 +145,19 @@ export default function TaskManagement() {
     setDeleteConfirmOpen(true);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (taskToDelete) {
-      deleteTask(taskToDelete);
+      try {
+        await deleteTask(taskToDelete);
+        toast.success("Task deleted");
+      } catch (error: any) {
+        const blocked = /foreign key|violates|restrict/i.test(error?.message || "");
+        toast.error(
+          blocked
+            ? "Can't delete -- this task has recorded history (assignments, time tracking, or QC records). Mark it Completed instead, or ask an admin to clear its history first."
+            : error?.message || "Failed to delete task"
+        );
+      }
       setTaskToDelete(null);
     }
     setDeleteConfirmOpen(false);

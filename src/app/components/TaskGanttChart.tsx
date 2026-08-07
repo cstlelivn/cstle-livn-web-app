@@ -247,10 +247,18 @@ export default function TaskGanttChart({ projectId }: TaskGanttChartProps) {
     setIsTaskDialogOpen(true);
   };
 
-  const handleDeleteTask = (taskId: number) => {
-    if (confirm("Are you sure you want to delete this task?")) {
-      deleteTask(taskId);
+  const handleDeleteTask = async (taskId: number) => {
+    if (!confirm("Are you sure you want to delete this task?")) return;
+    try {
+      await deleteTask(taskId);
       toast.success("Task deleted");
+    } catch (error: any) {
+      const blocked = /foreign key|violates|restrict/i.test(error?.message || "");
+      toast.error(
+        blocked
+          ? "Can't delete -- this task has recorded history (assignments, time tracking, or QC records). Mark it Completed instead, or ask an admin to clear its history first."
+          : error?.message || "Failed to delete task"
+      );
     }
   };
 

@@ -59,7 +59,14 @@ export default function TaskDialog({
   const project = effectiveProjectId ? getProject(effectiveProjectId as any) : undefined;
   const { phases: normalizedPhases, loading: phasesLoading } = useProjectPhases(effectiveProjectId || null);
   const activeProjects = projects.filter((candidate: any) => candidate.status !== "Completed");
-  const isClosedProject = project?.status === "Completed";
+  // A warranty/callback task (added after the project closed -- see
+  // migration 20240040) is the one narrow exception to closed-project
+  // immutability: it stays editable through its own lifecycle even though
+  // every other task in the project is frozen. `isWarrantyAdd` covers the
+  // moment of creating one; `isWarrantyTask` covers editing it afterward.
+  const isWarrantyTask = Boolean((task as any)?.is_warranty);
+  const isWarrantyAdd = mode === "add" && project?.status === "Completed";
+  const isClosedProject = project?.status === "Completed" && !isWarrantyTask;
   const isReadOnly =
     mode === "edit" &&
     (isClosedProject || !canEditTask({ task, currentUserId: currentUser?.id, isManagerOrAdmin: canManageAssignments, teamMembers, assigneeIds: currentAssigneeIds }));
@@ -178,16 +185,19 @@ export default function TaskDialog({
       toast.error("Choose a project before creating the task");
       return;
     }
-    if (project?.status === "Completed") {
+    if (project?.status === "Completed" && !isWarrantyAdd) {
       toast.error("This project is closed. New tasks cannot be added or changed.");
       return;
     }
-    if (!formData.phaseId) {
-      toast.error(normalizedPhases.length === 0 ? "Add a project phase before creating a task" : "Choose the phase for this task");
-      return;
+    let selectedPhase: any = null;
+    if (!isWarrantyAdd) {
+      if (!formData.phaseId) {
+        toast.error(normalizedPhases.length === 0 ? "Add a project phase before creating a task" : "Choose the phase for this task");
+        return;
+      }
+      selectedPhase = normalizedPhases.find((phase: any) => String(phase.id) === formData.phaseId);
+      if (!selectedPhase) { toast.error("Choose a valid project phase"); return; }
     }
-    const selectedPhase = normalizedPhases.find((phase: any) => String(phase.id) === formData.phaseId);
-    if (!selectedPhase) { toast.error("Choose a valid project phase"); return; }
 
     const taskData: any = {
       projectId: effectiveProjectId,
@@ -201,8 +211,12 @@ export default function TaskDialog({
         .split(",")
         .map((tag) => tag.trim())
         .filter((tag) => tag.length > 0),
-      phase: selectedPhase.name,
-      phase_id: selectedPhase.id,
+      // A warranty task isn't part of the project's original phase plan --
+      // those phases are closed along with everything else -- so it's
+      // filed under a plain "Warranty" label instead of a normalized phase.
+      phase: isWarrantyAdd ? "Warranty" : selectedPhase.name,
+      phase_id: isWarrantyAdd ? null : selectedPhase.id,
+      is_warranty: isWarrantyAdd || undefined,
       task_type: formData.task_type,
       estimated_hours: formData.estimatedHours ? Number(formData.estimatedHours) : null,
       complexity: formData.complexity || null,
@@ -586,18 +600,29 @@ export default function TaskDialog({
             </div>
           </div>
 
-          {/* Every task belongs to one normalized project phase. */}
-          <div>
-            <Label htmlFor="phase" className="text-[10px]">Project Phase *</Label>
-            <Select value={formData.phaseId} onValueChange={(value) => {
-              const phase = normalizedPhases.find((row: any) => String(row.id) === value);
-              setFormData({ ...formData, phaseId: value, phase: phase?.name || '' });
-            }} disabled={phasesLoading || normalizedPhases.length === 0}>
-              <SelectTrigger className="mt-[8px] text-[10px]"><SelectValue placeholder={phasesLoading ? "Loading phases…" : normalizedPhases.length ? "Choose phase" : "Add a phase first"} /></SelectTrigger>
-              <SelectContent>{normalizedPhases.map((phase: any) => <SelectItem key={phase.id} value={String(phase.id)} className="text-[10px]">{phase.name}</SelectItem>)}</SelectContent>
-            </Select>
-            {normalizedPhases.length === 0 && !phasesLoading && <p className="mt-1 font-['Roboto_Mono'] text-[9px] text-destructive">This project needs a phase before tasks can be added.</p>}
-          </div>
+          {/* Every normal task belongs to one normalized project phase --
+              a warranty task doesn't, since the project's phase plan is
+              closed along with everything else. */}
+          {isWarrantyAdd ? (
+            <div className="p-[12px] bg-warning/10 border border-warning/20 rounded-[8px]">
+              <p className="font-['Roboto_Mono'] text-[11px] font-bold text-foreground">Warranty / Callback Task</p>
+              <p className="mt-1 font-['Roboto_Mono'] text-[10px] text-muted-foreground">
+                This project is closed. This task will be filed as a warranty callback -- it won't reopen the project or change its recorded completion, but it stays fully trackable (status, assignment, QC, evidence) on its own.
+              </p>
+            </div>
+          ) : (
+            <div>
+              <Label htmlFor="phase" className="text-[10px]">Project Phase *</Label>
+              <Select value={formData.phaseId} onValueChange={(value) => {
+                const phase = normalizedPhases.find((row: any) => String(row.id) === value);
+                setFormData({ ...formData, phaseId: value, phase: phase?.name || '' });
+              }} disabled={phasesLoading || normalizedPhases.length === 0}>
+                <SelectTrigger className="mt-[8px] text-[10px]"><SelectValue placeholder={phasesLoading ? "Loading phases…" : normalizedPhases.length ? "Choose phase" : "Add a phase first"} /></SelectTrigger>
+                <SelectContent>{normalizedPhases.map((phase: any) => <SelectItem key={phase.id} value={String(phase.id)} className="text-[10px]">{phase.name}</SelectItem>)}</SelectContent>
+              </Select>
+              {normalizedPhases.length === 0 && !phasesLoading && <p className="mt-1 font-['Roboto_Mono'] text-[9px] text-destructive">This project needs a phase before tasks can be added.</p>}
+            </div>
+          )}
 
           <div>
             <Label htmlFor="verificationCriteria" className="text-[10px]">Verification Criteria</Label>

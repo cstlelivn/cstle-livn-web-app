@@ -331,8 +331,25 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
     setIsTaskDialogOpen(true);
   };
 
-  const handleDeleteTask = (taskId: number) => {
-    deleteTask(taskId);
+  const handleDeleteTask = async (taskId: number) => {
+    if (!window.confirm("Delete this task? This can't be undone.")) return;
+    try {
+      await deleteTask(taskId);
+      toast.success("Task deleted");
+    } catch (error: any) {
+      // Deleting was silently failing and reappearing with no explanation
+      // whenever a task had any recorded history (assignments, timer
+      // sessions, QC records, etc.) -- those are kept ON DELETE RESTRICT
+      // on purpose so real work history can't be destroyed by accident,
+      // but the failure needs to actually reach the user instead of just
+      // rolling the optimistic removal back silently.
+      const blocked = /foreign key|violates|restrict/i.test(error?.message || "");
+      toast.error(
+        blocked
+          ? "Can't delete -- this task has recorded history (assignments, time tracking, or QC records). Mark it Completed instead, or ask an admin to clear its history first."
+          : error?.message || "Failed to delete task"
+      );
+    }
   };
   
   // Handle phase editing
@@ -514,6 +531,7 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
             <div className="min-w-0 flex-1">
               <h4 className="font-['Roboto_Mono'] font-bold text-[14px] text-foreground mb-[2px] break-words">
                 {task.title}
+                {(task as any).is_warranty && <span className="ml-[6px] align-middle px-[6px] py-[1px] rounded-full bg-warning/15 text-warning text-[9px] font-medium">Warranty</span>}
               </h4>
               {task.description && (
                 <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground truncate">
@@ -558,6 +576,7 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
           <div className="min-w-0">
             <h4 className="font-['Roboto_Mono'] font-bold text-[14px] text-foreground mb-[4px] truncate">
               {task.title}
+              {(task as any).is_warranty && <span className="ml-[6px] align-middle px-[6px] py-[1px] rounded-full bg-warning/15 text-warning text-[9px] font-medium">Warranty</span>}
             </h4>
             <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground truncate">
               {task.description}
@@ -621,6 +640,7 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
           <div className="flex-1 min-w-0">
             <h4 className="font-['Roboto_Mono'] font-bold text-[14px] text-foreground mb-[4px]">
               {task.title}
+              {(task as any).is_warranty && <span className="ml-[6px] align-middle px-[6px] py-[1px] rounded-full bg-warning/15 text-warning text-[9px] font-medium">Warranty</span>}
             </h4>
             <p className="font-['Roboto_Mono'] font-normal text-[11px] text-muted-foreground line-clamp-2">
               {task.description}
@@ -982,13 +1002,16 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
             </TabsTrigger>
           </TabsList>
 
-          {currentTab === "tasks" && project.status !== "Completed" && canCreateTask && (
+          {currentTab === "tasks" && canCreateTask && (
             <button
               onClick={handleAddTask}
               className="flex items-center gap-[8px] px-[16px] py-[8px] bg-accent text-accent-foreground rounded-[6px] hover:bg-accent/90 transition-colors"
+              title={project.status === "Completed" ? "Add a warranty/callback task to this closed project" : undefined}
             >
               <Plus className="w-4 h-4" />
-              <p className="font-['Roboto_Mono'] font-medium text-[14px]">Add Task</p>
+              <p className="font-['Roboto_Mono'] font-medium text-[14px]">
+                {project.status === "Completed" ? "Add Warranty Task" : "Add Task"}
+              </p>
             </button>
           )}
         </div>

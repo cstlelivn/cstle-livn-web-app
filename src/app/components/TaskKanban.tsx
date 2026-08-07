@@ -301,9 +301,19 @@ export default function TaskKanban({ projectId }: TaskKanbanProps) {
     setIsTaskDialogOpen(true);
   };
 
-  const handleDeleteTask = (taskId: number) => {
-    deleteTask(taskId);
-    toast.success("Task deleted successfully");
+  const handleDeleteTask = async (taskId: number) => {
+    if (!window.confirm("Delete this task? This can't be undone.")) return;
+    try {
+      await deleteTask(taskId);
+      toast.success("Task deleted successfully");
+    } catch (error: any) {
+      const blocked = /foreign key|violates|restrict/i.test(error?.message || "");
+      toast.error(
+        blocked
+          ? "Can't delete -- this task has recorded history (assignments, time tracking, or QC records). Mark it Completed instead, or ask an admin to clear its history first."
+          : error?.message || "Failed to delete task"
+      );
+    }
   };
 
   const handleAddTask = (status: Task["status"]) => {

@@ -988,3 +988,70 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   or a separate "warranty task" concept, noting a project arguably
   shouldn't close until final balance is received. Not implemented --
   needs a decision first (see conversation).
+
+## Task deletion silently failing, warranty tasks — August 7, 2026
+
+- **Fixed "delete a task and it keeps coming back."** Not a phantom bug --
+  `deleteTask` in `AppContext.tsx` already correctly rolls an optimistic
+  removal back on failure, but all four call sites
+  (`ProjectDetailsReal.tsx`, `TaskManagement.tsx`, `TaskKanban.tsx`,
+  `TaskGanttChart.tsx`) called it fire-and-forget with no `await`/`catch`,
+  so a real failure was an unhandled promise rejection the user never saw
+  -- the task just silently reappeared a moment later with zero
+  explanation. The actual failure, confirmed live: `task_assignees`,
+  `task_work_sessions`, `task_aura_scores`, `task_updates`, and
+  `task_completion_attributions` all reference `tasks.id` with
+  `ON DELETE RESTRICT` (by design, to protect real work/QC/Aura history --
+  see the multi-assignee and Aura migrations) -- so a task with *any*
+  assignment or session history, even inactive/historical rows, cannot be
+  hard-deleted at all, full stop. All four call sites now properly
+  await + catch and show a clear toast (a friendlier "this task has
+  recorded history" message when the failure looks like the FK
+  violation, or ask an admin to clear its history first, else the
+  original message), and the two sites that didn't already have a confirm
+  step (`ProjectDetailsReal.tsx`, `TaskKanban.tsx`) now confirm before
+  deleting.
+  - Directly deleted the two specific "Flooring QC review" tasks the user
+    reported (one in `sample`, one in `__SAVE_TEMPLATE_TEST__` -- both
+    test/template projects, not real production data) after confirming
+    they had zero real session/QC history, just leftover `task_assignees`
+    rows from earlier test data cleanup this session -- removed those
+    rows first, then the tasks, since RESTRICT blocks even on inactive
+    assignment rows.
+- **Migration `20240040_warranty_tasks.sql` (not yet run by the user --
+  needs to run before this feature works) adds warranty/callback tasks**,
+  per the plan agreed on with the user: don't reopen closed projects
+  (keeps the closed record clean); instead allow a narrowly-scoped
+  "warranty task" to be added to a `Completed` project without reopening
+  it or touching its recorded numbers.
+  - New `tasks.is_warranty boolean not null default false`. Both
+    trigger functions from 20240033
+    (`reject_closed_project_task_mutation`,
+    `reject_closed_project_assignment_mutation`) now carve out an
+    exemption for `is_warranty = true` tasks -- they can be inserted into
+    a closed project and go on being edited/assigned/status-progressed
+    normally afterward, while every other task in that project stays
+    fully frozen exactly as before. `is_warranty` itself can only be set
+    at INSERT time; an UPDATE can never flip it true or false, closing
+    off the obvious loophole (retroactively "warranty-flagging" a real
+    historical task to unlock editing it).
+  - `TaskDialog.tsx`: creating a task in a `Completed` project no longer
+    hard-blocks -- it switches into a "Warranty / Callback Task" mode
+    (visible banner explaining what's happening), skips the normal
+    phase-selection requirement (a warranty task isn't part of the
+    project's original, now-closed phase plan -- it's filed under a plain
+    "Warranty" label with `phase_id: null` instead), and sets
+    `is_warranty: true` on creation. Editing an existing warranty task
+    afterward is fully normal (not read-only), unlike every other task in
+    a closed project.
+  - `ProjectDetailsReal.tsx`: the "Add Task" button, previously hidden
+    entirely once a project closed, now always shows for anyone with
+    create-task permission, relabeled "Add Warranty Task" when the
+    project is closed. Task rows (mobile card, desktop list, grid) show a
+    small "Warranty" badge next to the title when `is_warranty` is true.
+  - `npm run build` passes. **Not yet verified live** -- needs the
+    migration run first (the column doesn't exist in the database yet).
+  - Prompted this: the user wants to add a real task ("Stapleford Cr
+    warranty door adjustment") to `KB - 119 Stapleford Cr`, a real closed
+    project, for tomorrow. Once the migration is run, that specific task
+    should be created for them.

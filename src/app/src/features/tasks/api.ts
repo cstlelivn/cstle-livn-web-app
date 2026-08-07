@@ -10,7 +10,7 @@ const TASK_LIST_COLUMNS = [
   'phase_id', 'task_type', 'is_required', 'dependency_task_id', 'blocked_by',
   'completed_date', 'started_at', 'submitted_at', 'review_feedback', 'rating',
   'rating_metrics', 'estimated_hours', 'complexity', 'required_photo_count', 'supervisor_id',
-  'verification_criteria', 'photos_not_required', 'completion_note_required', 'crew_required', 'sequence', 'created_at', 'updated_at',
+  'verification_criteria', 'photos_not_required', 'completion_note_required', 'crew_required', 'sequence', 'is_warranty', 'created_at', 'updated_at',
 ].join(',');
 
 // Helper to check if a value is a valid UUID
@@ -90,6 +90,7 @@ export interface TaskUpdate {
   complexity?: string | null;
   crew_required?: number | null;
   sequence?: number | null;
+  is_warranty?: boolean;
 }
 
 export async function listTasks(projectId?: string | number, page = 0, pageSize = 300) {
@@ -148,6 +149,7 @@ export async function createTask(input: TaskInput) {
     complexity: input.complexity || null,
     crew_required: input.crew_required ?? (input as any).crewRequired ?? null,
     is_required: input.is_required ?? (input as any).is_required ?? true,
+    is_warranty: input.is_warranty ?? false,
   };
 
   // Handle assignee: prefer assignee_id, fall back to camelCase variant
