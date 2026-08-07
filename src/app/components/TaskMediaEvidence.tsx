@@ -21,6 +21,12 @@ interface Props {
   projectId: string;
   taskId: string;
   initialStage?: EvidenceStage;
+  // When set, the stage picker is hidden entirely and every upload is
+  // tagged with this stage -- used for the mobile Start/Finish photo
+  // flows so there's no dropdown to fumble with (and no way to
+  // accidentally tag a finish photo as "progress", which used to leave
+  // the finish-photo requirement stuck even after adding a photo).
+  lockedStage?: EvidenceStage;
   onUploaded?: () => void;
 }
 
@@ -38,18 +44,18 @@ function MediaIcon({ kind }: { kind: TaskMedia['media_kind'] }) {
   return <FileText className="h-4 w-4" />;
 }
 
-export default function TaskMediaEvidence({ projectId, taskId, initialStage = 'progress', onUploaded }: Props) {
+export default function TaskMediaEvidence({ projectId, taskId, initialStage = 'progress', lockedStage, onUploaded }: Props) {
   const { hasPermission } = useAuth();
   const canApprove = hasPermission('canApproveTaskQC') || hasPermission('canEditProjects');
   const inputRef = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<TaskMedia[]>([]);
-  const [stage, setStage] = useState<EvidenceStage>(initialStage);
+  const [stage, setStage] = useState<EvidenceStage>(lockedStage ?? initialStage);
   const [caption, setCaption] = useState('');
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [saveForMarketing, setSaveForMarketing] = useState(false);
 
-  useEffect(() => { setStage(initialStage); }, [initialStage]);
+  useEffect(() => { if (!lockedStage) setStage(initialStage); }, [initialStage, lockedStage]);
 
   const refresh = useCallback(async () => {
     try {
@@ -125,22 +131,28 @@ export default function TaskMediaEvidence({ projectId, taskId, initialStage = 'p
       <div>
         <div className="flex items-center gap-[6px]">
           <Paperclip className="h-4 w-4 text-accent" />
-          <h3 className="font-['Roboto_Mono'] text-[11px] font-bold">PROOF OF WORK & UPDATES</h3>
+          <h3 className="font-['Roboto_Mono'] text-[11px] font-bold">
+            {lockedStage ? stageLabels[lockedStage].toUpperCase() : 'PROOF OF WORK & UPDATES'}
+          </h3>
         </div>
         <p className="mt-[3px] font-['Roboto_Mono'] text-[9px] text-muted-foreground">
-          Add photos, video, audio, PDFs, and before/after evidence. Files are internal unless approved.
+          {lockedStage
+            ? `Files added here are tagged "${stageLabels[lockedStage]}" automatically.`
+            : 'Add photos, video, audio, PDFs, and before/after evidence. Files are internal unless approved.'}
         </p>
       </div>
 
-      <div className="grid gap-[8px] sm:grid-cols-[170px_1fr_auto]">
-        <Select value={stage} onValueChange={(value) => setStage(value as EvidenceStage)}>
-          <SelectTrigger className="text-[10px]"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {Object.entries(stageLabels).map(([value, label]) => (
-              <SelectItem key={value} value={value} className="text-[10px]">{label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className={`grid gap-[8px] ${lockedStage ? 'sm:grid-cols-[1fr_auto]' : 'sm:grid-cols-[170px_1fr_auto]'}`}>
+        {!lockedStage && (
+          <Select value={stage} onValueChange={(value) => setStage(value as EvidenceStage)}>
+            <SelectTrigger className="text-[10px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {Object.entries(stageLabels).map(([value, label]) => (
+                <SelectItem key={value} value={value} className="text-[10px]">{label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         <Input
           value={caption}
           onChange={(event) => setCaption(event.target.value)}
@@ -170,11 +182,11 @@ export default function TaskMediaEvidence({ projectId, taskId, initialStage = 'p
       ) : items.length === 0 ? (
         <p className="text-[10px] text-muted-foreground">No evidence has been added yet.</p>
       ) : (
-        <div className="grid gap-[10px] sm:grid-cols-2">
+        <div className="grid grid-cols-2 gap-[8px] sm:grid-cols-3">
           {items.map((item) => (
             <article key={item.id} className="overflow-hidden rounded-[7px] border border-border bg-background">
-              {item.media_kind === 'photo' && <img src={item.url} alt={item.caption || item.original_filename} className="h-[150px] w-full object-cover" />}
-              {item.media_kind === 'video' && <video src={item.url} controls preload="metadata" className="h-[150px] w-full bg-black object-contain" />}
+              {item.media_kind === 'photo' && <img src={item.url} alt={item.caption || item.original_filename} className="h-[80px] w-full object-cover" />}
+              {item.media_kind === 'video' && <video src={item.url} controls preload="metadata" className="h-[80px] w-full bg-black object-contain" />}
               {item.media_kind === 'audio' && <audio src={item.url} controls preload="metadata" className="w-full p-[10px]" />}
               {item.media_kind === 'document' && (
                 <a href={item.url} target="_blank" rel="noreferrer" className="flex h-[90px] items-center justify-center gap-2 text-[10px] text-accent hover:underline">

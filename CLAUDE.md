@@ -825,3 +825,67 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   real credentials.
 - `npm run build` (TypeScript + Vite) passes. Not yet committed/pushed at
   time of writing this entry.
+
+## Onsite photo evidence workflow fixed — August 7, 2026
+
+- **Root cause of "finish keeps asking for a photo even after I added one"**:
+  `MobileTaskWorkspace.tsx` had exactly one evidence-upload entry point while
+  a task was in progress ("Add photo, video or audio"), and it always
+  defaulted `TaskMediaEvidence`'s stage picker to `'progress'` — never
+  `'after'`. Finishing required a photo specifically tagged `'after'`
+  (`completionPhotoCount`, checked via `countReadyTaskPhotos(id, 'after')`),
+  so a user had to manually switch the stage dropdown from "Progress
+  update" to "After / completed" themselves. That dropdown (Radix Select)
+  also had a real bug on this mobile screen — opening it scrolled the page
+  back to the top, making it effectively unusable — so photos kept landing
+  in the wrong stage and the finish-photo requirement never cleared. The
+  photo-count logic itself (`start()`/`finish()` in `MobileTaskWorkspace.tsx`,
+  and the matching DB-level guard in `start_work_session`) was already
+  correct; the bug was entirely in which stage the UI defaulted to and the
+  broken control for changing it.
+- **Fix**: `TaskMediaEvidence.tsx` gained a `lockedStage` prop — when set,
+  the stage dropdown is hidden entirely and every upload is tagged with
+  that stage automatically (shown as a plain label instead, e.g. "BEFORE
+  WORK" / "AFTER / COMPLETED"). `MobileTaskWorkspace.tsx` now has two
+  separate, explicitly labeled actions instead of one ambiguous one:
+  "Add start photo" (`lockedStage="before"`, shown before starting) and
+  "Add finish photo" (`lockedStage="after"`, shown inside the "Finish task
+  requirements" section, right next to the completion-photo count). Neither
+  needs the dropdown, so the scroll-to-top bug can't block either flow
+  anymore. The desktop `TaskDialog.tsx` evidence view is unaffected (no
+  `lockedStage` passed) and still shows the full stage picker for
+  Managers/Admins reviewing all evidence.
+- **Mid-task photos**: per the user's explicit rule ("photo only required
+  at start and finish; mid-task only when reporting an issue or requesting
+  a change"), the composer's optional file attachment is now *required*
+  specifically for the `issue` and `change_request` update types (validated
+  in `submitUpdate`, with the attach-files label and Submit button
+  reflecting this) and stays optional for `progress`/`query`/`suggestion`.
+- **Visual pass** (thumbnails too big, "so many texts the same size, no
+  hierarchy"): evidence thumbnails in `TaskMediaEvidence.tsx` shrunk from
+  150px to 80px tall (grid now 2-up on mobile / 3-up wider, was 1-2up);
+  section header labels across `MobileTaskWorkspace.tsx` ("Finish task
+  requirements", "Materials & checklist", "Recent task activity") made
+  `font-bold` and bumped from 9px to 10-11px so they read as headers against
+  the surrounding 9-11px body/meta text instead of blending in; the
+  redundant generic "N photos added" line (which duplicated information now
+  shown per-button) was removed and replaced with a "Send an update" section
+  label for better scannability.
+- **Verified live** on the local dev preview (not yet on production —
+  pending push): confirmed the "Add start photo (required)" button opens
+  a dropdown-free panel labeled "BEFORE WORK"; started a real work session
+  via direct RPC (photo upload itself couldn't be exercised in this sandbox
+  — outbound network to the media/R2 pipeline isn't reachable from here);
+  confirmed the "Finish task requirements" section now shows a distinct
+  "Add finish photo (required)" button that opens a dropdown-free panel
+  labeled "AFTER / COMPLETED". Test data (a synthetic `task_media` row, the
+  work session, the temporary task assignment) was cleaned up afterward and
+  the task's status/timestamps were reset to `To Do`; the work session
+  history row itself couldn't be deleted (by design — `task_work_sessions`
+  is permanent, append-only history per the original work-session-tracking
+  plan) and was left in place as a harmless test artifact.
+- **Not yet verified**: an actual end-to-end photo upload (blocked by this
+  sandbox's network access, not a known code issue) and the real mobile
+  touch/scroll experience on a physical phone. The user should do one real
+  start-photo → start → finish-photo → finish cycle on a real device before
+  trusting this for daily use.

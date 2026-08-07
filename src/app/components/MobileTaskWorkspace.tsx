@@ -39,6 +39,7 @@ export default function MobileTaskWorkspace({ taskId, onBack }: { taskId: string
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);
   const [showEvidence, setShowEvidence] = useState(false);
+  const [showFinishEvidence, setShowFinishEvidence] = useState(false);
   const [photoCount, setPhotoCount] = useState(0);
   const [startPhotoCount, setStartPhotoCount] = useState(0);
   const [completionPhotoCount, setCompletionPhotoCount] = useState(0);
@@ -85,7 +86,7 @@ export default function MobileTaskWorkspace({ taskId, onBack }: { taskId: string
   const resume = () => session && run(() => queueSessionAction({ type: 'resume', taskId: String(task.id), teamMemberId: memberId, sessionId: session.id }), 'Task resumed', applySessionResult);
   const finish = () => {
     if (requiredIncomplete > 0) { toast.error(`Complete ${requiredIncomplete} required checklist item${requiredIncomplete === 1 ? '' : 's'} first`); return; }
-    if (!(task as any).photos_not_required && completionPhotoCount < 1) { toast.error('Add at least one completion photo before finishing'); setShowEvidence(true); return; }
+    if (!(task as any).photos_not_required && completionPhotoCount < 1) { toast.error('Add at least one finish photo before finishing'); setShowFinishEvidence(true); return; }
     if (!completionNote.trim()) { toast.error('Add a short completion note before finishing'); return; }
     if (!toolsCleared) { toast.error('Confirm tools and unused materials are cleared or secured'); return; }
     if (!session) return;
@@ -95,8 +96,12 @@ export default function MobileTaskWorkspace({ taskId, onBack }: { taskId: string
       async (result) => { if (result) setSessionOverride(result); await Promise.all([refreshSessions(), refreshTasks()]); },
     );
   };
+  // A photo is only required mid-task when reporting an issue or requesting
+  // a change -- routine site updates/questions/suggestions don't need one.
+  const photoRequiredForComposer = composer === 'issue' || composer === 'change_request';
   const submitUpdate = async () => {
     if (!composer || !body.trim() || !memberId) return;
+    if (photoRequiredForComposer && updateFiles.length === 0) { toast.error('Attach a photo showing the issue before submitting'); return; }
     await run(async () => {
       const created = await createTaskUpdate(String(task.id), String(task.projectId), memberId, composer, body);
       for (const file of updateFiles) {
@@ -142,19 +147,32 @@ export default function MobileTaskWorkspace({ taskId, onBack }: { taskId: string
         <TaskDependencies taskId={String(task.id)} projectTasks={tasks.filter((row:any)=>String(row.projectId)===String(task.projectId))}/>
         <TaskToolsMaterials taskId={String(task.id)}/>
 
-        {checklist.length > 0 && <section className="border border-[var(--olive-300)] rounded-[14px] overflow-hidden bg-white"><div className="px-4 py-3 flex justify-between"><span className="font-['Roboto_Mono'] text-[10px] uppercase">Materials & checklist · {checklist.length} items</span><ChevronDown className="w-4 h-4" /></div>{checklist.map((item) => <button key={item.id} onClick={() => toggleItem(item)} className="w-full border-t border-[var(--olive-300)] px-4 py-3 text-left flex gap-3 items-center"><span className={`w-5 h-5 border rounded-sm flex items-center justify-center ${item.completed_at ? 'bg-[var(--green-900)] text-white' : ''}`}>{item.completed_at && <Check className="w-3 h-3" />}</span><span className="font-['Roboto_Mono'] text-[11px]">{item.label}{item.is_required ? ' *' : ''}</span></button>)}</section>}
+        {checklist.length > 0 && <section className="border border-[var(--olive-300)] rounded-[14px] overflow-hidden bg-white"><div className="px-4 py-3 flex justify-between"><span className="font-['Roboto_Mono'] text-[10px] font-bold uppercase">Materials & checklist · {checklist.length} items</span><ChevronDown className="w-4 h-4" /></div>{checklist.map((item) => <button key={item.id} onClick={() => toggleItem(item)} className="w-full border-t border-[var(--olive-300)] px-4 py-3 text-left flex gap-3 items-center"><span className={`w-5 h-5 border rounded-sm flex items-center justify-center ${item.completed_at ? 'bg-[var(--green-900)] text-white' : ''}`}>{item.completed_at && <Check className="w-3 h-3" />}</span><span className="font-['Roboto_Mono'] text-[11px]">{item.label}{item.is_required ? ' *' : ''}</span></button>)}</section>}
 
-        <button onClick={() => setShowEvidence(!showEvidence)} className="w-full h-14 rounded-[12px] border border-[var(--olive-300)] bg-white flex items-center justify-center gap-3 font-['Roboto_Mono'] text-[11px] uppercase"><Camera className="w-5 h-5" />{inProgress ? 'Add photo, video or audio' : 'Add required start photo'}</button>
-        {showEvidence && <TaskMediaEvidence projectId={String(task.projectId)} taskId={String(task.id)} initialStage={inProgress ? 'progress' : 'before'} onUploaded={refreshPhotoCounts} />}
+        {!inProgress && <>
+          <button onClick={() => setShowEvidence(!showEvidence)} className="w-full h-14 rounded-[12px] border border-[var(--olive-300)] bg-white flex items-center justify-center gap-3 font-['Roboto_Mono'] text-[11px] font-bold uppercase"><Camera className="w-5 h-5" />Add start photo{startPhotoCount > 0 ? ` (${startPhotoCount} added)` : ' (required)'}</button>
+          {showEvidence && <TaskMediaEvidence projectId={String(task.projectId)} taskId={String(task.id)} lockedStage="before" onUploaded={refreshPhotoCounts} />}
+        </>}
 
         {inProgress && <>
-          <p className="font-['Roboto_Mono'] text-[9px] uppercase text-center -mt-2">{photoCount} photo{photoCount === 1 ? '' : 's'} added{Number(task.required_photo_count || 0) > 0 ? ` · ${task.required_photo_count} required` : ''}</p>
+          <p className="font-['Roboto_Mono'] text-[10px] font-bold uppercase">Send an update</p>
           <div className="grid grid-cols-2 gap-3">
             {([{type:'progress',icon:Send},{type:'query',icon:HelpCircle},{type:'suggestion',icon:Mic},{type:'issue',icon:CircleAlert},{type:'change_request',icon:Pencil}] as const).map(({type,icon:Icon}) => <button key={type} onClick={() => setComposer(type)} className={`min-h-14 px-3 rounded-[12px] border font-['Roboto_Mono'] text-[10px] uppercase flex items-center justify-center gap-2 ${composer===type ? 'bg-[var(--green-900)] text-white' : 'bg-white border-[var(--olive-300)]'}`}><Icon className="w-4 h-4" />{labels[type]}</button>)}
           </div>
-          {composer && <div className="bg-white border border-[var(--olive-300)] rounded-[14px] p-3"><p className="font-['Roboto_Mono'] text-[9px] uppercase mb-2">{labels[composer]}</p><textarea value={body} onChange={(e)=>setBody(e.target.value)} rows={3} className="w-full resize-none bg-transparent font-['Roboto_Mono'] text-[12px] outline-none" placeholder="What did you complete or notice?"/><label className="mt-2 flex min-h-11 cursor-pointer items-center justify-center rounded-full border border-[var(--olive-300)] px-3 font-['Roboto_Mono'] text-[10px] uppercase"><Camera className="mr-2 h-4 w-4" />{updateFiles.length ? `${updateFiles.length} file${updateFiles.length === 1 ? '' : 's'} attached` : 'Attach files'}<input type="file" multiple className="hidden" accept="image/*,video/*,audio/*,application/pdf" onChange={(event) => setUpdateFiles(Array.from(event.target.files || []))} /></label><button onClick={submitUpdate} disabled={busy || !body.trim()} className="w-full mt-2 h-11 rounded-full bg-[var(--vermillion-500)] text-white font-['Roboto_Mono'] text-[11px] uppercase disabled:opacity-40">Submit</button></div>}
-          {updates.length > 0 && <section><p className="font-['Roboto_Mono'] text-[9px] uppercase mb-2">Recent task activity</p>{updates.slice(0,3).map((u)=><div key={u.id} className="border-t border-[var(--olive-300)] py-3"><p className="font-['Roboto_Mono'] text-[9px] uppercase text-[var(--vermillion-700)]">{labels[u.update_type as TaskUpdateType]} · {u.status}</p><p className="font-['Roboto_Mono'] text-[11px] mt-1">{u.body}</p></div>)}</section>}
-          <section className="rounded-[14px] border border-[var(--olive-300)] bg-white p-3 space-y-3"><p className="font-['Roboto_Mono'] text-[9px] uppercase">Finish task requirements</p><textarea value={completionNote} onChange={(event) => setCompletionNote(event.target.value)} rows={2} className="w-full resize-none rounded-[8px] border border-[var(--olive-300)] p-3 font-['Roboto_Mono'] text-[11px]" placeholder="What was completed?"/><label className="flex items-start gap-2 font-['Roboto_Mono'] text-[10px]"><input type="checkbox" checked={toolsCleared} onChange={(event) => setToolsCleared(event.target.checked)} className="mt-0.5"/>Tools and unused materials are cleared or secured.</label><p className="font-['Roboto_Mono'] text-[9px] text-muted-foreground">Completion photos: {completionPhotoCount}{(task as any).photos_not_required ? ' · photos waived by supervisor' : ' · 1 required'}</p></section>
+          {composer && <div className="bg-white border border-[var(--olive-300)] rounded-[14px] p-3"><p className="font-['Roboto_Mono'] text-[10px] font-bold uppercase mb-2">{labels[composer]}</p><textarea value={body} onChange={(e)=>setBody(e.target.value)} rows={3} className="w-full resize-none bg-transparent font-['Roboto_Mono'] text-[12px] outline-none" placeholder="What did you complete or notice?"/><label className="mt-2 flex min-h-11 cursor-pointer items-center justify-center rounded-full border border-[var(--olive-300)] px-3 font-['Roboto_Mono'] text-[10px] uppercase"><Camera className="mr-2 h-4 w-4" />{updateFiles.length ? `${updateFiles.length} file${updateFiles.length === 1 ? '' : 's'} attached` : photoRequiredForComposer ? 'Attach a photo (required)' : 'Attach files (optional)'}<input type="file" multiple className="hidden" accept="image/*,video/*,audio/*,application/pdf" onChange={(event) => setUpdateFiles(Array.from(event.target.files || []))} /></label><button onClick={submitUpdate} disabled={busy || !body.trim() || (photoRequiredForComposer && updateFiles.length === 0)} className="w-full mt-2 h-11 rounded-full bg-[var(--vermillion-500)] text-white font-['Roboto_Mono'] text-[11px] uppercase disabled:opacity-40">Submit</button></div>}
+          {updates.length > 0 && <section><p className="font-['Roboto_Mono'] text-[10px] font-bold uppercase mb-2">Recent task activity</p>{updates.slice(0,3).map((u)=><div key={u.id} className="border-t border-[var(--olive-300)] py-3"><p className="font-['Roboto_Mono'] text-[9px] uppercase text-[var(--vermillion-700)]">{labels[u.update_type as TaskUpdateType]} · {u.status}</p><p className="font-['Roboto_Mono'] text-[11px] mt-1">{u.body}</p></div>)}</section>}
+          <section className="rounded-[14px] border border-[var(--olive-300)] bg-white p-3 space-y-3">
+            <p className="font-['Roboto_Mono'] text-[11px] font-bold uppercase">Finish task requirements</p>
+            <textarea value={completionNote} onChange={(event) => setCompletionNote(event.target.value)} rows={2} className="w-full resize-none rounded-[8px] border border-[var(--olive-300)] p-3 font-['Roboto_Mono'] text-[11px]" placeholder="What was completed?"/>
+            <label className="flex items-start gap-2 font-['Roboto_Mono'] text-[10px]"><input type="checkbox" checked={toolsCleared} onChange={(event) => setToolsCleared(event.target.checked)} className="mt-0.5"/>Tools and unused materials are cleared or secured.</label>
+            <button type="button" onClick={() => setShowFinishEvidence(!showFinishEvidence)} className="w-full h-12 rounded-[10px] border border-[var(--olive-300)] bg-white flex items-center justify-center gap-2 font-['Roboto_Mono'] text-[10px] font-bold uppercase">
+              <Camera className="w-4 h-4" />
+              {(task as any).photos_not_required
+                ? 'Add finish photo (waived by supervisor)'
+                : `Add finish photo${completionPhotoCount > 0 ? ` (${completionPhotoCount} added)` : ' (required)'}`}
+            </button>
+            {showFinishEvidence && <TaskMediaEvidence projectId={String(task.projectId)} taskId={String(task.id)} lockedStage="after" onUploaded={refreshPhotoCounts} />}
+          </section>
         </>}
 
         {memberId && <AuraTaskFeedback taskId={String(task.id)} teamMemberId={memberId} />}
