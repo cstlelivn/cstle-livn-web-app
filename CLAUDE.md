@@ -1297,3 +1297,35 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
 - `npm run build` passes. No new migration -- reuses the existing
   `task_work_sessions.notes` field and `TaskMediaEvidence`'s `progress`
   stage, both already live.
+
+## Due-date-shows-previous-day fix — August 8, 2026
+
+- **Root cause**: `src/app/src/lib/dates.ts`'s `formatDate()` -- a
+  *second*, separate date formatter from `src/app/src/lib/dateFormatter.ts`
+  -- parsed calendar-date strings (task due dates, project start/end
+  dates, always stored as UTC-midnight timestamps like
+  `2026-08-08T00:00:00+00:00`) with plain `new Date(...)` and then
+  `.toLocaleDateString()`. That converts to the browser's local timezone,
+  which rolls a UTC-midnight instant back to the previous day in any
+  negative-UTC-offset zone (e.g. Saskatchewan, UTC-6: midnight UTC on the
+  8th is 6pm on the 7th locally) -- so a task due "Aug 8" displayed "Aug
+  7" everywhere this formatter was used. This is the same class of bug
+  already fixed for the Calendar/Gantt views (`20240026`-era work,
+  `daysBetweenUTC`/`dateOnly` helpers in `ProjectDetailsReal.tsx`) but
+  this second formatter was never brought in line with that fix.
+- **Fix**: `formatDate()` in `lib/dates.ts` now reads the `YYYY-MM-DD`
+  digits straight out of the string and constructs a *local* `Date` from
+  those parts (bypassing the UTC-instant interpretation entirely) before
+  falling back to the old behavior for non-string/non-ISO inputs. Every
+  call site of this function across the app (`ProjectDetailsReal.tsx`,
+  `TaskManagement.tsx`, `TaskKanban.tsx`, `Dashboard.tsx`,
+  `RecentTasksWidget.tsx`, `ClientDetailsDialog.tsx`,
+  `ProjectManagement.tsx`, `TaskRatingDialog.tsx`) only ever passes
+  calendar dates (due dates, start/end dates) to it, never a real
+  timestamp-with-time-of-day, so this fix has no other call sites to
+  regress -- `formatDateTime` in the same file, used for actual instants,
+  is untouched.
+- Verified live: the Stapleford Cr warranty task (`due_date` stored as
+  `2026-08-08T00:00:00+00:00`) now shows "Aug 8, 2026" in the project
+  Tasks tab; it previously would have shown "Aug 7, 2026".
+- `npm run build` passes. No migration -- display-only fix.
