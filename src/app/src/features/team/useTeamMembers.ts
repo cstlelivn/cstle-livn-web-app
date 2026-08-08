@@ -83,6 +83,23 @@ export function useTeamMembers(enabled = true) {
     }
 
     let off = () => {};
+    let subscribedOnce = false;
+
+    // Unlike useTasks/useProjects/useTaskAssignees, this hook previously had
+    // no reconnect/visibility recovery at all -- if both the initial fetch
+    // and its one retry lost the sign-in session-hydration race, the team
+    // list stayed empty for the rest of the tab's life (nothing else ever
+    // triggered another attempt), which is exactly the "list is blank until
+    // I reload a few times" symptom this was supposed to fix. Reproduced
+    // live: teamMembers stayed `[]` indefinitely after a fresh load even
+    // though the same query succeeded when run manually a moment later.
+    const recover = () => {
+      if (document.visibilityState !== 'visible' || !navigator.onLine) return;
+      listTeamMembers().then((data) => setRows(data.map(transformTeamMemberRow))).catch(() => {});
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') recover();
+    };
 
     (async () => {
       try {
@@ -117,6 +134,12 @@ export function useTeamMembers(enabled = true) {
               q.current.push(p);
               if (!raf.current) raf.current = requestAnimationFrame(flush);
             },
+          },
+          undefined,
+          (status) => {
+            if (status !== 'SUBSCRIBED') return;
+            if (subscribedOnce) recover();
+            subscribedOnce = true;
           }
         );
       } catch (error) {
@@ -124,9 +147,14 @@ export function useTeamMembers(enabled = true) {
       }
     })();
 
+    window.addEventListener('online', recover);
+    document.addEventListener('visibilitychange', onVisibility);
+
     return () => {
       off();
       if (raf.current) cancelAnimationFrame(raf.current);
+      window.removeEventListener('online', recover);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [flush, enabled]);
 

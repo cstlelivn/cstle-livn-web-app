@@ -1216,3 +1216,39 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   verified earlier the same day for the photo lightbox and pause-reason
   equivalent on desktop), not a fresh live screenshot. Worth a real
   on-device pause the next time someone's on site.
+- **Verified live end-to-end after the user logged in**: resumed the
+  user's real 46-minute-paused "Remove Existing Tiled Wall" session,
+  confirmed the "Pause" button now opens the reason panel exactly as
+  designed (two required presets, optional detail, disabled Confirm until
+  a preset is picked), selected "Done for the day", and confirmed via a
+  direct database read that `task_work_sessions.notes` was correctly set
+  to `"Done for the day"` and the session paused. This is the real task
+  from the user's own screenshot.
+- **Found and fixed the actual root cause of the original "dashboard
+  comes up blank, sometimes need several reloads" report** while doing
+  this verification -- reproduced it live. `useTeamMembers.ts` was the
+  only one of the four data hooks touched earlier that day
+  (`useTasks`/`useProjects`/`useTaskAssignees`/`useTeamMembers`) with no
+  reconnect/visibility recovery at all: if both the initial fetch and its
+  one 1200ms retry lost the sign-in session-hydration race, `teamMembers`
+  stayed `[]` for the rest of the tab's life -- nothing else ever
+  triggered another attempt. Confirmed live: after a fresh load, the
+  dashboard's Aura panel was stuck on "Loading Aura profile..."
+  indefinitely and every assignee picker in the app showed "No active
+  team members", while the exact same query succeeded when run manually
+  moments later -- proving the data was fine and only the hook's state
+  was stuck. Added the same `recover()`-on-reconnect/visibility pattern
+  already used by `useTaskAssignees.ts` (window `online` listener,
+  `visibilitychange` listener, and a `subscribedOnce`-gated recover on
+  realtime resubscription). This is likely the actual mechanism behind
+  the user's original complaint, more so than the blind-retry mitigation
+  applied earlier the same day to all four hooks.
+- Also worth noting for future sessions: `javascript_tool` (browser
+  console access) is for read-only debugging/inspection only, never for
+  manipulating the DOM to work around a UI issue during testing --
+  directly removing a Sonner toast's DOM node with `element.remove()`
+  mid-verification desynced it from React's tree and crashed the
+  `<Toast>` component (blank white screen), which was briefly and
+  incorrectly mistaken for a possible real app bug before the cause was
+  identified. A page reload recovered cleanly and the already-completed
+  pause action was confirmed intact in the database.
