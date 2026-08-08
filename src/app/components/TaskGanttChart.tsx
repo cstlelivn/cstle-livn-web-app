@@ -8,6 +8,7 @@ import { ALL_TASK_STATUSES, getEmployeeActions } from "../src/features/tasks/sta
 import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuSeparator } from "./ui/context-menu";
 import TaskDialog from "./TaskDialog";
 import { toast } from "sonner";
+import { formatDate as formatCalendarDate } from "../src/lib/dates";
 
 interface TaskGanttChartProps {
   projectId: number;
@@ -186,13 +187,13 @@ export default function TaskGanttChart({ projectId }: TaskGanttChartProps) {
           let newStart = addDays(start, r.deltaDays);
           if (daysBetween(newStart, due) < 1) newStart = addDays(due, -1);
           await updateTask(t.id, { start_date: newStart } as Partial<Task>);
-          toast.success(`Task now starts ${new Date(newStart).toLocaleDateString()}`);
+          toast.success(`Task now starts ${formatCalendarDate(newStart)}`);
           offerSaveDurationToTemplate(t as any, daysBetween(newStart, due));
         } else {
           let newDue = addDays(due, r.deltaDays);
           if (daysBetween(start, newDue) < 1) newDue = addDays(start, 1);
           await updateTask(t.id, { dueDate: newDue });
-          toast.success(`Task now due ${new Date(newDue).toLocaleDateString()}`);
+          toast.success(`Task now due ${formatCalendarDate(newDue)}`);
           offerSaveDurationToTemplate(t as any, daysBetween(start, newDue));
         }
       } catch (error) {
@@ -291,7 +292,7 @@ export default function TaskGanttChart({ projectId }: TaskGanttChartProps) {
     const newDue = addDays(newStart, duration);
     try {
       await updateTask(draggedTask.id, { start_date: newStart, dueDate: newDue } as Partial<Task>);
-      toast.success(`Task rescheduled to ${new Date(newStart).toLocaleDateString()}`);
+      toast.success(`Task rescheduled to ${formatCalendarDate(newStart)}`);
     } catch {
       toast.error("Failed to reschedule task");
     }

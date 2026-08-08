@@ -41,6 +41,7 @@ import {
 } from "../src/features/procurement/api";
 import { createClient } from "../utils/supabase/client.tsx";
 import PhaseCompletionEmailModal from "./PhaseCompletionEmailModal";
+import { formatDate as formatDueDate, formatDateShort as formatDueDateShort } from "../src/lib/dates";
 import { getClient } from "../src/features/clients/api";
 import TaskDialog from "./TaskDialog";
 
@@ -497,7 +498,7 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
                               onMoveDown={() => move(String(task.id), 1)}
                               onDatedMoveAttempt={() => {
                                 toast.info(
-                                  `This task is due ${new Date(task.dueDate).toLocaleDateString()} — change its due date to move it. Date order can't be reordered manually, since it also drives the Gantt chart.`
+                                  `This task is due ${formatDueDate(task.dueDate)} — change its due date to move it. Date order can't be reordered manually, since it also drives the Gantt chart.`
                                 );
                               }}
                             >
@@ -510,7 +511,7 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
                               </span>
                               {task.dueDate && (
                                 <span className="font-['Roboto_Mono'] text-[9px] text-muted-foreground shrink-0">
-                                  {new Date(task.dueDate).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                                  {formatDueDateShort(task.dueDate)}
                                 </span>
                               )}
                               <TaskStatusControl

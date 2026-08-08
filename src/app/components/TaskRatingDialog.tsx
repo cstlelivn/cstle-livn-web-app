@@ -144,7 +144,7 @@ export default function TaskRatingDialog({
               <div className="flex items-center gap-[8px] mt-[4px]">
                 <CheckCircle className="w-[12px] h-[12px] text-success" />
                 <p className="text-muted-foreground" style={{ fontSize: 'var(--text-small)' }}>
-                  Done: {new Date(task.completedDate).toLocaleDateString()}
+                  Done: {formatDate(task.completedDate)}
                 </p>
               </div>
               {daysEarly !== 0 && (

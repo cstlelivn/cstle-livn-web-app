@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import TaskReviewDialog from "./TaskReviewDialog";
 import { useTasksAwaitingReview } from "../src/features/tasks/useTasksAwaitingReview";
 import { finalizeTaskQC } from "../src/features/auraScoring/api";
+import { formatDate as formatDueDate } from "../src/lib/dates";
 
 export default function QCReviewQueue() {
   const { projects, tasks, teamMembers, getTeamMember, updateTask, refreshTasks, refreshTeam } = useApp();
@@ -362,7 +363,7 @@ export default function QCReviewQueue() {
                             <div className="flex items-center gap-[6px]">
                               <Calendar className="w-3 h-3 text-muted-foreground" />
                               <span className="font-['Roboto_Mono'] text-[10px] text-muted-foreground">
-                                {new Date(task.dueDate).toLocaleDateString()}
+                                {formatDueDate(task.dueDate)}
                               </span>
                             </div>
                             {task.phase && (

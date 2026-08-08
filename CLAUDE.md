@@ -1376,3 +1376,71 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   just accidentally correct because the tester's browser happened to
   already be in that timezone.
 - `npm run build` passes. No migration -- display-only.
+
+## Due-date off-by-one, round 2: the Phases tab was missed — August 8, 2026
+
+- **The user caught this live in production**: due dates set to the 8th
+  and 10th were still displaying as the 7th and 9th on the Phases tab
+  (`PhaseView.tsx`'s per-phase task rows), even after the `lib/dates.ts`
+  fix earlier the same day. Root cause: that first pass fixed every call
+  site that already went through the shared `formatDate` from
+  `lib/dates.ts`, but `PhaseView.tsx` had its own independent
+  `new Date(task.dueDate).toLocaleDateString(...)` calls that never routed
+  through the shared formatter at all -- same bug, different code path,
+  simply not caught by grepping for `formatDate(` usages.
+- **This time, swept the whole codebase for the actual bug pattern**
+  (`new Date(<calendar-date-field>).toLocaleDateString(...)`) instead of
+  trusting that "fixed the shared utility" meant "fixed everywhere."
+  Found and fixed five more real instances, all confirmed via a live
+  database read against real Scarth Street tasks (`Site Cleanup`,
+  `Remove Existing Drywall Partitions` = `2026-08-08`;
+  `Protect Finished Millwork`, `Remove Steel Stud Framing` = `2026-08-10`)
+  matching exactly what the user reported:
+  - `PhaseView.tsx` (2 call sites: the undated-task-move toast, and the
+    per-task-row due date pill -- this was the one in the user's
+    screenshot)
+  - `MobileTaskDashboard.tsx` (3 call sites: "To assign" queue row,
+    expanded "Your tasks" row, Supervisor Queue row)
+  - `QCReviewQueue.tsx` (task list due date)
+  - `TaskGanttChart.tsx` (3 toast messages after drag-to-reschedule --
+    `newStart`/`newDue` are computed by this file's own UTC-safe
+    `addDays()` helper as a plain `YYYY-MM-DD` string, but were then
+    formatted with plain `new Date(str).toLocaleDateString()`, which
+    treats a bare date string as UTC midnight and hits the exact same bug
+    -- confirms the "already fixed for Gantt" note from earlier work
+    (`20240026`-era) was incomplete)
+  - `TaskRatingDialog.tsx` (`task.completedDate`, a `date`-typed Postgres
+    column with the same UTC-midnight serialization as due dates -- this
+    file already imported `formatDate` for its due-date line but had a
+    second, un-migrated `completedDate` line right next to it)
+  - `RecentTasksWidget.tsx`, `ClientDetailsDialog.tsx`, `ProjectManagement.tsx`,
+    `TaskKanban.tsx`, `TaskManagement.tsx`, `Dashboard.tsx` were already
+    correct from the first pass (they used the shared `formatDate`).
+  - Added `formatDateShort` to `lib/dates.ts` (same digit-extraction fix,
+    no year -- e.g. "Aug 8") alongside the existing `formatDate`, since
+    several of these call sites specifically needed the no-year short
+    form and were previously getting it from the broken
+    `toLocaleDateString(undefined, { month: "short", day: "numeric" })`
+    pattern. Refactored both to share one `toLocalCalendarDate` helper so
+    there's a single place doing the digit extraction.
+  - **Not touched, lower-priority / different field semantics, flagged for
+    a future pass if it comes up**: `InventoryDetailView.tsx`
+    (`lastRestocked`), `ProjectPurchasesView.tsx` (`purchaseDate`),
+    `TeamProductivityReport.tsx` (`weekStart`), `RatingHistoryDialog.tsx`
+    (`ratedAt` -- likely a real instant, not a calendar date, so probably
+    not actually buggy), `PhaseQCReviewDialog.tsx` (`reviewedAt`/
+    `submittedAt` -- same reasoning, real instants).
+- Verified via direct function calls against the real due-date values
+  pulled from the database (not a UI screenshot, since the Browser pane's
+  screenshot tool was intermittently stale/cached this session):
+  `formatDateShort('2026-08-08T00:00:00+00:00')` → `"Aug 8"`,
+  `formatDateShort('2026-08-10T00:00:00+00:00')` → `"Aug 10"`. Both
+  correct, both feeding directly into the exact line `PhaseView.tsx` now
+  calls.
+- `npm run build` passes. No migration -- display-only.
+- **Lesson for next time a shared-utility date/time fix is made**: grep
+  for the actual buggy *pattern* (`new Date(...).toLocaleDateString`/
+  `toLocaleString`/`toLocaleTimeString` on a calendar-date field) across
+  every component file, not just for existing imports of the utility
+  being fixed -- a shared formatter only protects the call sites that
+  already use it.

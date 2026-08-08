@@ -8,6 +8,7 @@ import { declineTaskAssignment, assignTaskMember } from "../src/features/taskAss
 import { listPhasesForProjects } from "../src/features/projectPhases/api";
 import { sortTasksByPhase } from "../src/lib/taskOrder";
 import AuraProfileCard from "./AuraProfileCard";
+import { formatDateShort as formatDueDateShort } from "../src/lib/dates";
 
 // Mobile-only, task-led dashboard for associates working on site: "what do I
 // have to do right now" rather than the admin's company-wide project/finance
@@ -397,7 +398,7 @@ function SupervisorQueueRow({
       </button>
       <div className="flex items-center justify-between font-['Roboto_Mono'] text-[10px] text-muted-foreground uppercase tracking-wide">
         <span>{task.phase || "No phase"}</span>
-        <span>{task.dueDate ? new Date(task.dueDate).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "No date"}</span>
+        <span>{task.dueDate ? formatDueDateShort(task.dueDate) : "No date"}</span>
       </div>
 
       {assigning ? (
@@ -479,7 +480,7 @@ function TaskQueueRow({
             isDelayed ? "text-[var(--vermillion-500)] font-bold" : "text-muted-foreground"
           }`}
         >
-          {task.dueDate ? new Date(task.dueDate).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "No date"}
+          {task.dueDate ? formatDueDateShort(task.dueDate) : "No date"}
         </span>
       </button>
     );
@@ -559,7 +560,7 @@ function TaskQueueRow({
       <div className="flex items-center justify-between font-['Roboto_Mono'] text-[11px] text-muted-foreground -mt-[8px]">
         <span className="uppercase tracking-wide">{task.priority || "Medium"}</span>
         <span className={isDelayed ? "text-[var(--vermillion-500)] font-bold" : ""}>
-          {task.dueDate ? new Date(task.dueDate).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "—"}
+          {task.dueDate ? formatDueDateShort(task.dueDate) : "—"}
         </span>
       </div>
 
