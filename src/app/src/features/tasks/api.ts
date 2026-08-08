@@ -62,6 +62,7 @@ export interface TaskInput {
   complexity?: string | null;
   crew_required?: number | null;
   sequence?: number | null;
+  is_warranty?: boolean;
 }
 
 export interface TaskUpdate {

@@ -150,6 +150,7 @@ function AssigneeSessionRow({
 
   const handlePauseSubmit = () =>
     run(async () => {
+      if (!notes.trim()) throw new Error('Add a reason for pausing (e.g. break, done for the day)');
       await queueSessionAction({
         type: "pause",
         taskId,
@@ -271,7 +272,7 @@ function AssigneeSessionRow({
               <Textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Completion note *"
+                placeholder="Why are you pausing? e.g. taking a break, done for the day"
                 rows={2}
                 className="text-[10px]"
               />

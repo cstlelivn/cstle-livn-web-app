@@ -1176,3 +1176,43 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   render condition). Verified live: reopened the Stapleford task, due
   date now shows `2026-08-08`, and the Warranty banner renders instead of
   a phase picker.
+
+## Pause-reason capture, mobile — August 7, 2026
+
+- **Real problem reported live**: an associate paused "Remove Existing
+  Tiled Wall" at the end of a workday with no way to say why -- the mobile
+  pause button just paused instantly, so a pause left overnight would have
+  read back identically to a five-minute break, corrupting the actual-hours
+  number the timer exists to produce. No new migration needed --
+  `pause_work_session` (from `20240016`) already accepts a `p_notes` field;
+  nothing was writing to it from the mobile flow.
+- **`MobileTaskWorkspace.tsx`**: tapping Pause now opens a bottom-sheet
+  overlay ("Why are you pausing?") with two required preset choices --
+  "Taking a short break" / "Done for the day" -- plus an optional free-text
+  detail field. Confirming calls `pause_work_session` with `notes` set to
+  the chosen label (plus the detail, if any); Resume is unaffected. A
+  reason is mandatory -- the confirm button stays disabled until one preset
+  is picked.
+- **`WorkSessionTimer.tsx`** (desktop, used inside `TaskDialog`) already
+  had an equivalent pause-notes field from earlier work, but its textarea
+  placeholder read "Completion note *" -- copy-pasted from the finish form
+  and actively misleading for the pause context, with no matching
+  validation despite the asterisk. Fixed the placeholder to describe the
+  pause reason and added the same "reason required" validation the mobile
+  flow now has, so desktop and mobile behave identically.
+- **Caught and fixed a real, pre-existing type error while typechecking
+  this work** (unrelated to the pause change, from the earlier warranty-task
+  commit): `is_warranty` was added to the `TaskUpdate` interface in
+  `tasks/api.ts` but not to `TaskInput`, so `createTask`'s use of
+  `input.is_warranty` didn't typecheck. Added the missing field to
+  `TaskInput`. `npx tsc --noEmit -p tsconfig.sync.json` and `npm run build`
+  both pass clean now.
+- **Verification note**: `npm run build` and the scoped typecheck both
+  pass. The live browser session's auth was lost when the dev server was
+  restarted for this pass, and per this project's standing rule the agent
+  never types/submits a password to sign back in -- so this round shipped
+  on build/typecheck plus code review (the new overlay reuses the exact
+  same fixed-overlay/bottom-sheet and pill-button patterns already visually
+  verified earlier the same day for the photo lightbox and pause-reason
+  equivalent on desktop), not a fresh live screenshot. Worth a real
+  on-device pause the next time someone's on site.
