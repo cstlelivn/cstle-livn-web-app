@@ -154,7 +154,13 @@ export default function MobileTaskWorkspace({ taskId, onBack }: { taskId: string
           <><h1 className="text-[42px] leading-[.96] mt-4" style={display}>Task in<br />progress</h1>
           <div className="mt-5 bg-[var(--olive-300)] text-[var(--green-900)] rounded-[18px] px-5 py-5 flex items-center justify-between">
             <div><p className="font-['Roboto_Mono'] text-[35px] leading-none tracking-tight">{formatElapsed(elapsed)}</p><p className="font-['Roboto_Mono'] text-[10px] uppercase mt-3">{session.status === 'paused' ? 'Paused' : `Started ${new Date(session.startedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`}</p></div>
-            <div className="w-16 h-16 rounded-full border-[7px] border-white border-l-[var(--green-900)]" /></div></>
+            <div className="w-16 h-16 rounded-full border-[7px] border-white border-l-[var(--green-900)]" /></div>
+          {session.status === 'paused' && session.notes && (
+            <p className="font-['Roboto_Mono'] text-[10px] mt-3 text-[var(--olive-300)]">
+              {session.notes}
+              {session.notes === 'Done for the day' && ' -- tap Resume tomorrow to keep going.'}
+            </p>
+          )}</>
         ) : <p className="font-['Roboto_Mono'] text-[10px] uppercase tracking-[.12em] mt-2">{project?.title} · {task.phase || project?.phase}</p>}
       </header>
 
