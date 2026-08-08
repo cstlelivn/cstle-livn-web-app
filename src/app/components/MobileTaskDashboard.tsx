@@ -72,10 +72,34 @@ export default function MobileTaskDashboard({
     return new Set(taskAssignees.map((a: any) => String(a.taskId)));
   }, [taskAssignees]);
 
+  // A task that's already been submitted for QC (or sent back Under
+  // Review) is out of the associate's hands until a reviewer acts on it --
+  // it doesn't belong in "what should I work on next," so it's split out
+  // into its own queue instead of sitting at the top of the active list
+  // forever until QC gets to it.
   const myTasksUnsorted = useMemo(() => {
     return tasks.filter((t: any) => {
       const project = projects.find((p: any) => String(p.id) === String(t.projectId));
-      return myTaskIds.has(String(t.id)) && !declinedTaskIds.has(String(t.id)) && t.status !== "Completed" && project?.status !== "Completed";
+      return (
+        myTaskIds.has(String(t.id)) &&
+        !declinedTaskIds.has(String(t.id)) &&
+        t.status !== "Completed" &&
+        t.status !== "Pending QC" &&
+        t.status !== "Under Review" &&
+        project?.status !== "Completed"
+      );
+    });
+  }, [tasks, projects, myTaskIds, declinedTaskIds]);
+
+  const myQcQueueUnsorted = useMemo(() => {
+    return tasks.filter((t: any) => {
+      const project = projects.find((p: any) => String(p.id) === String(t.projectId));
+      return (
+        myTaskIds.has(String(t.id)) &&
+        !declinedTaskIds.has(String(t.id)) &&
+        (t.status === "Pending QC" || t.status === "Under Review") &&
+        project?.status !== "Completed"
+      );
     });
   }, [tasks, projects, myTaskIds, declinedTaskIds]);
 
@@ -99,10 +123,11 @@ export default function MobileTaskDashboard({
   const relevantProjectIds = useMemo(() => {
     const ids = new Set<string>();
     myTasksUnsorted.forEach((t: any) => ids.add(String(t.projectId)));
+    myQcQueueUnsorted.forEach((t: any) => ids.add(String(t.projectId)));
     supervisorQueueUnsorted.forEach((t: any) => ids.add(String(t.projectId)));
     supervisedProjectIds.forEach((id) => ids.add(id));
     return [...ids];
-  }, [myTasksUnsorted, supervisorQueueUnsorted, supervisedProjectIds]);
+  }, [myTasksUnsorted, myQcQueueUnsorted, supervisorQueueUnsorted, supervisedProjectIds]);
 
   useEffect(() => {
     let cancelled = false;
@@ -125,7 +150,9 @@ export default function MobileTaskDashboard({
   }, [relevantProjectIds.join(",")]);
 
   const myTasks = useMemo(() => sortTasksByPhase(myTasksUnsorted, phases), [myTasksUnsorted, phases]);
+  const myQcQueue = useMemo(() => sortTasksByPhase(myQcQueueUnsorted, phases), [myQcQueueUnsorted, phases]);
   const supervisorQueue = useMemo(() => sortTasksByPhase(supervisorQueueUnsorted, phases), [supervisorQueueUnsorted, phases]);
+  const [showQcQueue, setShowQcQueue] = useState(false);
 
   const delayedCount = myTasks.filter((t: any) => t.dueDate && new Date(t.dueDate) < new Date()).length;
 
@@ -220,6 +247,44 @@ export default function MobileTaskDashboard({
                 onDeclined={(id) => setDeclinedTaskIds((current) => new Set(current).add(id))}
               />
             ))}
+          </div>
+        )}
+
+        {myQcQueue.length > 0 && (
+          <div className="rounded-[20px] border border-[var(--olive-300)] overflow-hidden">
+            <button
+              onClick={() => setShowQcQueue((v) => !v)}
+              className="w-full flex items-center justify-between px-[20px] py-[14px] bg-card"
+            >
+              <span className="flex items-center gap-[8px] font-['Roboto_Mono'] text-[11px] font-bold uppercase tracking-wide text-foreground">
+                <ShieldCheck className="w-4 h-4" />
+                Awaiting QC
+              </span>
+              <span className="font-['Roboto_Mono'] text-[11px] uppercase tracking-wide text-muted-foreground">
+                {myQcQueue.length} {showQcQueue ? "Hide ▲" : "Show ▼"}
+              </span>
+            </button>
+            {showQcQueue && (
+              <div className="divide-y divide-[var(--olive-300)] border-t border-[var(--olive-300)]">
+                {myQcQueue.map((task: any) => (
+                  <button
+                    key={task.id}
+                    onClick={() => onNavigate("task-details", task.id)}
+                    className="w-full text-left px-[20px] py-[14px] bg-[var(--olive-100)] flex items-center justify-between gap-[12px]"
+                  >
+                    <p
+                      className="text-foreground flex-1 min-w-0 truncate"
+                      style={{ fontFamily: "Anybody", fontVariationSettings: "'wdth' 137", fontWeight: 700, fontStretch: "137%", letterSpacing: "-0.04em", fontSize: "14px", lineHeight: 1.25 }}
+                    >
+                      {task.title}
+                    </p>
+                    <span className="shrink-0 font-['Roboto_Mono'] text-[9px] uppercase tracking-wide text-muted-foreground">
+                      {task.status === "Pending QC" ? "Pending QC" : "Under review"}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

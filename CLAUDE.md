@@ -1252,3 +1252,48 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   incorrectly mistaken for a possible real app bug before the cause was
   identified. A page reload recovered cleanly and the already-completed
   pause action was confirmed intact in the database.
+
+## "Done for the day" pause hardening + QC queue split — August 7, 2026
+
+- **`MobileTaskWorkspace.tsx`**: a session paused "Done for the day" now
+  removes Finish Task from the footer entirely, leaving a single full-width
+  "Resume task" button. Per explicit user feedback, offering Finish Task
+  next to Resume on a day-end pause invited finishing a task that was only
+  paused, not actually complete. Detection is
+  `session.notes?.startsWith('Done for the day')`, computed as `pausedForDay`.
+- Selecting "Done for the day" in the pause-reason sheet now also requires
+  a photo before Confirm Pause will succeed (same evidence bar as
+  start/finish), via a new "Add end-of-day photo (required)" button that
+  opens `TaskMediaEvidence` with `lockedStage="progress"`. Confirming
+  without a photo shows a toast and opens the photo panel instead of
+  pausing. "Taking a short break" still needs no photo -- only the
+  day-ending pause does, since that's the one meant to capture the actual
+  state of the work before leaving it overnight.
+- **`MobileTaskDashboard.tsx`**: "Your tasks" no longer includes tasks the
+  associate already submitted (`Pending QC`/`Under Review`) -- those sat at
+  the top of the list indefinitely waiting on someone else's action, which
+  the user flagged as clutter ("shouldn't still list as the next task").
+  Split into `myTasksUnsorted` (excludes those two statuses) and a new
+  `myQcQueueUnsorted`. A collapsible "Awaiting QC" section (collapsed by
+  default, `ShieldCheck` icon, count badge) renders below the active list
+  when non-empty; expanding it lists each submitted task by title and
+  status, tapping one still opens the normal read-only task view.
+- Verified live end-to-end on the real "Remove Existing Tiled Wall"
+  session and the real "Dry Fit Reception Cabinets" (Pending QC) task:
+  resumed and re-paused with "Done for the day" showed only Resume in the
+  footer; selecting "Done for the day" in the pause sheet correctly
+  surfaced the required-photo button and blocked Confirm Pause without one
+  (confirmed via a direct database read that the session stayed
+  `running`); "Dry Fit Reception Cabinets" moved out of "Your tasks" into
+  the new collapsed "Awaiting QC" section and opened correctly from there.
+  The task was left paused with `notes: "Done for the day"` and its real
+  `active_seconds`, matching its state before this verification pass --
+  a short resume/re-pause cycle needed to exercise the new gate added
+  ~250s of test-session time, which was corrected back to the "Done for
+  the day" label afterward (the small elapsed-time delta from the test
+  cycle itself was left as-is rather than hand-edited, consistent with
+  never fabricating a specific corrected duration without a real source
+  timestamp to justify it).
+- `npm run build` passes. No new migration -- reuses the existing
+  `task_work_sessions.notes` field and `TaskMediaEvidence`'s `progress`
+  stage, both already live.

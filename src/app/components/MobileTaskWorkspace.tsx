@@ -49,6 +49,8 @@ export default function MobileTaskWorkspace({ taskId, onBack }: { taskId: string
   const [showPauseReason, setShowPauseReason] = useState(false);
   const [pauseReasonPreset, setPauseReasonPreset] = useState<'break' | 'done_for_day' | null>(null);
   const [pauseReasonNote, setPauseReasonNote] = useState('');
+  const [showPauseEvidence, setShowPauseEvidence] = useState(false);
+  const [pausePhotoUploaded, setPausePhotoUploaded] = useState(false);
 
   useEffect(() => {
     if (!task) return;
@@ -97,9 +99,18 @@ export default function MobileTaskWorkspace({ taskId, onBack }: { taskId: string
   // from real work time when the timer is reviewed later -- a task paused
   // "done for the day" and left overnight must never silently count as
   // hours worked the way an untracked pause used to.
-  const openPauseReason = () => { setPauseReasonPreset(null); setPauseReasonNote(''); setShowPauseReason(true); };
+  const openPauseReason = () => { setPauseReasonPreset(null); setPauseReasonNote(''); setShowPauseEvidence(false); setPausePhotoUploaded(false); setShowPauseReason(true); };
   const confirmPause = () => {
     if (!pauseReasonPreset) { toast.error('Choose a reason for pausing'); return; }
+    // Ending the day needs a photo of where the work was left -- same
+    // evidence expectation as start/finish, since this is effectively an
+    // unplanned stopping point that a supervisor or the next person on the
+    // task should be able to see, not just read a status label for.
+    if (pauseReasonPreset === 'done_for_day' && !pausePhotoUploaded) {
+      toast.error('Add a photo of where the work is left before pausing for the day');
+      setShowPauseEvidence(true);
+      return;
+    }
     const label = pauseReasonPreset === 'done_for_day' ? 'Done for the day' : 'Taking a short break';
     const notes = pauseReasonNote.trim() ? `${label} -- ${pauseReasonNote.trim()}` : label;
     if (!session) return;
@@ -109,6 +120,11 @@ export default function MobileTaskWorkspace({ taskId, onBack }: { taskId: string
       async (result) => { setShowPauseReason(false); await applySessionResult(result); },
     );
   };
+  // A session paused "done for the day" is deliberately left in a state
+  // where only Resume is offered -- Finish Task means the work itself is
+  // complete, which isn't what "done for today" means, and offering both
+  // side by side invited finishing a task that was only ever paused.
+  const pausedForDay = session?.status === 'paused' && Boolean(session?.notes?.startsWith('Done for the day'));
   const resume = () => session && run(() => queueSessionAction({ type: 'resume', taskId: String(task.id), teamMemberId: memberId, sessionId: session.id }), 'Task resumed', applySessionResult);
   const finish = () => {
     if (requiredIncomplete > 0) { toast.error(`Complete ${requiredIncomplete} required checklist item${requiredIncomplete === 1 ? '' : 's'} first`); return; }
@@ -224,13 +240,19 @@ export default function MobileTaskWorkspace({ taskId, onBack }: { taskId: string
         {memberId && <AuraTaskFeedback taskId={String(task.id)} teamMemberId={memberId} />}
       </main>
       <footer className="fixed md:hidden bottom-0 left-0 right-0 bg-[var(--grey-50)] border-t border-[var(--olive-300)] px-4 pt-4 pb-[calc(16px+env(safe-area-inset-bottom))] grid grid-cols-[.75fr_1.5fr] gap-3 z-30">
-        {inProgress ? <button onClick={session?.status === 'paused' ? resume : openPauseReason} disabled={busy} className="h-12 border border-[var(--green-900)] rounded-full font-['Roboto_Mono'] text-[11px] uppercase flex items-center justify-center gap-2">{session?.status === 'paused' ? <Play className="w-4"/> : <Pause className="w-4"/>}{session?.status === 'paused' ? 'Resume':'Pause'}</button> : <button onClick={()=>setComposer('query')} className="h-12 border border-[var(--green-900)] rounded-full font-['Roboto_Mono'] text-[11px] uppercase">Request help</button>}
-        {inProgress ? <button onClick={finish} disabled={busy} className="h-12 bg-[var(--vermillion-500)] text-white rounded-full font-['Roboto_Mono'] text-[11px] uppercase flex items-center justify-center gap-2"><Square className="w-4"/>Finish task</button> : <button onClick={start} disabled={busy || !assigned || !memberId || blockedStatus} className="h-12 bg-[var(--vermillion-500)] text-white rounded-full font-['Roboto_Mono'] text-[11px] uppercase flex items-center justify-center gap-2 disabled:opacity-40"><Play className="w-4"/>{blockedStatus ? (task.status === 'Pending QC' ? 'Awaiting QC' : 'Under review') : 'Start task'}</button>}
+        {pausedForDay ? (
+          <button onClick={resume} disabled={busy} className="col-span-2 h-12 bg-[var(--green-900)] text-white rounded-full font-['Roboto_Mono'] text-[11px] uppercase flex items-center justify-center gap-2"><Play className="w-4"/>Resume task</button>
+        ) : (
+          <>
+            {inProgress ? <button onClick={session?.status === 'paused' ? resume : openPauseReason} disabled={busy} className="h-12 border border-[var(--green-900)] rounded-full font-['Roboto_Mono'] text-[11px] uppercase flex items-center justify-center gap-2">{session?.status === 'paused' ? <Play className="w-4"/> : <Pause className="w-4"/>}{session?.status === 'paused' ? 'Resume':'Pause'}</button> : <button onClick={()=>setComposer('query')} className="h-12 border border-[var(--green-900)] rounded-full font-['Roboto_Mono'] text-[11px] uppercase">Request help</button>}
+            {inProgress ? <button onClick={finish} disabled={busy} className="h-12 bg-[var(--vermillion-500)] text-white rounded-full font-['Roboto_Mono'] text-[11px] uppercase flex items-center justify-center gap-2"><Square className="w-4"/>Finish task</button> : <button onClick={start} disabled={busy || !assigned || !memberId || blockedStatus} className="h-12 bg-[var(--vermillion-500)] text-white rounded-full font-['Roboto_Mono'] text-[11px] uppercase flex items-center justify-center gap-2 disabled:opacity-40"><Play className="w-4"/>{blockedStatus ? (task.status === 'Pending QC' ? 'Awaiting QC' : 'Under review') : 'Start task'}</button>}
+          </>
+        )}
       </footer>
 
       {showPauseReason && (
         <div className="fixed inset-0 z-[110] flex items-end justify-center bg-black/50" onClick={() => setShowPauseReason(false)}>
-          <div className="w-full max-w-md bg-white rounded-t-[20px] p-5 pb-[calc(20px+env(safe-area-inset-bottom))] space-y-4" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-md max-h-[88vh] overflow-y-auto bg-white rounded-t-[20px] p-5 pb-[calc(20px+env(safe-area-inset-bottom))] space-y-4" onClick={(e) => e.stopPropagation()}>
             <div>
               <p className="font-['Roboto_Mono'] text-[13px] font-bold">Why are you pausing?</p>
               <p className="font-['Roboto_Mono'] text-[10px] text-muted-foreground mt-1">This keeps the timer accurate -- a pause left overnight shouldn't count as hours worked.</p>
@@ -239,6 +261,22 @@ export default function MobileTaskWorkspace({ taskId, onBack }: { taskId: string
               <button type="button" onClick={() => setPauseReasonPreset('break')} className={`w-full h-12 rounded-[12px] border font-['Roboto_Mono'] text-[11px] uppercase flex items-center justify-center ${pauseReasonPreset === 'break' ? 'bg-[var(--green-900)] text-white border-[var(--green-900)]' : 'bg-white border-[var(--olive-300)]'}`}>Taking a short break</button>
               <button type="button" onClick={() => setPauseReasonPreset('done_for_day')} className={`w-full h-12 rounded-[12px] border font-['Roboto_Mono'] text-[11px] uppercase flex items-center justify-center ${pauseReasonPreset === 'done_for_day' ? 'bg-[var(--green-900)] text-white border-[var(--green-900)]' : 'bg-white border-[var(--olive-300)]'}`}>Done for the day</button>
             </div>
+            {pauseReasonPreset === 'done_for_day' && (
+              <div className="space-y-2">
+                <button type="button" onClick={() => setShowPauseEvidence(!showPauseEvidence)} className="w-full h-12 rounded-[10px] border border-[var(--olive-300)] bg-white flex items-center justify-center gap-2 font-['Roboto_Mono'] text-[10px] font-bold uppercase">
+                  <Camera className="w-4 h-4" />
+                  {pausePhotoUploaded ? 'End-of-day photo added' : 'Add end-of-day photo (required)'}
+                </button>
+                {showPauseEvidence && (
+                  <TaskMediaEvidence
+                    projectId={String(task.projectId)}
+                    taskId={String(task.id)}
+                    lockedStage="progress"
+                    onUploaded={() => { setPausePhotoUploaded(true); refreshPhotoCounts(); }}
+                  />
+                )}
+              </div>
+            )}
             <textarea value={pauseReasonNote} onChange={(event) => setPauseReasonNote(event.target.value)} rows={2} className="w-full resize-none rounded-[8px] border border-[var(--olive-300)] p-3 font-['Roboto_Mono'] text-[11px]" placeholder="Add detail (optional)" />
             <div className="grid grid-cols-2 gap-3">
               <button type="button" onClick={() => setShowPauseReason(false)} className="h-12 rounded-full border border-[var(--olive-300)] font-['Roboto_Mono'] text-[11px] uppercase">Cancel</button>
