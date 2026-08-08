@@ -13,6 +13,8 @@ import AuraTaskFeedback from './AuraTaskFeedback';
 import { optimizeMediaFile, uploadTaskMedia } from '../src/features/media/api';
 import TaskToolsMaterials from './TaskToolsMaterials';
 import TaskDependencies from './TaskDependencies';
+import { formatTimeInOrgTz } from '../src/lib/timezone';
+import { formatDate as formatDueDate } from '../src/lib/dates';
 
 const display = { fontFamily: 'Anybody', fontVariationSettings: "'wdth' 137", fontStretch: '137%', fontWeight: 800, letterSpacing: '-0.04em' } as const;
 const labels: Record<TaskUpdateType, string> = { progress: 'Site update', query: 'Ask a question', suggestion: 'Suggestion', issue: 'Report issue', change_request: 'Request change' };
@@ -169,7 +171,7 @@ export default function MobileTaskWorkspace({ taskId, onBack }: { taskId: string
         {inProgress ? (
           <><h1 className="text-[42px] leading-[.96] mt-4" style={display}>Task in<br />progress</h1>
           <div className="mt-5 bg-[var(--olive-300)] text-[var(--green-900)] rounded-[18px] px-5 py-5 flex items-center justify-between">
-            <div><p className="font-['Roboto_Mono'] text-[35px] leading-none tracking-tight">{formatElapsed(elapsed)}</p><p className="font-['Roboto_Mono'] text-[10px] uppercase mt-3">{session.status === 'paused' ? 'Paused' : `Started ${new Date(session.startedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`}</p></div>
+            <div><p className="font-['Roboto_Mono'] text-[35px] leading-none tracking-tight">{formatElapsed(elapsed)}</p><p className="font-['Roboto_Mono'] text-[10px] uppercase mt-3">{session.status === 'paused' ? 'Paused' : `Started ${formatTimeInOrgTz(new Date(session.startedAt))}`}</p></div>
             <div className="w-16 h-16 rounded-full border-[7px] border-white border-l-[var(--green-900)]" /></div>
           {session.status === 'paused' && session.notes && (
             <p className="font-['Roboto_Mono'] text-[10px] mt-3 text-[var(--olive-300)]">
@@ -182,7 +184,7 @@ export default function MobileTaskWorkspace({ taskId, onBack }: { taskId: string
 
       <main className="px-5 py-5 space-y-4">
         <h2 className="text-[30px] leading-[1.05]" style={display}>{task.title}</h2>
-        <p className="font-['Roboto_Mono'] text-[9px] uppercase text-muted-foreground">{task.phase || 'No phase'} · Associate: {assignedNames || 'Not assigned'} · Crew: {(task as any).crew_required || '—'} · Supervisor: {supervisorName || 'Not assigned'} · Due {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'not set'}</p>
+        <p className="font-['Roboto_Mono'] text-[9px] uppercase text-muted-foreground">{task.phase || 'No phase'} · Associate: {assignedNames || 'Not assigned'} · Crew: {(task as any).crew_required || '—'} · Supervisor: {supervisorName || 'Not assigned'} · Due {task.dueDate ? formatDueDate(task.dueDate) : 'not set'}</p>
         {!inProgress && blockedStatus && (
           <div className="flex items-center gap-2 rounded-[12px] bg-[var(--olive-100)] border border-[var(--olive-300)] px-4 py-3">
             <ShieldCheck className="w-4 h-4 shrink-0" />

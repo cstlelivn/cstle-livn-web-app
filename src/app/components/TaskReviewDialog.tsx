@@ -9,6 +9,8 @@ import { listSessionsForTask, reviewTaskDelay, type WorkSession } from '../src/f
 import { toast } from 'sonner';
 import TaskActivityFeed from './TaskActivityFeed';
 import TaskMediaEvidence from './TaskMediaEvidence';
+import { formatDateTimeInOrgTz } from '../src/lib/timezone';
+import { formatDate as formatDueDate } from '../src/lib/dates';
 
 interface TaskReviewDialogProps {
   isOpen: boolean;
@@ -275,7 +277,7 @@ export default function TaskReviewDialog({
                     <div className="flex items-center gap-[8px] mt-[4px]">
                       <Calendar className="w-[14px] h-[14px] text-muted-foreground" />
                       <p className="text-foreground font-['Roboto_Mono'] text-[12px]">
-                        {new Date(task.dueDate).toLocaleDateString()}
+                        {formatDueDate(task.dueDate)}
                       </p>
                     </div>
                   </div>
@@ -310,10 +312,10 @@ export default function TaskReviewDialog({
                     </p>
                     <div className="grid grid-cols-2 gap-[8px] font-['Roboto_Mono'] text-[11px]">
                       {task.startedAt && (
-                        <p className="text-muted-foreground">Started: <span className="text-foreground">{new Date(task.startedAt).toLocaleString()}</span></p>
+                        <p className="text-muted-foreground">Started: <span className="text-foreground">{formatDateTimeInOrgTz(new Date(task.startedAt))}</span></p>
                       )}
                       {task.submittedAt && (
-                        <p className="text-muted-foreground">Submitted for QC: <span className="text-foreground">{new Date(task.submittedAt).toLocaleString()}</span></p>
+                        <p className="text-muted-foreground">Submitted for QC: <span className="text-foreground">{formatDateTimeInOrgTz(new Date(task.submittedAt))}</span></p>
                       )}
                       {task.startedAt && task.submittedAt && (
                         <p className="text-muted-foreground">
@@ -481,7 +483,7 @@ export default function TaskReviewDialog({
               <div className="flex items-center gap-[8px] mt-[8px]">
                 <Clock className="w-3 h-3 text-muted-foreground" />
                 <span className="text-muted-foreground font-['Roboto_Mono'] text-[10px]">
-                  Due {new Date(task.dueDate).toLocaleDateString()}
+                  Due {formatDueDate(task.dueDate)}
                 </span>
                 <span className="px-[8px] py-[2px] bg-muted/30 rounded font-['Roboto_Mono'] text-[10px] text-muted-foreground">
                   14 days

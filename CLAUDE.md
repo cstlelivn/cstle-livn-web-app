@@ -1329,3 +1329,50 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   `2026-08-08T00:00:00+00:00`) now shows "Aug 8, 2026" in the project
   Tasks tab; it previously would have shown "Aug 7, 2026".
 - `npm run build` passes. No migration -- display-only fix.
+
+## Fixed org timezone for real timestamps — August 8, 2026
+
+- Follow-up to the due-date fix above, from a design conversation with the
+  user: Cstle Livn's core workflows (work-session timers, QC review
+  timing, pause/finish times) are field-service work, not generic office
+  collaboration -- what matters is "what time did this happen at the job
+  site," not whoever's browser happens to have the app open. Since every
+  current project is in Saskatchewan (fixed UTC-6, no DST), the agreed
+  approach is a single fixed org timezone rather than the viewer's device
+  timezone -- explicitly **not** a per-project timezone field, since
+  there's no real multi-region need yet (revisit if that changes, e.g. a
+  BC project).
+- New `src/app/src/lib/timezone.ts`: `ORG_TIMEZONE = 'America/Regina'`
+  plus `formatDateInOrgTz`/`formatDateTimeInOrgTz`/`formatTimeInOrgTz`,
+  built on native `Intl.DateTimeFormat` with a fixed `timeZone` (no new
+  dependency). The file's top comment is explicit that these are for real
+  instants only (session start/pause/finish, submitted/created timestamps)
+  -- **never** for calendar-date-only fields (due/start/end dates), which
+  must keep using `lib/dates.ts`'s digit-extracting `formatDate` instead.
+  Converting a calendar date's synthetic UTC-midnight marker to any real
+  timezone (Regina included) reintroduces the exact off-by-one bug fixed
+  above; this distinction is easy to get backwards and is called out
+  deliberately so it doesn't happen accidentally later.
+- Wired into `dateFormatter.ts` (the app's "centralized" formatter per its
+  own doc comment, though only actually used by 3 files:
+  `CRMModule.tsx`/`ProjectFinanceTab.tsx`/`ProjectTransactionsView.tsx`)
+  and into the two most directly relevant real-instant displays for this
+  session's work: `MobileTaskWorkspace.tsx`'s "Started 4:56 PM" timer
+  label and `TaskReviewDialog.tsx`'s QC "Started"/"Submitted for QC"
+  timestamps (their due-date displays were switched to `lib/dates.ts`'s
+  `formatDate` in the same pass, not the new org-timezone functions).
+- **Known remaining scope, not done in this pass**: roughly 30 other
+  component files format dates/times ad hoc via `new
+  Date(x).toLocaleString()`/`toLocaleDateString()`/`toLocaleTimeString()`
+  directly, bypassing both shared formatters -- those still render in the
+  viewer's browser-local timezone rather than the fixed org timezone.
+  Functionally harmless today (everyone using the app is in Saskatchewan
+  already), but not yet hardened the way `MobileTaskWorkspace.tsx`/
+  `TaskReviewDialog.tsx` were. Worth a dedicated pass if/when it matters.
+- Verified: `formatTimeInOrgTz` on the real session-start timestamp
+  `2026-08-07T22:56:00.555+00:00` returns `4:56 PM`, matching what the
+  live UI already showed for that exact session earlier this session --
+  confirms the conversion direction (UTC → Regina, UTC-6) is correct, not
+  just accidentally correct because the tester's browser happened to
+  already be in that timezone.
+- `npm run build` passes. No migration -- display-only.

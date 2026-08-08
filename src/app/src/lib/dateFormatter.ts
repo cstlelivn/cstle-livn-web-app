@@ -5,11 +5,15 @@
  * across all components and features.
  * 
  * Format Standard: MM/DD/YYYY, h:mm A (e.g., 11/26/2025, 1:35 PM)
- * Timezone: Always displays in the user's local device timezone
+ * Timezone: Always displays in the fixed org timezone (see lib/timezone.ts)
+ *   -- NOT the viewer's device timezone. Cstle Livn's work happens at a
+ *   physical job site; "what time did this happen" must read the same
+ *   regardless of who's looking or from where.
  * Storage: Timestamps are stored in UTC in the database
  */
 
 import { format, parseISO, isValid } from 'date-fns';
+import { formatDateInOrgTz, formatDateTimeInOrgTz, formatTimeInOrgTz } from './timezone';
 
 /**
  * Standard date/time format for the entire application
@@ -64,9 +68,7 @@ export function formatDateTime(timestamp: string | Date | number | null | undefi
       return 'Invalid Date';
     }
 
-    // Format using the appropriate format string
-    const formatString = includeTime ? STANDARD_DATETIME_FORMAT : STANDARD_DATE_FORMAT;
-    return format(date, formatString);
+    return includeTime ? formatDateTimeInOrgTz(date) : formatDateInOrgTz(date);
   } catch (error) {
     console.error('Error formatting date:', error, 'Timestamp:', timestamp);
     return 'Invalid Date';
@@ -111,7 +113,7 @@ export function formatTime(timestamp: string | Date | number | null | undefined)
       return 'Invalid Time';
     }
 
-    return format(date, STANDARD_TIME_FORMAT);
+    return formatTimeInOrgTz(date);
   } catch (error) {
     console.error('Error formatting time:', error);
     return 'Invalid Time';
