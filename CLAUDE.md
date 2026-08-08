@@ -1444,3 +1444,48 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   every component file, not just for existing imports of the utility
   being fixed -- a shared formatter only protects the call sites that
   already use it.
+
+## Phases-tab reordering: allow moving tasks within the same due date — August 8, 2026
+
+- Per explicit user feedback: the earlier "date always pins a task, only
+  undated tasks are draggable" rule (from the August 6 task-ordering work)
+  was too strict. A due date should still win *between* different days
+  (it drives the Gantt chart), but two or three tasks due on the exact
+  same day are a tie today, broken by an arbitrary `sequence` value --
+  the user needs to actually control that tie, e.g. "do the drywall
+  removal before site cleanup, both due the 8th."
+- `sortTasksByPhase` (`lib/taskOrder.ts`) already fell through to
+  `sequence` as a tiebreaker whenever two tasks' due dates were equal (or
+  both null) -- no change needed there. The restriction was purely in
+  `PhaseView.tsx`'s reorder UI, which only ever built a movable group out
+  of undated tasks.
+- `PhaseView.tsx` now groups the phase's tasks by due date (`YYYY-MM-DD`,
+  or `"__undated__"`) and only allows moving a task up/down within its own
+  group -- `reorderPhaseTasks` (unchanged; it just sets
+  `sequence = index` for whatever ordered id list it's given) is called
+  with that group's ids only, since `sequence` is only ever compared
+  between tasks sharing the same date within the same phase. A task that's
+  the only one on its day (or the only undated one) still shows disabled
+  chevrons with an explanatory click-toast, since there's nothing to
+  reorder it against.
+- Updated the header hint from "Use ▲▼ to reorder undated tasks" to "Use
+  ▲▼ to reorder tasks due the same day" and its visibility check
+  (previously "any undated task exists," now "any group has more than one
+  task").
+- Verified live on Scarth Street's real Demolition phase (3 tasks due
+  Aug 8, 2 due Aug 10): move up/down correctly enabled/disabled exactly at
+  each date-group's boundary (confirmed via each row's actual button
+  `disabled` state, not just visual inspection), and clicking "Move down"
+  on the first Aug-8 task actually swapped `sequence` with the next Aug-8
+  task in the database (`0`/`1`/`2` after, previously all `null`) while
+  leaving the Aug-10 pair and every other date boundary untouched.
+- `npm run build` passes. No migration -- reuses the existing `sequence`
+  column and `reorderPhaseTasks` RPC path from the August 6 work.
+- Unrelated tooling note for future sessions: this session's Browser pane
+  had two separate quirks fighting verification -- screenshots were
+  intermittently stale/frozen (not reflecting real DOM state; confirmed by
+  comparing `document.elementFromPoint()` against what a screenshot showed
+  at the same coordinates), and this app's Radix `Tabs` triggers did not
+  respond to `.click()` or a full synthetic pointer-event sequence, only
+  to `.focus()` followed by a dispatched `Enter` keydown. Worth trying the
+  focus+Enter approach first next time a Radix tab won't switch via click.

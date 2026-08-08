@@ -441,18 +441,28 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
             {isExpanded && (
               <div className="border-t border-border px-[16px] py-[16px] space-y-[16px]">
                 {/* Tasks summary -- ordered by the same hard rule as everywhere
-                    else (due date first, then this manual order for undated
-                    tasks). This is also the reorder surface: undated tasks
-                    get up/down move buttons; a dated task is pinned by its
-                    date, which drives the Gantt chart. */}
+                    else (due date first, then this manual order as a
+                    tiebreaker). This is also the reorder surface: tasks that
+                    share the same due date (or are all undated) get up/down
+                    move buttons to order them against each other; a task
+                    that's the only one on its day is pinned, since due date
+                    across different days drives the Gantt chart. */}
                 <div>
                   <h5 className="font-['Roboto_Mono'] font-bold text-[10px] text-muted-foreground uppercase tracking-wider mb-[8px] flex items-center justify-between">
                     <span>Tasks ({phaseTasks.length})</span>
-                    {phaseTasks.some((t: any) => !t.dueDate) && (
-                      <span className="normal-case font-normal text-[9px]">
-                        Use ▲▼ to reorder undated tasks
-                      </span>
-                    )}
+                    {(() => {
+                      const counts = new Map<string, number>();
+                      for (const t of phaseTasks as any[]) {
+                        const key = t.dueDate ? String(t.dueDate).slice(0, 10) : "__undated__";
+                        counts.set(key, (counts.get(key) ?? 0) + 1);
+                      }
+                      const anyReorderable = [...counts.values()].some((n) => n > 1);
+                      return anyReorderable ? (
+                        <span className="normal-case font-normal text-[9px]">
+                          Use ▲▼ to reorder tasks due the same day
+                        </span>
+                      ) : null;
+                    })()}
                   </h5>
                   {phaseTasks.length === 0 ? (
                     <p className="font-['Roboto_Mono'] text-[10px] text-muted-foreground">No tasks in this phase.</p>
@@ -460,12 +470,29 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
                     <div className="space-y-[6px]">
                       {(() => {
                         const orderedTasks = sortTasksByPhase(phaseTasks, phases);
-                        const undatedIds = orderedTasks.filter((t: any) => !t.dueDate).map((t: any) => String(t.id));
+                        // Due date always wins for ordering BETWEEN different
+                        // days -- that still can't be dragged around, since it
+                        // drives the Gantt chart. But two or three tasks due on
+                        // the exact same day (or all undated) are a tie, broken
+                        // today by an arbitrary `sequence` value; those should
+                        // still be reorderable against each other so a
+                        // Supervisor can say "do this one before that one"
+                        // within the same day. Group tasks by their due date
+                        // (or "undated") and only allow moving within a group.
+                        const groupKey = (t: any) => (t.dueDate ? String(t.dueDate).slice(0, 10) : "__undated__");
+                        const groups = new Map<string, string[]>();
+                        for (const t of orderedTasks) {
+                          const key = groupKey(t);
+                          const ids = groups.get(key) ?? [];
+                          ids.push(String(t.id));
+                          groups.set(key, ids);
+                        }
                         const move = async (taskId: string, direction: -1 | 1) => {
-                          const pos = undatedIds.indexOf(taskId);
+                          const groupIds = groups.get(groupKey(orderedTasks.find((t: any) => String(t.id) === taskId))) ?? [];
+                          const pos = groupIds.indexOf(taskId);
                           const swapWith = pos + direction;
-                          if (pos < 0 || swapWith < 0 || swapWith >= undatedIds.length) return;
-                          const next = [...undatedIds];
+                          if (pos < 0 || swapWith < 0 || swapWith >= groupIds.length) return;
+                          const next = [...groupIds];
                           [next[pos], next[swapWith]] = [next[swapWith], next[pos]];
                           setReordering(phase.id);
                           try {
@@ -485,20 +512,24 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
                             isManagerOrAdmin,
                             teamMembers,
                           });
-                          const undatedPos = undatedIds.indexOf(String(task.id));
+                          const groupIds = groups.get(groupKey(task)) ?? [];
+                          const posInGroup = groupIds.indexOf(String(task.id));
                           return (
                             <PhaseTaskRow
                               key={task.id}
                               task={task}
                               canReorder={canAssignTasks}
-                              canMoveUp={undatedPos > 0}
-                              canMoveDown={undatedPos >= 0 && undatedPos < undatedIds.length - 1}
+                              canMoveUp={posInGroup > 0}
+                              canMoveDown={posInGroup >= 0 && posInGroup < groupIds.length - 1}
+                              hasSiblings={groupIds.length > 1}
                               busy={reordering === phase.id}
                               onMoveUp={() => move(String(task.id), -1)}
                               onMoveDown={() => move(String(task.id), 1)}
                               onDatedMoveAttempt={() => {
                                 toast.info(
-                                  `This task is due ${formatDueDate(task.dueDate)} — change its due date to move it. Date order can't be reordered manually, since it also drives the Gantt chart.`
+                                  task.dueDate
+                                    ? `This task is the only one due ${formatDueDate(task.dueDate)} in this phase -- change its due date to move it relative to other days. Date order can't be reordered manually, since it also drives the Gantt chart.`
+                                    : `This is the only undated task in this phase.`
                                 );
                               }}
                             >
@@ -841,6 +872,7 @@ function PhaseTaskRow({
   canReorder,
   canMoveUp,
   canMoveDown,
+  hasSiblings,
   onMoveUp,
   onMoveDown,
   busy,
@@ -851,23 +883,22 @@ function PhaseTaskRow({
   canReorder: boolean;
   canMoveUp: boolean;
   canMoveDown: boolean;
+  hasSiblings: boolean;
   onMoveUp: () => void;
   onMoveDown: () => void;
   busy: boolean;
   onDatedMoveAttempt: () => void;
   children: any;
 }) {
-  const isDated = !!task.dueDate;
-
   return (
     <div className="flex items-center gap-[8px] text-[10px]">
       {canReorder && (
-        isDated ? (
+        !hasSiblings ? (
           <button
             type="button"
             onClick={onDatedMoveAttempt}
             className="shrink-0 flex flex-col text-muted-foreground/50 cursor-not-allowed"
-            title="This task has a due date -- change the date to move it"
+            title={task.dueDate ? "No other task shares this due date to reorder against" : "Nothing to reorder against"}
           >
             <ChevronUp className="w-3 h-3 -mb-[2px]" />
             <ChevronDown className="w-3 h-3 -mt-[2px]" />
