@@ -11,6 +11,7 @@ import TaskActivityFeed from './TaskActivityFeed';
 import TaskMediaEvidence from './TaskMediaEvidence';
 import { formatDateTimeInOrgTz } from '../src/lib/timezone';
 import { formatDate as formatDueDate } from '../src/lib/dates';
+import { groupSessionsByDay, formatDurationCompact } from '../src/features/workSessions/useElapsedTime';
 
 interface TaskReviewDialogProps {
   isOpen: boolean;
@@ -329,6 +330,15 @@ export default function TaskReviewDialog({
                         </p>
                       )}
                     </div>
+                    {(() => {
+                      const breakdown = groupSessionsByDay(sessions);
+                      return breakdown.length > 1 ? (
+                        <p className="text-muted-foreground font-['Roboto_Mono'] text-[10px]">
+                          Worked: {breakdown.map((d) => `${d.label} ${formatDurationCompact(d.seconds)}`).join(' · ')} · Total{' '}
+                          {formatDurationCompact(breakdown.reduce((sum, d) => sum + d.seconds, 0))}
+                        </p>
+                      ) : null;
+                    })()}
                     {task.submittedAt && task.dueDate && (
                       <span className={`inline-block px-[8px] py-[2px] rounded-full text-[9px] font-['Roboto_Mono'] font-medium ${
                         new Date(task.submittedAt) <= new Date(task.dueDate)

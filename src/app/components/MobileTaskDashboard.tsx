@@ -3,6 +3,7 @@ import { Clock, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { calculateCompletion } from "../src/lib/progress";
 import { useTaskAssignees, assigneeIdsForTask } from "../src/features/taskAssignees/useTaskAssignees";
+import { useWorkSessions } from "../src/features/workSessions/useWorkSessions";
 import { queueSessionAction } from "../src/features/workSessions/offlineQueue";
 import { declineTaskAssignment, assignTaskMember } from "../src/features/taskAssignees/api";
 import { listPhasesForProjects } from "../src/features/projectPhases/api";
@@ -41,6 +42,7 @@ export default function MobileTaskDashboard({
   onNavigate,
 }: MobileTaskDashboardProps) {
   const { taskAssignees, refresh: refreshAssignees } = useTaskAssignees(true);
+  const { workSessions } = useWorkSessions(true);
   const [declinedTaskIds, setDeclinedTaskIds] = useState<Set<string>>(() => new Set());
   const [phases, setPhases] = useState<any[]>([]);
 
@@ -243,6 +245,7 @@ export default function MobileTaskDashboard({
                 isExpanded={index === 0}
                 teamMembers={teamMembers}
                 taskAssignees={taskAssignees}
+                workSessions={workSessions}
                 myMemberId={myMember ? String(myMember.id) : null}
                 onNavigate={onNavigate}
                 onDeclined={(id) => setDeclinedTaskIds((current) => new Set(current).add(id))}
@@ -448,6 +451,7 @@ function TaskQueueRow({
   isExpanded,
   teamMembers,
   taskAssignees,
+  workSessions,
   myMemberId,
   onNavigate,
   onDeclined,
@@ -456,11 +460,19 @@ function TaskQueueRow({
   isExpanded: boolean;
   teamMembers: any[];
   taskAssignees: any[];
+  workSessions: any[];
   myMemberId: string | null;
   onNavigate: (view: string, id?: any) => void;
   onDeclined: (id: string) => void;
 }) {
   const [busy, setBusy] = useState(false);
+  // A task already has an open (running or paused) timer for this person --
+  // Decline/Start make no sense here and inviting a second Start silently
+  // creates a duplicate session. Show Resume/Finish instead, matching
+  // whatever state the timer is actually in.
+  const activeSession = workSessions.find(
+    (s: any) => String(s.taskId) === String(task.id) && String(s.teamMemberId) === String(myMemberId) && s.status !== "finished"
+  );
   const isDelayed = task.dueDate && new Date(task.dueDate) < new Date();
 
   if (!isExpanded) {
@@ -513,6 +525,20 @@ function TaskQueueRow({
       toast.success("Task declined");
     } catch (error: any) {
       toast.error(error?.message || "Failed to decline task");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleResume = async () => {
+    if (!activeSession || !myMemberId) return;
+    setBusy(true);
+    try {
+      await queueSessionAction({ type: "resume", taskId: String(task.id), teamMemberId: myMemberId, sessionId: activeSession.id });
+      toast.success("Task resumed");
+      onNavigate("task-details", task.id);
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to resume task");
     } finally {
       setBusy(false);
     }
@@ -579,6 +605,41 @@ function TaskQueueRow({
               : "Under review -- a supervisor needs to clear this before work can continue."}
           </span>
         </div>
+      ) : activeSession ? (
+        <>
+          <div className="flex items-center gap-[12px]">
+            {activeSession.status === "paused" ? (
+              <button
+                onClick={handleResume}
+                disabled={busy}
+                className="flex-1 h-[48px] rounded-[999px] bg-[var(--green-900)] font-['Roboto_Mono'] font-bold uppercase tracking-wide text-[13px] text-white disabled:opacity-50"
+              >
+                Resume Task
+              </button>
+            ) : (
+              <button
+                onClick={() => onNavigate("task-details", task.id)}
+                className="flex-1 h-[48px] rounded-[999px] bg-[var(--green-900)] font-['Roboto_Mono'] font-bold uppercase tracking-wide text-[13px] text-white"
+              >
+                Continue Task
+              </button>
+            )}
+            <button
+              onClick={() => onNavigate("task-details", task.id)}
+              className="flex-1 h-[48px] rounded-[999px] border border-border font-['Roboto_Mono'] font-bold uppercase tracking-wide text-[13px] text-foreground"
+            >
+              Finish Task
+            </button>
+          </div>
+
+          <div className="flex items-center gap-[6px] text-muted-foreground -mt-[4px]">
+            <Clock className="w-3 h-3" />
+            <span className="font-['Roboto_Mono'] text-[10px]">
+              {activeSession.status === "paused" ? "Timer is paused" : "Timer is running"}
+              {activeSession.notes ? ` -- ${activeSession.notes}` : ""}
+            </span>
+          </div>
+        </>
       ) : (
         <>
           <div className="flex items-center gap-[12px]">

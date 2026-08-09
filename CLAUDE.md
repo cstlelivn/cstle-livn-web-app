@@ -989,6 +989,53 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   shouldn't close until final balance is received. Not implemented --
   needs a decision first (see conversation).
 
+## Dashboard Resume/Finish state + per-day time breakdown — August 9, 2026
+
+- **Issue 1, reported live**: the mobile dashboard's task queue kept showing
+  "Decline"/"Start" for a task the associate had already started and paused
+  -- there was no check against actual work-session state, only whether the
+  task was freshly assigned. `MobileTaskDashboard.tsx`'s `TaskQueueRow` now
+  takes a `workSessions` prop (sourced from `useWorkSessions(true)` in the
+  parent) and looks up `activeSession` -- an open (non-`finished`) session
+  for the signed-in team member on that specific task. When one exists, the
+  row renders "Resume Task" (session `paused`) or "Continue Task" (session
+  `running`) alongside "Finish Task" instead of Decline/Start, plus a small
+  "Timer is paused/running" line (with the pause note, if any). Both new
+  buttons navigate to `task-details` -- "Finish Task" deliberately does not
+  attempt an inline finish, since the real finish flow (checklist/photo
+  validation) only lives in `MobileTaskWorkspace.tsx`. Only the
+  Decline/Start branch (no active session at all) is unchanged.
+- **Issue 2, reported live**: the associate asked whether the app could show
+  a per-day breakdown of time spent on a task (e.g. "yesterday 2h, today 2h,
+  total 4h and counting") rather than just one opaque total, since a task
+  worked across multiple days only ever showed the combined number. New
+  helpers in `src/app/src/lib/timezone.ts`: `dayKeyInOrgTz` (sortable
+  `YYYY-MM-DD` for "which job-site day did this instant fall on," using the
+  existing fixed `ORG_TIMEZONE`) and `formatShortDateInOrgTz` ("Aug 7"
+  style label). New `groupSessionsByDay`/`formatDurationCompact` in
+  `src/app/src/features/workSessions/useElapsedTime.ts` sum each session's
+  `activeSeconds` into its start day and format a compact "2h 12m"/"45m"
+  string. Wired into both:
+  - `MobileTaskWorkspace.tsx` (associate's own view): a line under the
+    existing Priority/Estimate/Actual/Remaining stat grid, shown only when
+    the task has sessions spanning more than one day.
+  - `TaskReviewDialog.tsx` (QC review, the other surface the user
+    explicitly asked about): a "Worked: Aug 7 2h5m · Aug 8 2h12m · Total
+    4h17m" line inside the existing Timing block, using the sessions this
+    dialog already fetches via `listSessionsForTask` -- no new query.
+  - Deliberately a measured-work-time total (sum of `activeSeconds`), not
+    the pre-existing "Total time" line in the same Timing block, which is a
+    wall-clock span (`submittedAt - startedAt`) and can overstate actual
+    work if a task sat paused overnight -- the two numbers can legitimately
+    differ and both remain visible side by side.
+  - A still-`running` session's live-ticking extra seconds aren't reflected
+    in this breakdown (only each session's last-saved `activeSeconds`) --
+    acceptable for a summary, since the separate live timer elsewhere
+    already covers "right now" precisely.
+- `npx tsc --noEmit -p tsconfig.sync.json`, `npm test` (9/9), and
+  `npm run build` all pass. No migration -- both fixes are read-side only,
+  reusing `task_work_sessions` data that already existed.
+
 ## Task deletion silently failing, warranty tasks — August 7, 2026
 
 - **Fixed "delete a task and it keeps coming back."** Not a phantom bug --

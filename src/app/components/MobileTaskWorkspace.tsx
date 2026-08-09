@@ -5,7 +5,7 @@ import { useApp } from './AppContext';
 import { useAuth } from './AuthContext';
 import { useTaskAssignees, assigneeIdsForTask } from '../src/features/taskAssignees/useTaskAssignees';
 import { useWorkSessions } from '../src/features/workSessions/useWorkSessions';
-import { useElapsedTime, formatElapsed } from '../src/features/workSessions/useElapsedTime';
+import { useElapsedTime, formatElapsed, groupSessionsByDay, formatDurationCompact } from '../src/features/workSessions/useElapsedTime';
 import { effectiveSession, queueSessionAction, useOfflineOverlay } from '../src/features/workSessions/offlineQueue';
 import { countReadyTaskPhotos, createTaskUpdate, listTaskChecklist, listTaskUpdates, setChecklistItem, type TaskUpdateType } from '../src/features/taskUpdates/api';
 import TaskMediaEvidence from './TaskMediaEvidence';
@@ -70,9 +70,14 @@ export default function MobileTaskWorkspace({ taskId, onBack }: { taskId: string
   const requiredIncomplete = checklist.filter((item) => item.is_required && !item.completed_at).length;
   const assignedNames = useMemo(() => task ? assigneeIdsForTask(taskAssignees, task.id).map((id) => teamMembers.find((m: any) => String(m.id) === id)?.name).filter(Boolean).join(' + ') : '', [task, taskAssignees, teamMembers]);
   const supervisorName = useMemo(() => task ? teamMembers.find((member: any) => String(member.id) === String((task as any).supervisor_id || (project as any)?.supervisorId))?.name : '', [task, project, teamMembers]);
-  const actualSeconds = workSessions.filter((row: any) => String(row.taskId) === String(taskId)).reduce((sum: number,row: any)=>sum+Number(row.activeSeconds||0),0);
+  const taskSessions = useMemo(() => workSessions.filter((row: any) => String(row.taskId) === String(taskId)), [workSessions, taskId]);
+  const actualSeconds = taskSessions.reduce((sum: number,row: any)=>sum+Number(row.activeSeconds||0),0);
   const actualHours = actualSeconds/3600;
   const estimatedHours = Number((task as any)?.estimated_hours||0);
+  // "Yesterday you spent 2h, today 2h, 4h total" -- only worth showing once
+  // the work actually spans more than one day; a same-day task already
+  // gets that number from the Actual stat above.
+  const dayBreakdown = useMemo(() => groupSessionsByDay(taskSessions), [taskSessions]);
 
   if (!task) return <div className="p-6 font-['Roboto_Mono'] text-sm">Task not found.</div>;
 
@@ -198,6 +203,13 @@ export default function MobileTaskWorkspace({ taskId, onBack }: { taskId: string
         {!inProgress && <div className="grid grid-cols-4 border-y border-[var(--olive-300)] py-4">
           {[['Priority', task.priority || 'Normal'], ['Estimate', estimatedHours ? `${estimatedHours} hr` : 'Not set'], ['Actual', `${actualHours.toFixed(1)} hr`], ['Remaining', estimatedHours ? `${(estimatedHours-actualHours).toFixed(1)} hr` : '—']].map(([label,value]) => <div key={label} className="px-2 border-r last:border-0 border-[var(--olive-300)]"><p className="font-['Roboto_Mono'] text-[8px] uppercase">{label}</p><p className="font-['Roboto_Mono'] text-[10px] uppercase mt-2 truncate">{value}</p></div>)}
         </div>}
+
+        {dayBreakdown.length > 1 && (
+          <p className="font-['Roboto_Mono'] text-[9px] text-muted-foreground -mt-2">
+            {dayBreakdown.map((d) => `${d.label}: ${formatDurationCompact(d.seconds)}`).join(' · ')} · Total {formatDurationCompact(actualSeconds)}
+            {inProgress ? ' and counting' : ''}
+          </p>
+        )}
 
         {!inProgress && <section className="bg-[var(--green-900)] text-white rounded-[18px] p-5"><p className="font-['Roboto_Mono'] text-[9px] uppercase text-[var(--olive-300)]">What to do</p><p className="font-['Roboto_Mono'] text-[13px] leading-relaxed mt-3 whitespace-pre-wrap">{task.description || 'Complete the assigned work and document your progress.'}</p><p className="font-['Roboto_Mono'] text-[9px] uppercase text-[var(--olive-300)] mt-5">Site · {project?.location || 'See project details'}</p></section>}
 

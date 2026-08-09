@@ -75,3 +75,20 @@ export function formatTimeInOrgTz(date: Date): string {
   const { hour, minute, dayPeriod } = partsToDate(parts);
   return `${hour}:${minute} ${dayPeriod}`;
 }
+
+/** Sortable YYYY-MM-DD key for "which job-site day did this instant fall on," e.g. for grouping work sessions by day. */
+export function dayKeyInOrgTz(date: Date): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: ORG_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const { month, day, year } = partsToDate(parts);
+  return `${year}-${month}-${day}`;
+}
+
+/** Formats a Date as a short label like "Aug 7" in the fixed org timezone. */
+export function formatShortDateInOrgTz(date: Date): string {
+  return new Intl.DateTimeFormat('en-US', { timeZone: ORG_TIMEZONE, month: 'short', day: 'numeric' }).format(date);
+}
