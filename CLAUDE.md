@@ -989,6 +989,50 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   shouldn't close until final balance is received. Not implemented --
   needs a decision first (see conversation).
 
+## Photo compression silently failing (HEIC), R2 storage bloat — August 9, 2026
+
+- **User caught this from real R2 usage data**: only ~22-23MB of R2 storage
+  used across a handful of images, yet one single image was ~3MB -- nowhere
+  near the documented ~150-350KB WebP target.
+- **Root cause**: `optimizeMediaFile()` in
+  `src/app/src/features/media/api.ts` compresses via `createImageBitmap` +
+  canvas → WebP, but had no real fallback for images the browser can't
+  decode -- it just silently returned the **original, unmodified file** on
+  any decode failure or if the compressed candidate wasn't smaller, with no
+  size check on that fallback at all. HEIC/HEIF (the default iPhone camera
+  format, and this is a jobsite app where the crew is almost certainly
+  shooting on iPhones) fails to decode via `createImageBitmap` in
+  Chrome/Android and unreliably in Safari, so a multi-MB HEIC photo could
+  sail straight through uncompressed and straight past the 12MB client/server
+  size caps (which apply to the *post-optimization* file, so they never
+  caught this).
+- **Fix**: added `heic2any` (dynamically imported only when a HEIC/HEIF file
+  is actually encountered, so it doesn't add to the main bundle -- confirmed
+  it lands in its own separate chunk on build) to convert HEIC/HEIF to JPEG
+  before attempting `createImageBitmap`, so the normal compression path can
+  actually run on iPhone photos. Also added a hard ceiling (2MB normal /
+  4MB for "Save for Marketing," which intentionally targets higher quality)
+  on any fallback-to-original path -- if compression still can't get a large
+  file under that ceiling (corrupt file, unsupported color profile, etc.),
+  `optimizeMediaFile` now throws a clear error (`"Couldn't compress this
+  photo. Try again, or use a different photo."`) instead of silently
+  uploading an oversized original. Small images that don't need compression
+  still pass through untouched, since the ceiling only applies once a file
+  is already large.
+- `npx tsc --noEmit -p tsconfig.sync.json`, `npm test` (9/9), and
+  `npm run build` all pass; the build output confirms `heic2any` code-splits
+  into its own chunk rather than inflating the main bundle. **Not verified
+  with a real HEIC upload** -- this sandbox's outbound network can't reach
+  the media/R2 pipeline (same limitation noted in the August 7 evidence-flow
+  work), so this shipped on code review + build/typecheck/test, not a live
+  upload test. The user should do one real iPhone photo upload after this
+  deploys and check the resulting R2 object size to confirm.
+- **Not done in this pass, worth doing separately if the user wants it**:
+  auditing/re-compressing the existing ~22MB already in R2 (the fix only
+  changes behavior for new uploads going forward), and a small admin
+  diagnostic to list R2 objects by size so oversized files can be spotted
+  without waiting for a billing alert.
+
 ## Dashboard Resume/Finish state + per-day time breakdown — August 9, 2026
 
 - **Issue 1, reported live**: the mobile dashboard's task queue kept showing

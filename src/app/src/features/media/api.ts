@@ -40,19 +40,61 @@ function webpName(name: string) {
   return `${name.replace(/\.[^/.]+$/, '') || 'photo'}.webp`;
 }
 
+function isHeic(file: File): boolean {
+  const type = file.type.toLowerCase();
+  if (type === 'image/heic' || type === 'image/heif') return true;
+  // iOS sometimes hands back an empty/octet-stream MIME type for HEIC files
+  // picked from the photo library rather than captured live -- the file
+  // extension is the only reliable signal in that case.
+  return !type && /\.hei[cf]$/i.test(file.name);
+}
+
+// Hard ceiling on what we'll ever let through un-shrunk. WebP compression at
+// the qualities below always gets a real photo far under this, so hitting it
+// means compression genuinely failed (corrupt file, unsupported color
+// profile, etc.) -- in that case we fail loudly instead of silently letting
+// an uncompressed multi-megabyte original reach R2. This is what let a ~3MB
+// photo into storage before this fix: the old code fell back to uploading
+// the original file whenever `createImageBitmap` couldn't decode it (which
+// happens for HEIC -- the default iPhone photo format -- in Chrome/Android
+// and sometimes Safari), with no size check on that fallback at all.
+const OPTIMIZE_HARD_CAP = { normal: 2 * 1024 * 1024, marketing: 4 * 1024 * 1024 };
+
 /**
  * Jobsite photo optimization: remove oversized phone-camera dimensions and
  * metadata while preserving enough resolution for QC, before/after evidence,
- * and later social use. Falls back safely for formats a browser cannot decode.
+ * and later social use. HEIC/HEIF sources (the default iPhone photo format)
+ * are converted to JPEG first since browsers generally can't decode HEIC
+ * directly. If compression genuinely can't bring a large file down, this
+ * throws rather than silently uploading an oversized original.
  */
 export async function optimizeMediaFile(file: File, marketing = false): Promise<File> {
-  if (!file.type.startsWith('image/') || file.type === 'image/gif' || file.type === 'image/svg+xml') {
+  if (file.type === 'image/gif' || file.type === 'image/svg+xml') {
     return file;
+  }
+  if (!file.type.startsWith('image/') && !isHeic(file)) {
+    return file;
+  }
+
+  const hardCap = marketing ? OPTIMIZE_HARD_CAP.marketing : OPTIMIZE_HARD_CAP.normal;
+  const failIfTooLarge = (): never => {
+    throw new Error("Couldn't compress this photo. Try again, or use a different photo.");
+  };
+
+  let source: File | Blob = file;
+  if (isHeic(file)) {
+    try {
+      const heic2any = (await import('heic2any')).default;
+      const converted = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.9 });
+      source = Array.isArray(converted) ? converted[0] : converted;
+    } catch {
+      return file.size > hardCap ? failIfTooLarge() : file;
+    }
   }
 
   let image: ImageBitmap | null = null;
   try {
-    image = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    image = await createImageBitmap(source, { imageOrientation: 'from-image' });
     const maxEdge = marketing ? 2400 : 1920;
     const scale = Math.min(1, maxEdge / Math.max(image.width, image.height));
     const width = Math.max(1, Math.round(image.width * scale));
@@ -61,7 +103,7 @@ export async function optimizeMediaFile(file: File, marketing = false): Promise<
     canvas.width = width;
     canvas.height = height;
     const context = canvas.getContext('2d', { alpha: false });
-    if (!context) return file;
+    if (!context) return file.size > hardCap ? failIfTooLarge() : file;
     context.drawImage(image, 0, 0, width, height);
 
     // Aim for a sub-megabyte upload while retaining a 1920px long edge. A
@@ -75,13 +117,16 @@ export async function optimizeMediaFile(file: File, marketing = false): Promise<
       if (!best || candidate.size < best.size) best = candidate;
       if (candidate.size <= targetBytes) break;
     }
-    if (!best || best.size >= file.size) return file;
+    if (!best || best.size >= file.size) {
+      return file.size > hardCap ? failIfTooLarge() : file;
+    }
     return new File([best], webpName(file.name), {
       type: 'image/webp',
       lastModified: file.lastModified,
     });
-  } catch {
-    return file;
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("Couldn't compress")) throw error;
+    return file.size > hardCap ? failIfTooLarge() : file;
   } finally {
     image?.close();
   }
