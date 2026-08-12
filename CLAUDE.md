@@ -989,6 +989,70 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   shouldn't close until final balance is received. Not implemented --
   needs a decision first (see conversation).
 
+## Real drag-and-drop for phases and tasks (replaces up/down buttons) — August 11, 2026
+
+- **User feedback, explicit**: the up/down chevron-button reorder (built
+  August 6/8) wasn't good enough -- wanted real drag, working with mouse,
+  touch, and iPad/phone, AND the ability to drag a task from one phase into
+  a *different* phase (not just reorder within one), plus drag phases
+  themselves into a new order. Concrete example given: the "Demolition"
+  phase should move earlier in the phase order, and a task called "Protect
+  Finished Millwork" currently under Demolition should become the last task
+  under "Millwork Preparation" instead.
+- Added `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities` (not
+  `react-dnd`, which was already tried and explicitly abandoned on August 6
+  for this exact reason -- its HTML5 backend doesn't support touch at all).
+  dnd-kit uses Pointer Events (covers mouse/trackpad/touch) plus a dedicated
+  `TouchSensor` fallback and a `KeyboardSensor`, so the same drag gesture
+  works across desktop, phone, and tablet, with basic keyboard reorder as a
+  side benefit.
+- **`PhaseView.tsx` rewritten** around a single `DndContext` wrapping the
+  whole phase list:
+  - **Phase reorder**: a grip handle on each phase header (visible to
+    `canEditPhases` roles only) drags the phase to a new position; reuses
+    the already-existing `reorderProjectPhases()` API (no new backend code
+    needed -- it already existed for `EditProjectPhasesDialog.tsx` but had
+    no touch-capable UI wired to it in this tab).
+  - **Task reorder + cross-phase move**: a grip handle on each task row
+    (visible to `canAssignTasks` -- Manager/Admin, or the Supervisor of that
+    project) replaces the old chevrons entirely. Dropping a task elsewhere
+    within its *own* phase reorders it against tasks sharing the same due
+    date (or all-undated) -- same restriction as before (a due date across
+    different days still can't be manually reordered, since it drives the
+    Gantt chart), just via drag instead of buttons, with a toast explaining
+    why if you try to drag across a date boundary within one phase.
+    Dropping a task into a **different** phase's task list is now always
+    allowed regardless of date -- it sets that task's `phase_id` (and the
+    legacy `phase` name field, matching how `TaskDialog.tsx` already does
+    it) via the existing `updateTask()` API, and positions it within its own
+    due-date group in the new phase (an undated task dropped into a phase
+    naturally lands after that phase's dated tasks, since
+    `sortTasksByPhase` -- unchanged -- always sorts dated tasks first).
+    Both phases you're dragging between need to be expanded (drag targets
+    only exist in the DOM for expanded phases) -- a reasonable constraint,
+    not a bug.
+  - A `DragOverlay` shows a small floating label (phase name or task title)
+    while dragging, for visual feedback on both desktop and touch.
+  - `reorderPhaseTasks()` (existing API, unchanged) is called with the
+    destination group's full ordered id list on drop, exactly as the old
+    button-based `move()` did -- no new backend code was needed for tasks
+    either, only the UI driving it.
+- `npx tsc --noEmit -p tsconfig.sync.json`, `npm run build`, and `npm test`
+  (9/9) all pass. **Not verified with a real drag gesture** -- this
+  sandbox's dev server loads cleanly with no console errors (confirmed via
+  the Browser pane up to the login screen), but per this project's standing
+  rule the agent never types/submits a password to sign in, even to its own
+  test account, so the actual drag interaction itself couldn't be exercised
+  live. The user should try dragging a phase and dragging a task across
+  phases (the Demolition/Millwork Preparation example that prompted this)
+  on the deployed build before relying on it day-to-day.
+- Also restored `.claude/launch.json` after accidentally overwriting it
+  while setting up this session's preview server -- it's gitignored, so
+  there's no history to recover from. Only the `cstle-webapp` entry
+  (this repo, `npm run dev`, port 5173) was restored; a `cstle-website`
+  entry that existed before is gone and needs to be re-added by hand if
+  still needed (unknown path/port from this side).
+
 ## Photo compression silently failing (HEIC), R2 storage bloat — August 9, 2026
 
 - **User caught this from real R2 usage data**: only ~22-23MB of R2 storage

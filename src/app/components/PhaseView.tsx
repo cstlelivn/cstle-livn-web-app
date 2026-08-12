@@ -1,9 +1,19 @@
 import { useState, useEffect, useCallback } from "react";
 import {
-  ChevronDown, ChevronUp, ChevronRight, Plus, Trash2,
+  ChevronDown, ChevronRight, Plus, Trash2,
   AlertCircle, Package, ClipboardCheck, Search,
-  MoreHorizontal, ArrowUpDown, Calendar, User,
+  MoreHorizontal, ArrowUpDown, Calendar, User, GripVertical,
 } from "lucide-react";
+import {
+  DndContext, DragOverlay, PointerSensor, TouchSensor, KeyboardSensor,
+  useSensor, useSensors, closestCenter, useDroppable,
+  type DragStartEvent, type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext, useSortable, arrayMove, verticalListSortingStrategy,
+  sortableKeyboardCoordinates,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Badge } from "./ui/badge";
 import { Progress } from "./ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
@@ -91,9 +101,17 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
   const [phaseProcurement, setPhaseProcurement] = useState<Record<string, any[]>>({});
   const [phaseQC, setPhaseQC] = useState<Record<string, any>>({});
   const [qcReadiness, setQcReadiness] = useState<Record<string, any>>({});
-  // Which phase currently has an up/down reorder request in flight, to
-  // disable its move buttons until refreshTasks() brings back the new order.
-  const [reordering, setReordering] = useState<string | null>(null);
+  // What's currently being dragged, for the floating DragOverlay preview.
+  const [activeDrag, setActiveDrag] = useState<{ type: "phase" | "task"; label: string } | null>(null);
+
+  // Pointer (mouse/trackpad) + touch (phone/tablet) + keyboard all drive the
+  // same drag gesture. A small activation distance/delay keeps an ordinary
+  // tap or a page-scroll gesture from being mistaken for a drag start.
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
   // Task detail view -- clicking a task row here opens the same TaskDialog
   // side panel used everywhere else, instead of only the status/assignee
   // inline controls this view otherwise offers.
@@ -295,6 +313,138 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
   const canReviewQC = hasPermission("canEditPhases");
   const canEditPhases = hasPermission("canEditPhases");
 
+  // Associates only see phases that actually contain one of their own
+  // tasks; a phase with none of their work is hidden entirely rather than
+  // shown empty.
+  const visiblePhases = canSeeAllTasks
+    ? phases
+    : phases.filter((phase: any) =>
+        allTasks.some((t: any) => t.phase_id === phase.id || t.phase === phase.name)
+      );
+
+  const dateGroupKey = (t: any) => (t.dueDate ? String(t.dueDate).slice(0, 10) : "__undated__");
+  const resolvedPhaseId = (t: any) =>
+    t.phase_id ?? visiblePhases.find((p: any) => p.name === t.phase)?.id ?? null;
+
+  // Precomputed once per render, up here rather than inside the phase list's
+  // .map(), so a single shared onDragEnd handler can look up ANY phase's
+  // current task order/date-groups -- needed to resolve a cross-phase drop,
+  // not just a same-phase one.
+  const phaseTaskLists = new Map<string, any[]>();
+  const phaseGroups = new Map<string, Map<string, string[]>>();
+  for (const phase of visiblePhases as any[]) {
+    const tasksForPhase = allTasks.filter((t: any) => resolvedPhaseId(t) === phase.id);
+    const ordered = sortTasksByPhase(tasksForPhase, phases);
+    phaseTaskLists.set(phase.id, ordered);
+    const groups = new Map<string, string[]>();
+    for (const t of ordered) {
+      const key = dateGroupKey(t);
+      const arr = groups.get(key) ?? [];
+      arr.push(String(t.id));
+      groups.set(key, arr);
+    }
+    phaseGroups.set(phase.id, groups);
+  }
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const data: any = event.active.data.current;
+    if (!data) return;
+    if (data.type === "phase") {
+      const phase = visiblePhases.find((p: any) => `phase:${p.id}` === event.active.id);
+      setActiveDrag({ type: "phase", label: phase?.name ?? "Phase" });
+    } else if (data.type === "task") {
+      const task = allTasks.find((t: any) => String(t.id) === data.taskId);
+      setActiveDrag({ type: "task", label: task?.title ?? "Task" });
+    }
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    setActiveDrag(null);
+    const { active, over } = event;
+    if (!over) return;
+    const activeData: any = active.data.current;
+    const overData: any = over.data.current;
+    if (!activeData) return;
+
+    if (activeData.type === "phase") {
+      if (!canEditPhases || active.id === over.id) return;
+      const ids = visiblePhases.map((p: any) => `phase:${p.id}`);
+      const oldIndex = ids.indexOf(String(active.id));
+      const newIndex = ids.indexOf(String(over.id));
+      if (oldIndex < 0 || newIndex < 0) return;
+      const reorderedIds = arrayMove(visiblePhases, oldIndex, newIndex).map((p: any) => p.id);
+      try {
+        await reorderProjectPhases(String(projectId), reorderedIds);
+        toast.success("Phase order updated");
+        refresh();
+      } catch (e: any) {
+        toast.error(e?.message || "Failed to reorder phases");
+      }
+      return;
+    }
+
+    if (activeData.type === "task") {
+      if (!canAssignTasks) return;
+      const taskId = String(activeData.taskId);
+      const sourcePhaseId = String(activeData.phaseId);
+      const dateKey = String(activeData.dateKey);
+      const task = allTasks.find((t: any) => String(t.id) === taskId);
+      if (!task) return;
+
+      let destPhaseId: string | null = null;
+      let destGroup: string[] = [];
+
+      if (overData?.type === "task") {
+        if (String(overData.taskId) === taskId) return;
+        destPhaseId = String(overData.phaseId);
+        const overDateKey = String(overData.dateKey);
+        if (destPhaseId === sourcePhaseId && overDateKey !== dateKey) {
+          // Date order can't be manually overridden within the same phase --
+          // it also drives the Gantt chart. Cross-phase drops don't hit this
+          // check: reassigning phase is always allowed, and the task lands
+          // in ITS OWN due-date group (or undated) within the new phase.
+          toast.info(
+            task.dueDate
+              ? `Can't reorder past ${formatDueDate(task.dueDate)} -- date order can't be moved manually here, since it also drives the Gantt chart.`
+              : `Can't move an undated task in among dated ones here -- give it a due date, or drop it in a different phase.`
+          );
+          return;
+        }
+        const groupKeyToUse = destPhaseId === sourcePhaseId ? dateKey : overDateKey;
+        const group = (phaseGroups.get(destPhaseId)?.get(groupKeyToUse) ?? []).filter((id) => id !== taskId);
+        const overTaskId = String(overData.taskId);
+        let dropIndex = group.indexOf(overTaskId);
+        if (dropIndex < 0) dropIndex = group.length;
+        group.splice(dropIndex, 0, taskId);
+        destGroup = group;
+      } else if (overData?.type === "phase-container") {
+        destPhaseId = String(overData.phaseId);
+        const group = (phaseGroups.get(destPhaseId)?.get(dateKey) ?? []).filter((id) => id !== taskId);
+        group.push(taskId);
+        destGroup = group;
+      } else {
+        return;
+      }
+
+      if (!destPhaseId) return;
+      const phaseChanged = destPhaseId !== sourcePhaseId;
+      const destPhase = phases.find((p: any) => String(p.id) === destPhaseId);
+
+      try {
+        if (phaseChanged) {
+          await updateTask(taskId, { phase_id: destPhaseId, phase: destPhase?.name } as any);
+        }
+        if (destGroup.length > 1) {
+          await reorderPhaseTasks(destGroup);
+        }
+        toast.success(phaseChanged ? `Moved to ${destPhase?.name ?? "phase"}` : "Task order updated");
+        await refreshTasks();
+      } catch (e: any) {
+        toast.error(e?.message || "Failed to move task");
+      }
+    }
+  };
+
   if (loading) {
     return (
       <div className="space-y-[12px]">
@@ -342,14 +492,21 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
 
       {/* Phase list -- Associates only see phases that actually contain one
           of their own tasks; a phase with none of their work is hidden
-          entirely rather than shown empty. */}
-      {(canSeeAllTasks
-        ? phases
-        : phases.filter((phase: any) =>
-            allTasks.some((t: any) => t.phase_id === phase.id || t.phase === phase.name)
-          )
-      ).map((phase, idx) => {
-        const phaseTasks = allTasks.filter((t: any) => t.phase_id === phase.id || t.phase === phase.name);
+          entirely rather than shown empty. Drag handles (grip icon) let a
+          phase be reordered by dragging, and let a task be dragged up/down
+          within its own due-date group OR into a completely different
+          phase -- both work with mouse, touch, and keyboard. */}
+      <DndContext
+        sensors={dndSensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragCancel={() => setActiveDrag(null)}
+      >
+      <SortableContext items={visiblePhases.map((p: any) => `phase:${p.id}`)} strategy={verticalListSortingStrategy}>
+      {visiblePhases.map((phase: any, idx: number) => {
+        const phaseTasks = phaseTaskLists.get(phase.id) ?? [];
+        const phaseTaskGroups = phaseGroups.get(phase.id) ?? new Map<string, string[]>();
         const requiredTasks = phaseTasks.filter((t: any) => t.is_required !== false);
         const completedRequired = requiredTasks.filter((t: any) => t.status === "Completed");
         // Live from phaseTasks, not the phase.progress DB column -- that
@@ -362,15 +519,32 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
         const readiness = qcReadiness[phase.id];
 
         return (
+          <SortablePhaseWrapper key={phase.id} id={`phase:${phase.id}`} disabled={!canEditPhases}>
+          {(dragHandle, wrapperStyle, isDragging) => (
           <div
-            key={phase.id}
-            className="bg-card border border-border rounded-[12px] overflow-hidden transition-shadow hover:shadow-sm"
+            style={wrapperStyle}
+            className={`bg-card border border-border rounded-[12px] overflow-hidden transition-shadow hover:shadow-sm ${isDragging ? "shadow-lg" : ""}`}
           >
             {/* Phase header */}
             <div
               className="flex items-center gap-[12px] p-[16px] cursor-pointer select-none"
               onClick={() => togglePhase(phase.id)}
             >
+              {canEditPhases && (
+                <button
+                  type="button"
+                  ref={dragHandle.ref}
+                  {...dragHandle.attributes}
+                  {...dragHandle.listeners}
+                  onClick={(e) => e.stopPropagation()}
+                  style={{ touchAction: "none" }}
+                  className="shrink-0 p-[2px] -ml-[4px] text-muted-foreground/50 hover:text-foreground cursor-grab active:cursor-grabbing"
+                  title="Drag to reorder phases"
+                >
+                  <GripVertical className="w-4 h-4" />
+                </button>
+              )}
+
               <div className="shrink-0 text-muted-foreground">
                 {isExpanded
                   ? <ChevronDown className="w-4 h-4" />
@@ -442,97 +616,48 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
               <div className="border-t border-border px-[16px] py-[16px] space-y-[16px]">
                 {/* Tasks summary -- ordered by the same hard rule as everywhere
                     else (due date first, then this manual order as a
-                    tiebreaker). This is also the reorder surface: tasks that
-                    share the same due date (or are all undated) get up/down
-                    move buttons to order them against each other; a task
-                    that's the only one on its day is pinned, since due date
-                    across different days drives the Gantt chart. */}
+                    tiebreaker). This is also the reorder surface: drag a
+                    task by its grip handle to reorder it against other tasks
+                    due the same day (or all undated), or drop it into a
+                    DIFFERENT phase's task list entirely to reassign it --
+                    both phases need to be expanded to drag between them. A
+                    due date across different days still can't be dragged
+                    around within one phase, since it also drives the Gantt
+                    chart. */}
                 <div>
                   <h5 className="font-['Roboto_Mono'] font-bold text-[10px] text-muted-foreground uppercase tracking-wider mb-[8px] flex items-center justify-between">
                     <span>Tasks ({phaseTasks.length})</span>
-                    {(() => {
-                      const counts = new Map<string, number>();
-                      for (const t of phaseTasks as any[]) {
-                        const key = t.dueDate ? String(t.dueDate).slice(0, 10) : "__undated__";
-                        counts.set(key, (counts.get(key) ?? 0) + 1);
-                      }
-                      const anyReorderable = [...counts.values()].some((n) => n > 1);
-                      return anyReorderable ? (
-                        <span className="normal-case font-normal text-[9px]">
-                          Use ▲▼ to reorder tasks due the same day
-                        </span>
-                      ) : null;
-                    })()}
+                    {canAssignTasks && (
+                      <span className="normal-case font-normal text-[9px] flex items-center gap-[4px]">
+                        <GripVertical className="w-3 h-3" />
+                        Drag to reorder or move to another phase
+                      </span>
+                    )}
                   </h5>
+                  <DroppablePhaseTaskList phaseId={phase.id}>
                   {phaseTasks.length === 0 ? (
-                    <p className="font-['Roboto_Mono'] text-[10px] text-muted-foreground">No tasks in this phase.</p>
+                    <p className="font-['Roboto_Mono'] text-[10px] text-muted-foreground py-[8px]">
+                      No tasks in this phase{canAssignTasks ? " -- drag one here from another phase" : ""}.
+                    </p>
                   ) : (
+                    <SortableContext items={phaseTasks.map((t: any) => `task:${t.id}`)} strategy={verticalListSortingStrategy}>
                     <div className="space-y-[6px]">
-                      {(() => {
-                        const orderedTasks = sortTasksByPhase(phaseTasks, phases);
-                        // Due date always wins for ordering BETWEEN different
-                        // days -- that still can't be dragged around, since it
-                        // drives the Gantt chart. But two or three tasks due on
-                        // the exact same day (or all undated) are a tie, broken
-                        // today by an arbitrary `sequence` value; those should
-                        // still be reorderable against each other so a
-                        // Supervisor can say "do this one before that one"
-                        // within the same day. Group tasks by their due date
-                        // (or "undated") and only allow moving within a group.
-                        const groupKey = (t: any) => (t.dueDate ? String(t.dueDate).slice(0, 10) : "__undated__");
-                        const groups = new Map<string, string[]>();
-                        for (const t of orderedTasks) {
-                          const key = groupKey(t);
-                          const ids = groups.get(key) ?? [];
-                          ids.push(String(t.id));
-                          groups.set(key, ids);
-                        }
-                        const move = async (taskId: string, direction: -1 | 1) => {
-                          const groupIds = groups.get(groupKey(orderedTasks.find((t: any) => String(t.id) === taskId))) ?? [];
-                          const pos = groupIds.indexOf(taskId);
-                          const swapWith = pos + direction;
-                          if (pos < 0 || swapWith < 0 || swapWith >= groupIds.length) return;
-                          const next = [...groupIds];
-                          [next[pos], next[swapWith]] = [next[swapWith], next[pos]];
-                          setReordering(phase.id);
-                          try {
-                            await reorderPhaseTasks(next);
-                            await refreshTasks();
-                          } catch (error: any) {
-                            toast.error(error?.message || "Failed to save task order");
-                          } finally {
-                            setReordering(null);
-                          }
-                        };
-                        return orderedTasks.map((task: any) => {
-                          const assignee = getTeamMember(task.assignee);
-                          const taskCanEdit = canEditTask({
-                            task,
-                            currentUserId: currentUser?.id,
-                            isManagerOrAdmin,
-                            teamMembers,
-                          });
-                          const groupIds = groups.get(groupKey(task)) ?? [];
-                          const posInGroup = groupIds.indexOf(String(task.id));
-                          return (
-                            <PhaseTaskRow
-                              key={task.id}
-                              task={task}
-                              canReorder={canAssignTasks}
-                              canMoveUp={posInGroup > 0}
-                              canMoveDown={posInGroup >= 0 && posInGroup < groupIds.length - 1}
-                              hasSiblings={groupIds.length > 1}
-                              busy={reordering === phase.id}
-                              onMoveUp={() => move(String(task.id), -1)}
-                              onMoveDown={() => move(String(task.id), 1)}
-                              onDatedMoveAttempt={() => {
-                                toast.info(
-                                  task.dueDate
-                                    ? `This task is the only one due ${formatDueDate(task.dueDate)} in this phase -- change its due date to move it relative to other days. Date order can't be reordered manually, since it also drives the Gantt chart.`
-                                    : `This is the only undated task in this phase.`
-                                );
-                              }}
-                            >
+                      {phaseTasks.map((task: any) => {
+                        const assignee = getTeamMember(task.assignee);
+                        const taskCanEdit = canEditTask({
+                          task,
+                          currentUserId: currentUser?.id,
+                          isManagerOrAdmin,
+                          teamMembers,
+                        });
+                        return (
+                          <PhaseTaskRow
+                            key={task.id}
+                            task={task}
+                            phaseId={phase.id}
+                            dateKey={dateGroupKey(task)}
+                            canReorder={canAssignTasks}
+                          >
                               <span
                                 className="font-['Roboto_Mono'] text-foreground flex-1 truncate cursor-pointer hover:text-accent"
                                 onClick={() => { setSelectedTask(task); setTaskDialogOpen(true); }}
@@ -571,10 +696,11 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
                               )}
                             </PhaseTaskRow>
                           );
-                        });
-                      })()}
+                      })}
                     </div>
+                    </SortableContext>
                   )}
+                  </DroppablePhaseTaskList>
                 </div>
 
                 {/* Procurement summary */}
@@ -665,8 +791,21 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
               </div>
             )}
           </div>
+          )}
+          </SortablePhaseWrapper>
         );
       })}
+      </SortableContext>
+      <DragOverlay>
+        {activeDrag ? (
+          <div className={`px-[12px] py-[8px] rounded-[8px] border shadow-lg bg-card font-['Roboto_Mono'] text-[11px] font-bold ${
+            activeDrag.type === "phase" ? "border-accent" : "border-primary"
+          }`}>
+            {activeDrag.label}
+          </div>
+        ) : null}
+      </DragOverlay>
+      </DndContext>
 
       {/* Add Phase Dialog */}
       <Dialog open={addPhaseOpen} onOpenChange={setAddPhaseOpen}>
@@ -863,68 +1002,95 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
   );
 }
 
-// Up/down move buttons instead of drag-and-drop: reliable on the phones and
-// tablets a Supervisor actually uses on site, where native HTML5
-// drag-and-drop (used elsewhere in this app for phase reordering, on a
-// desktop-only admin screen) doesn't work at all.
+// Provides the drag behavior for one phase header (used for reordering
+// phases). A render-prop rather than owning its own markup, since the full
+// phase card (header + expanded detail) is large and stays defined inline
+// where it already was -- this just supplies the sortable ref/style/handle.
+function SortablePhaseWrapper({
+  id,
+  disabled,
+  children,
+}: {
+  id: string;
+  disabled: boolean;
+  children: (
+    dragHandle: { attributes: any; listeners: any; ref: (el: HTMLElement | null) => void },
+    style: React.CSSProperties,
+    isDragging: boolean
+  ) => any;
+}) {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
+    id,
+    disabled,
+    data: { type: "phase" },
+  });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : undefined,
+  };
+  return (
+    <div ref={setNodeRef}>
+      {children({ attributes, listeners, ref: setActivatorNodeRef }, style, isDragging)}
+    </div>
+  );
+}
+
+// Makes a phase's task list a valid drop target even when it's empty (or
+// you're dropping below its last task) -- without this, there'd be nowhere
+// to drop a task into a phase that currently has zero tasks.
+function DroppablePhaseTaskList({ phaseId, children }: { phaseId: string; children: any }) {
+  const { setNodeRef, isOver } = useDroppable({ id: `phase-tasks:${phaseId}`, data: { type: "phase-container", phaseId } });
+  return (
+    <div ref={setNodeRef} className={`rounded-[6px] transition-colors ${isOver ? "bg-accent/5 ring-1 ring-accent/30" : ""}`}>
+      {children}
+    </div>
+  );
+}
+
+// Drag handle (grip icon) replaces the old up/down move buttons -- works
+// with mouse, touch, and keyboard via the shared DndContext's sensors. A
+// task can be dragged to reorder against others due the same day (or all
+// undated) within its own phase, or dropped into a different phase's task
+// list entirely to reassign it -- see handleDragEnd in the parent.
 function PhaseTaskRow({
   task,
+  phaseId,
+  dateKey,
   canReorder,
-  canMoveUp,
-  canMoveDown,
-  hasSiblings,
-  onMoveUp,
-  onMoveDown,
-  busy,
-  onDatedMoveAttempt,
   children,
 }: {
   task: any;
+  phaseId: string;
+  dateKey: string;
   canReorder: boolean;
-  canMoveUp: boolean;
-  canMoveDown: boolean;
-  hasSiblings: boolean;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
-  busy: boolean;
-  onDatedMoveAttempt: () => void;
   children: any;
 }) {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
+    id: `task:${task.id}`,
+    disabled: !canReorder,
+    data: { type: "task", taskId: String(task.id), phaseId, dateKey },
+  });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  };
   return (
-    <div className="flex items-center gap-[8px] text-[10px]">
+    <div ref={setNodeRef} style={style} className="flex items-center gap-[8px] text-[10px]">
       {canReorder && (
-        !hasSiblings ? (
-          <button
-            type="button"
-            onClick={onDatedMoveAttempt}
-            className="shrink-0 flex flex-col text-muted-foreground/50 cursor-not-allowed"
-            title={task.dueDate ? "No other task shares this due date to reorder against" : "Nothing to reorder against"}
-          >
-            <ChevronUp className="w-3 h-3 -mb-[2px]" />
-            <ChevronDown className="w-3 h-3 -mt-[2px]" />
-          </button>
-        ) : (
-          <div className="shrink-0 flex flex-col">
-            <button
-              type="button"
-              onClick={onMoveUp}
-              disabled={!canMoveUp || busy}
-              className="text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed -mb-[2px]"
-              title="Move up"
-            >
-              <ChevronUp className="w-3 h-3" />
-            </button>
-            <button
-              type="button"
-              onClick={onMoveDown}
-              disabled={!canMoveDown || busy}
-              className="text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed -mt-[2px]"
-              title="Move down"
-            >
-              <ChevronDown className="w-3 h-3" />
-            </button>
-          </div>
-        )
+        <button
+          type="button"
+          ref={setActivatorNodeRef}
+          {...attributes}
+          {...listeners}
+          style={{ touchAction: "none" }}
+          className="shrink-0 p-[2px] text-muted-foreground/50 hover:text-foreground cursor-grab active:cursor-grabbing"
+          title="Drag to reorder or move to another phase"
+        >
+          <GripVertical className="w-3.5 h-3.5" />
+        </button>
       )}
       {children}
     </div>
