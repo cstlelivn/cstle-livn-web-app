@@ -31,6 +31,7 @@ import {
   Kanban,
   BarChart2
   ,FolderOpen
+  ,ScrollText
 } from "lucide-react";
 import { useApp } from "./AppContext";
 import { useAuth } from "./AuthContext";
@@ -46,6 +47,7 @@ import TaskGanttChart from "./TaskGanttChart";
 import EditProjectPhasesDialog from "./EditProjectPhasesDialog";
 import EmailUpdateModal from "./EmailUpdateModal";
 import PhaseView from "./PhaseView";
+import ProjectPermitsTab from "./ProjectPermitsTab";
 import ProjectHealthSummary from "./ProjectHealthSummary";
 import ForceCompleteProjectDialog from "./ForceCompleteProjectDialog";
 import { toast } from "sonner";
@@ -154,7 +156,7 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
   const [taskView, setTaskView] = useState<"list" | "grid" | "calendar" | "kanban" | "gantt">("list");
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
-  const [currentTab, setCurrentTab] = useState<"tasks" | "phases" | "record">("tasks");
+  const [currentTab, setCurrentTab] = useState<"tasks" | "phases" | "record" | "permits">("tasks");
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [filterAssignee, setFilterAssignee] = useState<string>("all");
   const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
@@ -1012,6 +1014,15 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
               <FolderOpen className="w-[13px] h-[13px]" />
               Files & Activity
             </TabsTrigger>
+            {canCreateTask && (
+              <TabsTrigger
+                value="permits"
+                className="flex items-center gap-[6px] px-[14px] py-[8px] data-[state=active]:bg-accent data-[state=active]:text-accent-foreground rounded-[7px] transition-colors font-['Roboto_Mono'] text-[11px]"
+              >
+                <ScrollText className="w-[13px] h-[13px]" />
+                Permits
+              </TabsTrigger>
+            )}
           </TabsList>
 
           {currentTab === "tasks" && canCreateTask && (
@@ -1236,6 +1247,11 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
         <TabsContent value="record" className="mt-0">
           <ProjectEvidenceHub projectId={String(projectId)} tasks={allProjectTasks} teamMembers={teamMembers} onOpenTask={(task) => handleEditTask(task as AppTask)} />
         </TabsContent>
+        {canCreateTask && (
+          <TabsContent value="permits" className="mt-0">
+            <ProjectPermitsTab projectId={projectId} />
+          </TabsContent>
+        )}
       </Tabs>
 
       {/* Project Health Summary — secondary info, below the working area */}

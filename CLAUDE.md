@@ -989,6 +989,61 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   shouldn't close until final balance is received. Not implemented --
   needs a decision first (see conversation).
 
+## Permit tracking — Permits tab per project — August 11, 2026
+
+- Migration `20240042_project_permits.sql` was run successfully by the user
+  in Supabase. It adds `project_permits` (one row per permit -- type,
+  status, permit number, applied/issued/expiry dates, notes) and
+  `project_permit_events` (append-only log under each permit -- every call,
+  email, submission, or inspection, each with its own city reference number
+  and who was spoken to). Both are project-scoped and cascade-deleted with
+  the project; `project_permits.id` cascades to its events.
+- **Design decision, confirmed with the user**: permits live on the
+  **Project** (a new "Permits" tab next to Tasks/Phases/Files & Activity in
+  `ProjectDetailsReal.tsx`), not on the CRM client record -- a permit is
+  tied to a specific job/address, and the project is already linked to its
+  client, so nothing needs duplicating. Explicitly not a separate top-level
+  Permits module (more flexible, but more to build and another place to
+  navigate to) and not attached to the CRM client directly (most clients
+  only have one relevant project at a time; the client-level rollup was
+  floated as a possible future addition, not built).
+- **RLS**: office/compliance data, not onsite work -- readable by
+  `is_broad_project_viewer()` roles (Super Admin, Admin, Manager,
+  Accountant, Quality Control) plus the Supervisor of that specific project
+  (`is_project_supervisor()`, both helpers already existed from earlier
+  migrations). Associates/Contractors get zero rows and never see the tab.
+  Writes require Manager/Admin or that project's Supervisor; permit
+  *deletion* is Manager/Admin only. Permit events (the call log) can be
+  inserted by the same write-capable roles but only **updated** by
+  Manager/Admin (to fix a typo) and can never be deleted by anyone --
+  deliberately append-only, so a permit's history can't be quietly
+  rewritten years later.
+- New `src/app/src/features/permits/api.ts` (CRUD for both tables,
+  following the existing `projectPhases/api.ts` pattern) and
+  `usePermits.ts` (one-shot fetch on mount/refresh, no realtime channel --
+  permits change rarely enough that this matches the existing
+  procurement/phase-QC pattern in `PhaseView.tsx`, not the always-subscribed
+  tasks/projects pattern).
+- New `src/app/components/ProjectPermitsTab.tsx`: a collapsible list of
+  permits (type, status badge, permit number, key dates), each expandable
+  to show its full call/update history and a "Log Call / Update" action.
+  Permit type is a free-text input with a `<datalist>` of common presets
+  (Building, Electrical, Plumbing, Mechanical, Demolition, Development,
+  Occupancy) rather than a closed enum, since city permit categories vary
+  and shouldn't need a migration to extend. Wired into
+  `ProjectDetailsReal.tsx` behind the same permission check already used to
+  gate task creation (`canCreateTask` -- broad-viewer roles or this
+  project's Supervisor), so the tab itself only appears for people who can
+  actually see the data.
+- `npx tsc --noEmit -p tsconfig.sync.json`, `npm run build`, and `npm test`
+  (9/9) all pass. The dev server loads cleanly with no new console errors
+  (checked via the Browser pane at the login screen -- the pre-existing
+  WebSocket/CORS/uuid noise there is unrelated dev-server chatter, not new).
+  **Not verified past the login screen** -- same standing limitation as the
+  drag-and-drop work above (this sandbox never signs in). The user should
+  open a real project's Permits tab, add a permit, and log a call before
+  relying on it.
+
 ## Real drag-and-drop for phases and tasks (replaces up/down buttons) — August 11, 2026
 
 - **User feedback, explicit**: the up/down chevron-button reorder (built
