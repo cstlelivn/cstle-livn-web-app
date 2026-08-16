@@ -315,8 +315,18 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
       toast.success("Project deleted");
       setDeleteConfirmOpen(false);
       onBack();
-    } catch (error) {
-      toast.error("Failed to delete project");
+    } catch (error: any) {
+      // Projects with any recorded history (tasks, phases, transactions,
+      // permits, etc.) are protected by ON DELETE RESTRICT foreign keys --
+      // same class of bug already fixed for task deletion (see
+      // ProjectDetailsReal.tsx's own handleDeleteTask). A raw FK violation
+      // message means "this can't be deleted," not "try again."
+      const blocked = /foreign key|violates|restrict/i.test(error?.message || "");
+      toast.error(
+        blocked
+          ? "Can't delete -- this project has recorded history (tasks, phases, transactions, or permits). Ask an admin to clear its history first, or mark it Completed instead."
+          : (error?.message || "Failed to delete project")
+      );
       setDeleteConfirmOpen(false);
     }
   };

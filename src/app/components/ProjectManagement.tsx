@@ -109,8 +109,16 @@ export default function ProjectManagement({ onViewProject, openCreateDialog = fa
       try {
         await deleteProject(projectToDelete);
         toast.success("Project deleted");
-      } catch (error) {
-        toast.error("Failed to delete project");
+      } catch (error: any) {
+        // Projects with any recorded history (tasks, phases, transactions,
+        // permits, etc.) are protected by ON DELETE RESTRICT foreign keys --
+        // a raw FK violation means "this can't be deleted," not "try again."
+        const blocked = /foreign key|violates|restrict/i.test(error?.message || "");
+        toast.error(
+          blocked
+            ? "Can't delete -- this project has recorded history (tasks, phases, transactions, or permits). Ask an admin to clear its history first, or mark it Completed instead."
+            : (error?.message || "Failed to delete project")
+        );
       }
       setProjectToDelete(null);
     }

@@ -128,9 +128,17 @@ export default function TeamManagement() {
       }
     } catch (error: any) {
       console.error("Error deleting team member:", error);
+      // A team member with any recorded history (task assignments, work
+      // sessions, Aura scores, etc.) is protected by ON DELETE RESTRICT
+      // foreign keys -- same class of issue already fixed for task/project
+      // deletion. A raw FK violation means "this can't be deleted," not a
+      // generic failure worth retrying.
+      const blocked = /foreign key|violates|restrict/i.test(error?.message || "");
       toast.error("Failed to delete team member", {
-        description: error.message || "Please try again or contact support.",
-        duration: 5000,
+        description: blocked
+          ? "This person has recorded history (task assignments, work sessions, or Aura scores) and can't be deleted. Mark them inactive instead, or ask an admin to clear their history first."
+          : (error.message || "Please try again or contact support."),
+        duration: 6000,
       });
     } finally {
       setIsDeleting(false);
