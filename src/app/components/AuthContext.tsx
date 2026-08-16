@@ -32,7 +32,11 @@ export type Permission =
   | "canForceCompleteProjects"
   | "canManageTemplates"
   | "canApproveTaskQC"
-  | "canViewTeamPerformance";
+  | "canViewTeamPerformance"
+  | "canViewEstimating"
+  | "canRunEstimating"
+  | "canManageEstimatingConfig"
+  | "canViewEstimatingMargins";
 
 export interface User {
   id: string;
@@ -92,6 +96,10 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "canManageTemplates",
     "canApproveTaskQC",
     "canViewTeamPerformance",
+    "canViewEstimating",
+    "canRunEstimating",
+    "canManageEstimatingConfig",
+    "canViewEstimatingMargins",
   ],
   // Distinct from Super Admin -- same day-to-day operational scope as
   // Manager, but kept as its own tier rather than merged with Super Admin
@@ -121,6 +129,8 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "canManageTemplates",
     "canApproveTaskQC",
     "canViewTeamPerformance",
+    "canViewEstimating",
+    "canRunEstimating",
   ],
   Manager: [
     "canViewDashboard",
@@ -151,6 +161,8 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "canManageTemplates",
     "canApproveTaskQC",
     "canViewTeamPerformance",
+    "canViewEstimating",
+    "canRunEstimating",
   ],
   // QC-focused role: can review and approve/reject task and phase QC across
   // every project, but has no project/team/CRM/finance editing powers.
@@ -182,6 +194,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "canViewQCReviewQueue",
     "canViewPhaseQCReviewQueue",
     "canViewTeamPerformance",
+    "canViewEstimating",
   ],
   Contractor: [
     "canViewDashboard",
@@ -267,6 +280,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       "canForceCompleteProjects",
       "canManageTemplates",
       "canApproveTaskQC",
+      "canViewTeamPerformance",
+      "canViewEstimating",
+      "canRunEstimating",
+      "canManageEstimatingConfig",
+      "canViewEstimatingMargins",
     ];
     
     const permissionMap: Record<string, boolean> = {};

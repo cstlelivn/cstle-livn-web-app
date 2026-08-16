@@ -21,6 +21,7 @@ import {
   LayoutTemplate,
   Menu,
   X,
+  Calculator,
 } from "lucide-react";
 import { AppProvider, useApp } from "./components/AppContext";
 import { AuthProvider, useAuth } from "./components/AuthContext";
@@ -30,6 +31,7 @@ import Dashboard from "./components/Dashboard";
 import ProjectsGroup from "./components/ProjectsGroup";
 import TeamsGroup from "./components/TeamsGroup";
 import CRMModule from "./components/CRMModule";
+import EstimatingModule from "./components/estimating/EstimatingModule";
 import InventoryModule from "./components/InventoryModule";
 import FinanceModule from "./components/FinanceModule";
 import AnalyticsModule from "./components/AnalyticsModule";
@@ -63,6 +65,7 @@ type ViewType =
   | "profile"
   | "diagnostic"
   | "productivity"
+  | "estimating"
   | "task-details";
 
 type SubViewType = {
@@ -327,6 +330,12 @@ function AppContent() {
       show: hasPermission("canViewFinance"),
     },
     {
+      id: "estimating",
+      label: "Estimating",
+      icon: Calculator,
+      show: hasPermission("canViewEstimating"),
+    },
+    {
       id: "analytics",
       label: "Analytics",
       icon: BarChart3,
@@ -371,6 +380,7 @@ function AppContent() {
     crm: "canViewCRM",
     inventory: "canViewInventory",
     finance: "canViewFinance",
+    estimating: "canViewEstimating",
     analytics: "canViewAnalytics",
     users: "canManageTeam",
     "user-edit": "canManageTeam",
@@ -422,6 +432,8 @@ function AppContent() {
         return <InventoryModule />;
       case "finance":
         return <FinanceModule />;
+      case "estimating":
+        return <EstimatingModule />;
       case "analytics":
         return <AnalyticsModule />;
       case "users":

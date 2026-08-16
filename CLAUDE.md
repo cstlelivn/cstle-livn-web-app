@@ -989,6 +989,140 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   shouldn't close until final balance is received. Not implemented --
   needs a decision first (see conversation).
 
+## Profitability & Estimating tool — August 16, 2026
+
+- **What this is**: a full port of a standalone prototype (single-file
+  HTML/JS, pasted by the user for reference) into this app — a 9-screen
+  estimating pipeline (Leads → Site Capture → AI Analysis → Scope & Takeoff
+  → Project Plan → Pricing → Proposal → Customer Approval → Estimated vs
+  Actual) plus a company-wide margin-tier/rate-card/assemblies config
+  screen. New sidebar module **"Estimating"** (`Calculator` icon), gated on
+  a new `canViewEstimating` permission.
+- **The prototype's own hard boundary was kept explicit throughout the
+  port**: pricing/quantities/totals are always a deterministic formula off
+  the rate card and assemblies table — AI only organizes notes, drafts
+  scope/questions/plan/proposal text, and suggests DRAFT takeoff quantities
+  (always inserted with `source = 'ai-assumption'`) that a human must
+  explicitly confirm before pricing can run against them. The pricing route
+  hard-blocks with a real error if any takeoff line is still an assumption.
+- **Locked product decisions** (confirmed with the user before building):
+  AI uses the existing OpenAI integration (no new Claude/Anthropic secret);
+  cost and margin numbers are **Super Admin only**, everywhere, at the RLS
+  level — not just hidden in the UI; the Customer Approval e-signature is
+  an **informal record only** (drawn signature + timestamp, not legally
+  binding, no payment captured); Screen 1 (Leads) uses the existing CRM
+  leads/clients pipeline rather than a separate list.
+- **Architectural fork, resolved**: an `estimates` pipeline (Screens 1–8)
+  is deliberately its OWN entity, not the `projects` table — `projects` is
+  too deeply wired to phases/tasks/QC/warranty/closed-project immutability
+  for pre-sale leads to live there safely. On Customer Approval, a new
+  `convert_estimate_to_project(estimate_id)` SECURITY DEFINER RPC creates a
+  real `projects` row (budget = the customer-approved selling price, never
+  cost) and seeds one phase + ordered, **unassigned** tasks from the
+  AI-drafted plan steps. From that point on it's a completely normal
+  project — every existing rule applies automatically. Screen 9 (Estimated
+  vs Actual) then pulls REAL labor hours from `task_work_sessions` instead
+  of the prototype's manual re-entry.
+- **Migrations `20240043`–`20240046` are live** (run by the user in order,
+  each confirmed before the next was written):
+  - `20240043_estimating_config.sql` — `estimating_margin_tiers` (seeded
+    from the company's own 12-month business plan doc, Section 10 —
+    verified to match the prototype's numbers exactly, not a guess),
+    `estimating_rate_card`, `estimating_assemblies` (seeded with the
+    prototype's 8 sample assemblies), plus the permission helpers
+    `can_view_estimating()` / `can_run_estimating()` /
+    `can_manage_estimating_config()` / `can_view_estimating_margins()`.
+  - `20240044_estimating_pipeline.sql` — `estimates` (client/lead-linked,
+    8 sequential gate booleans), `estimate_measurements`,
+    `estimate_documents`, `estimate_media` (R2-backed, same signed-URL
+    pattern as `task_media`, kept as its own table).
+  - `20240045_estimating_takeoff_pricing.sql` — **also tightens migration
+    43**: `estimating_assemblies`/`estimating_rate_card` were originally
+    readable by Admin/Manager/Accountant, which contradicted the
+    Super-Admin-only cost decision (their columns ARE the cost basis) —
+    caught while writing this migration and fixed in the same pass, per
+    the project's own "RLS is the real security boundary" rule. Both are
+    now Super-Admin-read-only, with a `estimating_assemblies_for_picker()`
+    SECURITY DEFINER function giving everyone else name/unit/category only
+    (no cost columns) so the takeoff UI still works. Also adds
+    `estimate_takeoff_lines`, `estimate_pricing_snapshots` (**immutable** —
+    one new row per confirmed price, full audit trail, cost/margin columns
+    Super-Admin-only) with a matching `estimate_pricing_summary()`
+    SECURITY DEFINER function returning just the customer-safe
+    Good/Better/Best prices to everyone else, `estimate_proposals`,
+    `estimate_approvals` (signature stored as real R2 media via
+    `estimate_media`, extended `media_kind` to allow `'signature'`).
+  - `20240046_estimate_to_project_conversion.sql` — the
+    `convert_estimate_to_project()` RPC described above. Idempotent
+    (calling it twice returns the same project, never duplicates).
+  - **Real, practical consequence of the Super-Admin-only cost RLS**: an
+    Admin/Manager's browser literally cannot read the rate card or
+    assembly costs anymore, so the deterministic pricing calculation
+    cannot run client-side for them — it has to be a server round-trip
+    (the `/estimating/pricing` edge route) rather than instant live
+    recompute-as-you-type like the prototype. The Pricing screen has an
+    explicit "Recalculate" button instead. This is a deliberate, known
+    tradeoff from the security decision, not an oversight.
+- **New edge-function routes** in
+  `supabase/functions/make-server-bcab437c/index.ts` (mirrored, per the
+  standing rule, but **not yet manually deployed to Supabase** — pushing
+  frontend code does not deploy edge functions):
+  - `POST /estimate-media/upload-url`, `/estimate-media/:id/complete`,
+    `GET /estimate-media`, `DELETE /estimate-media/:id` — R2 signed-URL
+    flow for estimate photos/documents/signatures, mirroring `task_media`'s
+    routes exactly.
+  - `POST /estimating/analyze-capture` — OpenAI (gpt-4o-mini,
+    `response_format: json_object`), reads capture notes/measurements/
+    documents/photos (passed as R2 signed URLs, not base64), returns
+    organized notes/confidence-labeled facts/draft scope/questions/draft
+    takeoff. Resolves each `suggestedAssembly` name to a real
+    `assembly_id` server-side (service-role read) and auto-inserts draft
+    takeoff lines (`source='ai-assumption'`) only on the FIRST run, so a
+    re-run never duplicates lines the estimator has already edited.
+  - `POST /estimating/generate-plan` — step sequence/research/permits/
+    risks/closeout from scope + takeoff.
+  - `POST /estimating/generate-proposal` — Good/Better/Best proposal copy
+    + customer message, using ONLY the customer-safe selling prices from
+    the latest pricing snapshot (never cost/margin, even server-side, to
+    keep the boundary explicit everywhere).
+  - `POST /estimating/pricing` — the one and only place a selling price is
+    computed (pure arithmetic, no AI, cents-based, mirroring
+    `src/app/src/features/estimating/pricingEngine.ts`'s
+    `computePricing()` formula exactly — if one changes, change the other).
+    Uses the service-role client to read cost data regardless of the
+    caller's role, writes a full snapshot, then returns either the full
+    cost/margin breakdown (Super Admin) or just the customer-safe
+    Good/Better/Best prices (everyone else) based on the caller's actual
+    role. `confirm: true` also sets `estimates.pricing_confirmed`.
+  - **These four routes need a manual Supabase Edge Function deploy before
+    they work in production** — not done as part of this session.
+- **Workload-aware crew suggestion** (explicit user request, from a
+  follow-up business-plan doc that also confirmed the margin-tier numbers
+  above): the Project Plan screen shows every active
+  Associate/Supervisor/Contractor ranked by current open-task count
+  (`task_assignees` cross-referenced with non-Completed tasks, both
+  already-loaded app data — no new table). This is informational, not an
+  auto-assign — real staffing happens after project conversion, using the
+  existing assignee pickers, with full manual override. A separate,
+  company-wide "how many crews to hit $40K/$100K a month" capacity planner
+  (Section 11 of the same doc) was explicitly deferred by the user to a
+  later business-growth-analysis pass — the per-job crew logic above is
+  the only crew-sizing feature actually built this session.
+- **New files**: `src/app/src/features/estimating/{pricingEngine.ts, api.ts,
+  aiApi.ts, useEstimates.ts}`, `src/app/components/estimating/{EstimatingModule,
+  EstimateWorkspace, Stepper, ConfigScreen, LeadsListScreen}.tsx` +
+  `src/app/components/estimating/screens/{Capture,Analysis,ScopeTakeoff,Plan,
+  Pricing,Proposal,Approval,Actuals}Screen.tsx`.
+- `npx tsc --noEmit -p tsconfig.sync.json`, `npm run build`, and `npm test`
+  (9/9) all pass. Verified the dev server loads cleanly with no new console
+  errors (Browser pane, login screen only — same standing limitation as
+  every other feature this session: the agent never signs in, so the
+  actual 9-screen flow, AI calls, and R2 uploads have **not** been
+  exercised live). **Before relying on this**: deploy the edge function,
+  then walk one real estimate end-to-end — a lead with a real address
+  through to a converted project — as both a Super Admin (to see margins)
+  and an Admin/Manager (to confirm they see prices only).
+
 ## Permit tracking — Permits tab per project — August 11, 2026
 
 - Migration `20240042_project_permits.sql` was run successfully by the user

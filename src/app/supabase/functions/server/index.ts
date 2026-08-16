@@ -3586,6 +3586,476 @@ app.delete("/make-server-bcab437c/media/:id", authMiddleware, async (c) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// R2 estimate media (site-capture photos/documents + the informal approval
+// signature) -- same signed-URL pattern as task/project media above, but
+// scoped to estimate_media/estimates instead of task_media/projects, since
+// an estimate isn't a project yet. Role checks here mirror
+// can_run_estimating()/can_view_estimating() from
+// 20240043_estimating_config.sql exactly.
+// ---------------------------------------------------------------------------
+const ESTIMATING_VIEW_ROLES = ["Super Admin", "Admin", "Manager", "Accountant"];
+const ESTIMATING_RUN_ROLES = ["Super Admin", "Admin", "Manager"];
+
+app.post("/make-server-bcab437c/estimate-media/upload-url", authMiddleware, async (c) => {
+  try {
+    const role = c.get("userRole");
+    const userId = c.get("userId");
+    if (!ESTIMATING_RUN_ROLES.includes(role)) {
+      return c.json({ error: "You do not have permission to upload estimate media" }, 403);
+    }
+    const { estimateId, fileName, contentType, byteSize, caption = null, mediaKind: kindOverride = null } = await c.req.json();
+    if (!estimateId || !fileName || !contentType || !Number.isFinite(byteSize)) {
+      return c.json({ error: "estimateId, fileName, contentType, and byteSize are required" }, 400);
+    }
+    const fileLimit = mediaSizeLimit(contentType);
+    if (byteSize <= 0 || byteSize > fileLimit) {
+      return c.json({ error: `This file type must be ${Math.round(fileLimit / 1024 / 1024)} MB or smaller` }, 400);
+    }
+    if (!MEDIA_ALLOWED_TYPES.test(contentType)) {
+      return c.json({ error: "Unsupported file type" }, 400);
+    }
+
+    const storedBytes = await currentR2StorageBytes();
+    if (storedBytes + byteSize > R2_FREE_STORAGE_GUARD_BYTES) {
+      return c.json({
+        error: "Uploads are paused: R2 storage has reached the 8 GB free-tier safety limit. Contact an administrator.",
+        code: "R2_FREE_TIER_GUARD",
+      }, 507);
+    }
+
+    const id = crypto.randomUUID();
+    const objectKey = `estimates/${estimateId}/${id}-${safeMediaName(fileName)}`;
+    const { data: media, error } = await supabase.from("estimate_media").insert({
+      id,
+      estimate_id: estimateId,
+      object_key: objectKey,
+      original_filename: fileName,
+      content_type: contentType,
+      byte_size: byteSize,
+      media_kind: kindOverride === "signature" ? "signature" : mediaKind(contentType),
+      caption,
+      uploaded_by: userId,
+      upload_status: "pending",
+    }).select().single();
+    if (error) return c.json({ error: error.message }, 400);
+
+    try {
+      const uploadUrl = await getSignedUrl(
+        getR2Client(),
+        new PutObjectCommand({ Bucket: R2_BUCKET_NAME, Key: objectKey, ContentType: contentType }),
+        { expiresIn: 600 },
+      );
+      return c.json({ media, uploadUrl });
+    } catch (error) {
+      await supabase.from("estimate_media").delete().eq("id", id);
+      throw error;
+    }
+  } catch (error: any) {
+    console.error("Estimate media upload-url error:", error);
+    return c.json({ error: error?.message ?? "Could not prepare upload" }, 500);
+  }
+});
+
+app.post("/make-server-bcab437c/estimate-media/:id/complete", authMiddleware, async (c) => {
+  try {
+    const role = c.get("userRole");
+    if (!ESTIMATING_RUN_ROLES.includes(role)) {
+      return c.json({ error: "You do not have permission to complete this upload" }, 403);
+    }
+    const id = c.req.param("id");
+    const { data: media } = await supabase.from("estimate_media").select("*").eq("id", id).maybeSingle();
+    if (!media || media.deleted_at) return c.json({ error: "Media record not found" }, 404);
+
+    const head = await getR2Client().send(new HeadObjectCommand({ Bucket: R2_BUCKET_NAME, Key: media.object_key }));
+    if (head.ContentLength !== media.byte_size) {
+      await supabase.from("estimate_media").update({ upload_status: "failed" }).eq("id", id);
+      return c.json({ error: "Uploaded file size did not match the prepared upload" }, 409);
+    }
+
+    const { data, error } = await supabase.from("estimate_media")
+      .update({ upload_status: "ready" }).eq("id", id).select().single();
+    if (error) return c.json({ error: error.message }, 400);
+    return c.json({ media: data });
+  } catch (error: any) {
+    console.error("Estimate media completion error:", error);
+    return c.json({ error: error?.message ?? "Could not complete upload" }, 500);
+  }
+});
+
+app.get("/make-server-bcab437c/estimate-media", authMiddleware, async (c) => {
+  try {
+    const role = c.get("userRole");
+    if (!ESTIMATING_VIEW_ROLES.includes(role)) {
+      return c.json({ error: "You do not have permission to view estimate media" }, 403);
+    }
+    const estimateId = c.req.query("estimateId");
+    if (!estimateId) return c.json({ error: "estimateId is required" }, 400);
+
+    const { data, error } = await supabase.from("estimate_media").select("*")
+      .eq("estimate_id", estimateId)
+      .eq("upload_status", "ready")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(200);
+    if (error) return c.json({ error: error.message }, 400);
+
+    const r2 = getR2Client();
+    const media = await Promise.all((data ?? []).map(async (item: any) => ({
+      ...item,
+      url: await getSignedUrl(r2, new GetObjectCommand({ Bucket: R2_BUCKET_NAME, Key: item.object_key }), { expiresIn: 3600 }),
+    })));
+    return c.json({ media });
+  } catch (error: any) {
+    console.error("Estimate media list error:", error);
+    return c.json({ error: error?.message ?? "Could not load estimate media" }, 500);
+  }
+});
+
+app.delete("/make-server-bcab437c/estimate-media/:id", authMiddleware, async (c) => {
+  try {
+    const role = c.get("userRole");
+    if (!ESTIMATING_RUN_ROLES.includes(role)) {
+      return c.json({ error: "You do not have permission to delete estimate media" }, 403);
+    }
+    const id = c.req.param("id");
+    const { data: media } = await supabase.from("estimate_media").select("*").eq("id", id).maybeSingle();
+    if (!media || media.deleted_at) return c.json({ error: "Media record not found" }, 404);
+
+    await getR2Client().send(new DeleteObjectCommand({ Bucket: R2_BUCKET_NAME, Key: media.object_key }));
+    const { error } = await supabase.from("estimate_media").update({ deleted_at: new Date().toISOString() }).eq("id", id);
+    if (error) return c.json({ error: error.message }, 400);
+    return c.json({ success: true });
+  } catch (error: any) {
+    return c.json({ error: error?.message ?? "Could not delete estimate media" }, 500);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Estimating AI routes -- analyze-capture, generate-plan, generate-proposal,
+// and pricing. All server-side (no API key in the browser). Same OpenAI
+// integration as /insights/generate above (OPENAI_API_KEY secret,
+// gpt-4o-mini), using response_format: json_object so the model's output is
+// always parseable JSON, matching the strict-JSON-only prompts already
+// proven out in the source prototype.
+//
+// HARD BOUNDARY, unchanged from the prototype and the pricing engine's own
+// header comment: AI drafts organized notes/scope/questions/plan/proposal
+// text and SUGGESTS takeoff quantities (always inserted with
+// source='ai-assumption', never 'confirmed') -- it never computes a price.
+// The /estimating/pricing route below is the one and only place a
+// selling price gets computed, and it's pure arithmetic, no AI call at all.
+// ---------------------------------------------------------------------------
+
+async function openaiJson(systemPrompt: string, userContent: any, openaiKey: string): Promise<any> {
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${openaiKey}` },
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userContent },
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.3,
+    }),
+  });
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error("OpenAI request failed:", res.status, errText);
+    throw new Error("The AI provider request failed. Please try again.");
+  }
+  const json = await res.json();
+  const text = json?.choices?.[0]?.message?.content || "{}";
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error("The AI response could not be parsed. Please try again.");
+  }
+}
+
+app.post("/make-server-bcab437c/estimating/analyze-capture", authMiddleware, async (c) => {
+  const role = c.get("userRole");
+  if (!ESTIMATING_RUN_ROLES.includes(role)) return c.json({ error: "You do not have permission to run estimating AI" }, 403);
+  const openaiKey = Deno.env.get("OPENAI_API_KEY");
+  if (!openaiKey) return c.json({ error: "Estimating AI isn't configured yet -- ask an admin to add the OpenAI API key in Supabase project settings." }, 503);
+
+  try {
+    const { estimateId } = await c.req.json();
+    if (!estimateId) return c.json({ error: "estimateId is required" }, 400);
+
+    const [{ data: estimate }, { data: measurements }, { data: documents }, { data: media }, { data: assemblies }] = await Promise.all([
+      supabase.from("estimates").select("*").eq("id", estimateId).maybeSingle(),
+      supabase.from("estimate_measurements").select("*").eq("estimate_id", estimateId),
+      supabase.from("estimate_documents").select("*").eq("estimate_id", estimateId),
+      supabase.from("estimate_media").select("*").eq("estimate_id", estimateId).eq("media_kind", "photo").eq("upload_status", "ready").order("created_at", { ascending: false }).limit(4),
+      supabase.from("estimating_assemblies").select("id, name").eq("active", true),
+    ]);
+    if (!estimate) return c.json({ error: "Estimate not found" }, 404);
+
+    const r2 = getR2Client();
+    const photoUrls = await Promise.all((media ?? []).map((m: any) =>
+      getSignedUrl(r2, new GetObjectCommand({ Bucket: R2_BUCKET_NAME, Key: m.object_key }), { expiresIn: 600 })
+    ));
+
+    const notesText = estimate.capture_notes || "(none typed)";
+    const measurementsText = (measurements ?? []).map((m: any) => `${m.label}: ${m.value} ${m.unit || ""}`).join("\n") || "(none)";
+    const docsText = (documents ?? []).map((d: any) => `${d.name}: ${d.note || ""}`).join("\n") || "(none)";
+    const walkthrough = estimate.capture_walkthrough || "(none)";
+    const assemblyNames = (assemblies ?? []).map((a: any) => a.name).join(", ");
+
+    const systemPrompt = `You are a construction estimating assistant for a Regina, Saskatchewan renovation general contractor. Organize raw site-visit input into structured notes. NEVER invent measurements, prices, or code requirements. NEVER treat a photo alone as a reliable dimension source unless a visible reference scale is present. Respond ONLY with a strict JSON object, no markdown fences, no preamble, exactly this shape:
+{"organizedNotes":"string, under 70 words","extractedFacts":[{"fact":"string","source":"confirmed|photo|document|assumption","confidence":"Confirmed|High Confidence|Needs Review|Missing"}],"scopeOfWork":"string, under 90 words","questions":["string", "..."],"draftTakeoff":[{"description":"string","suggestedAssembly":"one of: ${assemblyNames}","qty":0,"unit":"string"}]}
+Max 6 extractedFacts, max 6 questions, max 6 draftTakeoff lines. Any draftTakeoff quantity is always an assumption needing human confirmation -- never mark it Confirmed.`;
+
+    const userText = `SITE NOTES:\n${notesText}\n\nWALKTHROUGH SUMMARY:\n${walkthrough}\n\nMEASUREMENTS ENTERED BY USER (treat as Confirmed):\n${measurementsText}\n\nDOCUMENT NOTES:\n${docsText}\n\n${photoUrls.length} site photo(s) attached.`;
+    const content: any[] = [{ type: "text", text: userText }];
+    for (const url of photoUrls) content.push({ type: "image_url", image_url: { url } });
+
+    const parsed = await openaiJson(systemPrompt, content, openaiKey);
+
+    const nameToId = new Map((assemblies ?? []).map((a: any) => [String(a.name).toLowerCase(), a.id]));
+    const draftTakeoff = Array.isArray(parsed.draftTakeoff) ? parsed.draftTakeoff.slice(0, 6).map((d: any) => ({
+      description: d.description || "",
+      assemblyId: nameToId.get(String(d.suggestedAssembly || "").toLowerCase()) || null,
+      qty: Number(d.qty) || 0,
+      unit: d.unit || "",
+    })) : [];
+
+    const updates: Record<string, any> = { ai_analysis: parsed, ai_analysis_generated_at: new Date().toISOString() };
+    if (!estimate.scope_of_work) updates.scope_of_work = parsed.scopeOfWork || null;
+    await supabase.from("estimates").update(updates).eq("id", estimateId);
+
+    // Only auto-populate takeoff on the FIRST run -- a re-run shouldn't
+    // duplicate lines the estimator may have already edited/confirmed.
+    const { count: existingLineCount } = await supabase.from("estimate_takeoff_lines").select("id", { count: "exact", head: true }).eq("estimate_id", estimateId);
+    if (!existingLineCount) {
+      for (const line of draftTakeoff) {
+        if (line.qty <= 0) continue;
+        await supabase.from("estimate_takeoff_lines").insert({
+          estimate_id: estimateId,
+          assembly_id: line.assemblyId,
+          description: line.description,
+          qty: line.qty,
+          unit: line.unit,
+          source: "ai-assumption",
+        });
+      }
+    }
+
+    return c.json({ analysis: parsed });
+  } catch (err: any) {
+    console.error("analyze-capture error:", err);
+    return c.json({ error: String(err?.message ?? err) }, 500);
+  }
+});
+
+app.post("/make-server-bcab437c/estimating/generate-plan", authMiddleware, async (c) => {
+  const role = c.get("userRole");
+  if (!ESTIMATING_RUN_ROLES.includes(role)) return c.json({ error: "You do not have permission to run estimating AI" }, 403);
+  const openaiKey = Deno.env.get("OPENAI_API_KEY");
+  if (!openaiKey) return c.json({ error: "Estimating AI isn't configured yet -- ask an admin to add the OpenAI API key in Supabase project settings." }, 503);
+
+  try {
+    const { estimateId } = await c.req.json();
+    if (!estimateId) return c.json({ error: "estimateId is required" }, 400);
+
+    const [{ data: estimate }, { data: lines }] = await Promise.all([
+      supabase.from("estimates").select("*").eq("id", estimateId).maybeSingle(),
+      supabase.from("estimate_takeoff_lines").select("description, qty, unit, assembly_id").eq("estimate_id", estimateId),
+    ]);
+    if (!estimate) return c.json({ error: "Estimate not found" }, 404);
+
+    const assemblyIds = [...new Set((lines ?? []).map((l: any) => l.assembly_id).filter(Boolean))];
+    const { data: assemblies } = assemblyIds.length
+      ? await supabase.from("estimating_assemblies").select("id, name").in("id", assemblyIds)
+      : { data: [] as any[] };
+    const nameById = new Map((assemblies ?? []).map((a: any) => [a.id, a.name]));
+
+    const systemPrompt = `You are a construction project-planning assistant for a Regina, Saskatchewan renovation GC. Given a scope of work and takeoff, produce a practical execution plan. Flag anything requiring code/permit verification as needing human confirmation -- never assert current code requirements as fact. Respond ONLY with a strict JSON object, no fences:
+{"steps":[{"title":"string","detail":"string, under 30 words","crew":"string","hours":0,"qc":"string","safety":"string"}],"research":["string"],"permits":["string -- phrase as 'verify ...'"],"risks":["string"],"closeout":["string"]}
+Max 8 steps, max 5 items in each other list.`;
+    const scopeText = estimate.scope_of_work || "(no scope drafted yet)";
+    const takeoffText = (lines ?? []).map((l: any) => `${l.description || nameById.get(l.assembly_id) || ""} -- ${l.qty} ${l.unit || ""}`).join("\n") || "(no takeoff yet)";
+    const userText = `SCOPE OF WORK:\n${scopeText}\n\nTAKEOFF:\n${takeoffText}`;
+
+    const parsed = await openaiJson(systemPrompt, [{ type: "text", text: userText }], openaiKey);
+    await supabase.from("estimates").update({ project_plan: parsed, project_plan_generated_at: new Date().toISOString() }).eq("id", estimateId);
+    return c.json({ plan: parsed });
+  } catch (err: any) {
+    console.error("generate-plan error:", err);
+    return c.json({ error: String(err?.message ?? err) }, 500);
+  }
+});
+
+app.post("/make-server-bcab437c/estimating/generate-proposal", authMiddleware, async (c) => {
+  const role = c.get("userRole");
+  if (!ESTIMATING_RUN_ROLES.includes(role)) return c.json({ error: "You do not have permission to run estimating AI" }, 403);
+  const openaiKey = Deno.env.get("OPENAI_API_KEY");
+  if (!openaiKey) return c.json({ error: "Estimating AI isn't configured yet -- ask an admin to add the OpenAI API key in Supabase project settings." }, 503);
+
+  try {
+    const { estimateId } = await c.req.json();
+    if (!estimateId) return c.json({ error: "estimateId is required" }, 400);
+
+    const { data: estimate } = await supabase.from("estimates").select("scope_of_work").eq("id", estimateId).maybeSingle();
+    if (!estimate) return c.json({ error: "Estimate not found" }, 404);
+
+    const { data: snapshot } = await supabase
+      .from("estimate_pricing_snapshots")
+      .select("selling_price_good_cents, selling_price_better_cents, selling_price_best_cents, duration_weeks")
+      .eq("estimate_id", estimateId)
+      .order("confirmed_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!snapshot) return c.json({ error: "Confirm pricing before drafting a proposal" }, 400);
+
+    // Only the customer-safe selling prices are ever sent to the model --
+    // never cost/margin, same boundary the pricing route enforces on its
+    // non-Super-Admin response.
+    const money = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-US")}`;
+    const systemPrompt = `You are a proposal writer for a Regina, Saskatchewan renovation general contractor called Cstle Livn. Write customer-facing proposal copy for three tiers using the EXACT prices given -- never change, round differently, or invent numbers. Respond ONLY with a strict JSON object, no fences:
+{"good":{"headline":"string","body":"string, under 90 words"},"better":{"headline":"string","body":"string, under 90 words"},"best":{"headline":"string","body":"string, under 90 words"},"customerMessage":"short text/email under 70 words inviting the customer to review and approve"}`;
+    const userText = `SCOPE:\n${estimate.scope_of_work || "(scope not drafted)"}\n\nGOOD price: ${money(snapshot.selling_price_good_cents)}\nBETTER price: ${money(snapshot.selling_price_better_cents)}\nBEST price: ${money(snapshot.selling_price_best_cents)}\nEstimated duration: ${Number(snapshot.duration_weeks).toFixed(1)} weeks`;
+
+    const parsed = await openaiJson(systemPrompt, [{ type: "text", text: userText }], openaiKey);
+    const { data: saved, error } = await supabase.from("estimate_proposals").insert({
+      estimate_id: estimateId,
+      good_headline: parsed?.good?.headline || null, good_body: parsed?.good?.body || null,
+      better_headline: parsed?.better?.headline || null, better_body: parsed?.better?.body || null,
+      best_headline: parsed?.best?.headline || null, best_body: parsed?.best?.body || null,
+      customer_message: parsed?.customerMessage || null,
+    }).select().single();
+    if (error) return c.json({ error: error.message }, 400);
+    return c.json({ proposal: saved });
+  } catch (err: any) {
+    console.error("generate-proposal error:", err);
+    return c.json({ error: String(err?.message ?? err) }, 500);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Estimating pricing -- the ONLY place a selling price is computed. Pure
+// arithmetic, no AI, mirroring src/app/src/features/estimating/
+// pricingEngine.ts's computePricing() exactly (cents in, cents out) -- if
+// you change the formula in one place, change it in the other. This has to
+// live server-side because the rate card/assemblies/margin-tier cost data
+// is Super-Admin-only at the RLS level (see 20240045's comment); this
+// route uses the service-role client to read it regardless of the
+// caller's role, then hands back either the full cost/margin breakdown
+// (Super Admin) or just the customer-safe selling prices (everyone else).
+// ---------------------------------------------------------------------------
+function getTierForPrice(priceCents: number, tiers: any[]) {
+  const sorted = [...tiers].sort((a, b) => a.sort_order - b.sort_order);
+  return sorted.find((t) => priceCents >= t.lo_cents && (t.hi_cents === null || priceCents < t.hi_cents)) ?? sorted[sorted.length - 1];
+}
+
+app.post("/make-server-bcab437c/estimating/pricing", authMiddleware, async (c) => {
+  const role = c.get("userRole");
+  const userId = c.get("userId");
+  if (!ESTIMATING_RUN_ROLES.includes(role)) return c.json({ error: "You do not have permission to price an estimate" }, 403);
+
+  try {
+    const { estimateId, confirm = false } = await c.req.json();
+    if (!estimateId) return c.json({ error: "estimateId is required" }, 400);
+
+    const [{ data: estimate }, { data: lines }, { data: rateCard }, { data: tiers }] = await Promise.all([
+      supabase.from("estimates").select("*").eq("id", estimateId).maybeSingle(),
+      supabase.from("estimate_takeoff_lines").select("*").eq("estimate_id", estimateId),
+      supabase.from("estimating_rate_card").select("*").limit(1).single(),
+      supabase.from("estimating_margin_tiers").select("*"),
+    ]);
+    if (!estimate) return c.json({ error: "Estimate not found" }, 404);
+    if (!lines || lines.length === 0) return c.json({ error: "Add at least one takeoff line before pricing" }, 400);
+    if (lines.some((l: any) => l.source !== "confirmed")) {
+      return c.json({ error: "Confirm every takeoff line (no AI Assumptions left) before pricing" }, 400);
+    }
+
+    const assemblyIds = [...new Set(lines.map((l: any) => l.assembly_id).filter(Boolean))];
+    const { data: assemblies } = assemblyIds.length
+      ? await supabase.from("estimating_assemblies").select("*").in("id", assemblyIds)
+      : { data: [] as any[] };
+    const assemblyById = new Map((assemblies ?? []).map((a: any) => [a.id, a]));
+
+    let materialTotalCents = 0, laborHoursTotal = 0, laborCostTotalCents = 0;
+    for (const line of lines) {
+      const a = assemblyById.get(line.assembly_id);
+      if (!a) continue;
+      const wasteQty = Number(line.qty) * (1 + (a.waste_factor || 0));
+      const materialCostCents = Math.round(wasteQty * a.material_cost_per_unit_cents);
+      const laborHours = Number(line.qty) * a.labor_hours_per_unit;
+      const laborCostCents = Math.round(laborHours * rateCard.labor_rate_cents);
+      materialTotalCents += materialCostCents;
+      laborHoursTotal += laborHours;
+      laborCostTotalCents += laborCostCents;
+    }
+
+    const equipmentCents = estimate.pricing_equipment_cents || 0;
+    const subcontractorCents = estimate.pricing_subcontractor_cents || 0;
+    const deliveryCents = estimate.pricing_delivery_cents || 0;
+    const disposalCents = estimate.pricing_disposal_cents || 0;
+    const directCostCents = materialTotalCents + laborCostTotalCents + equipmentCents + subcontractorCents + deliveryCents + disposalCents;
+    const overheadCents = Math.round(directCostCents * rateCard.overhead_pct);
+    const contingencyCents = Math.round(directCostCents * rateCard.contingency_pct);
+    const totalCostCents = directCostCents + overheadCents + contingencyCents;
+
+    const guessCents = Math.round(totalCostCents / (1 - 0.30));
+    let tier = getTierForPrice(guessCents, tiers ?? []);
+    let sellingPriceGoodCents = Math.max(Math.round(totalCostCents / (1 - tier.target_margin)), rateCard.minimum_charge_cents);
+    tier = getTierForPrice(sellingPriceGoodCents, tiers ?? []);
+    sellingPriceGoodCents = Math.max(Math.round(totalCostCents / (1 - tier.target_margin)), rateCard.minimum_charge_cents);
+    const sellingPriceBetterCents = Math.round(totalCostCents / (1 - (tier.target_margin + 0.05)));
+    const sellingPriceBestCents = Math.round(totalCostCents / (1 - (tier.target_margin + 0.10)));
+    const gpGoodCents = sellingPriceGoodCents - totalCostCents;
+    const gpBetterCents = sellingPriceBetterCents - totalCostCents;
+    const gpBestCents = sellingPriceBestCents - totalCostCents;
+    const crewSize = estimate.pricing_crew_size || rateCard.default_crew_size || 2;
+    const durationWeeks = laborHoursTotal > 0 ? laborHoursTotal / (crewSize * 40) : 0;
+
+    const { data: snapshot, error } = await supabase.from("estimate_pricing_snapshots").insert({
+      estimate_id: estimateId,
+      material_total_cents: materialTotalCents,
+      labor_hours_total: laborHoursTotal,
+      labor_cost_total_cents: laborCostTotalCents,
+      equipment_cents: equipmentCents, subcontractor_cents: subcontractorCents,
+      delivery_cents: deliveryCents, disposal_cents: disposalCents,
+      direct_cost_cents: directCostCents, overhead_cents: overheadCents, contingency_cents: contingencyCents, total_cost_cents: totalCostCents,
+      tier_label: tier.label, tier_min_margin: tier.min_margin, tier_target_margin: tier.target_margin,
+      selling_price_good_cents: sellingPriceGoodCents, selling_price_better_cents: sellingPriceBetterCents, selling_price_best_cents: sellingPriceBestCents,
+      gp_good_cents: gpGoodCents, gp_better_cents: gpBetterCents, gp_best_cents: gpBestCents,
+      margin_good: gpGoodCents / sellingPriceGoodCents, margin_better: gpBetterCents / sellingPriceBetterCents, margin_best: gpBestCents / sellingPriceBestCents,
+      duration_weeks: durationWeeks, crew_size: crewSize,
+      confirmed_by: userId,
+    }).select().single();
+    if (error) return c.json({ error: error.message }, 400);
+
+    if (confirm) {
+      await supabase.from("estimates").update({ pricing_confirmed: true }).eq("id", estimateId);
+    }
+
+    const canViewMargins = role === "Super Admin";
+    if (canViewMargins) {
+      return c.json({ pricing: snapshot, canViewMargins: true });
+    }
+    return c.json({
+      pricing: {
+        selling_price_good_cents: snapshot.selling_price_good_cents,
+        selling_price_better_cents: snapshot.selling_price_better_cents,
+        selling_price_best_cents: snapshot.selling_price_best_cents,
+        tier_label: snapshot.tier_label,
+        duration_weeks: snapshot.duration_weeks,
+        crew_size: snapshot.crew_size,
+        confirmed_at: snapshot.confirmed_at,
+      },
+      canViewMargins: false,
+    });
+  } catch (err: any) {
+    console.error("estimating pricing error:", err);
+    return c.json({ error: String(err?.message ?? err) }, 500);
+  }
+});
+
 app.get("/make-server-bcab437c/insights/history", authMiddleware, async (c) => {
   const userRole = c.get("userRole");
   if (!TEAM_PERFORMANCE_ROLES.includes(userRole)) {
