@@ -1,9 +1,39 @@
-import { createClient } from '../../../utils/supabase/client.tsx';
+import { createClient, apiCall } from '../../../utils/supabase/client.tsx';
 import { projectId, publicAnonKey } from '../../../utils/supabase/info.tsx';
 import { failIf } from '../../lib/errors';
 import { now } from '../../lib/dates';
 
 const supabase = createClient();
+
+/**
+ * Admin-authenticated "add a person" -- creates a real login (any role,
+ * honored as requested) and, if `teamMember` is given, a linked
+ * team_members row in the same call. Deliberately NOT the same path as
+ * self-signup: that endpoint is public/unauthenticated so it must clamp
+ * role to Associate/Contractor no matter what's requested, and it also
+ * signs the caller into the new account (fine for someone signing
+ * themselves up, wrong for an admin adding someone else). This calls
+ * POST /admin/create-person instead, which requires a real Super
+ * Admin/Manager session, honors the chosen role, and never touches the
+ * caller's own session.
+ */
+export async function createPersonAsAdmin(input: {
+  name: string;
+  email: string;
+  password: string;
+  role: string;
+  teamMember?: {
+    phone?: string;
+    specialties?: string[];
+    aura_rating?: number;
+  } | null;
+}): Promise<{ user: any; teamMember: any; warning?: string }> {
+  return apiCall('/admin/create-person', {
+    method: 'POST',
+    requiresAuth: true,
+    body: input,
+  });
+}
 
 // Use server endpoints to bypass PostgREST schema cache issues
 // DISABLED: Using direct PostgREST for reliability until server endpoints are fully deployed
@@ -20,6 +50,7 @@ export interface TeamMemberInput {
   efficiency?: number;
   specialties?: string[];
   active?: boolean;
+  auth_user_id?: string | null;
 }
 
 export interface TeamMemberUpdate {

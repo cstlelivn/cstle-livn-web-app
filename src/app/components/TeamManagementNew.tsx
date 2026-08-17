@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Plus, Star, Phone, Mail, Award, Calendar, Download, Edit, Trash2, Grid3x3, List, Eye, Loader2, CheckCircle, AlertCircle } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { Plus, Star, Phone, Mail, Award, Calendar, Download, Edit, Trash2, Grid3x3, List, Eye, Loader2, CheckCircle, AlertCircle, UserPlus } from "lucide-react";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { Badge } from "./ui/badge";
@@ -8,6 +8,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "./ui/label";
 import { Input } from "./ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import { Checkbox } from "./ui/checkbox";
 import { Progress } from "./ui/progress";
 import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
 import TableFilter, { FilterConfig, SortOption } from "./TableFilter";
@@ -16,7 +17,10 @@ import EditTeamMemberDialog from "./EditTeamMemberDialog";
 import WorkerAuraProfile from "./WorkerAuraProfile";
 import { useApp } from "./AppContext";
 import { useAuth } from "./AuthContext";
+import { createPersonAsAdmin } from "../src/features/team/api";
 import { toast } from "sonner";
+
+const ACCOUNT_ROLES = ["Associate", "Contractor", "Supervisor", "Quality Control", "Accountant", "Manager", "Admin", "Super Admin"];
 
 interface TaskRating {
   taskId: number;
@@ -32,8 +36,12 @@ interface TaskRating {
 
 export default function TeamManagement() {
   const { teamMembers, projects, tasks, deleteTeamMember, addTeamMember, isLoadingTeam } = useApp();
-  const { hasPermission, user } = useAuth();
+  const { hasPermission, user, users, refreshUsers } = useAuth();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [createLogin, setCreateLogin] = useState(false);
+  const [loginPassword, setLoginPassword] = useState("");
+  const [accountRole, setAccountRole] = useState("Associate");
+  const [linkExistingUserId, setLinkExistingUserId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"grid" | "list">("list");
   const [selectedMember, setSelectedMember] = useState<any | null>(null);
   const [viewRatingsDialog, setViewRatingsDialog] = useState<number | null>(null);
@@ -163,44 +171,88 @@ export default function TeamManagement() {
       toast.error("Phone required", { description: "Please enter a phone number" });
       return;
     }
+    if (createLogin && !linkExistingUserId && (!loginPassword || loginPassword.length < 6)) {
+      toast.error("Password required", { description: "Enter a password of at least 6 characters for the new login." });
+      return;
+    }
 
     setIsCreating(true);
 
     try {
-      console.log("📝 Creating new team member:", newMemberForm);
-      
-      await addTeamMember({
-        name: newMemberForm.name.trim(),
-        role: newMemberForm.role.trim(),
-        phone: newMemberForm.phone.trim(),
-        email: newMemberForm.email.trim(),
-        specialties: newMemberForm.skills
-          ? newMemberForm.skills.split(',').map(skill => skill.trim()).filter(skill => skill.length > 0)
-          : [],
-        aura_rating: parseFloat(newMemberForm.initialRating),
-        tasks_completed: 0,
-        tasks_on_time: 0,
-        efficiency: 0,
-        active: true,
-      });
-      
-      toast.success("Team member added!", {
-        description: `${newMemberForm.name} has been added to the team.`,
-        duration: 3000,
-        icon: <CheckCircle className="w-4 h-4" />,
-      });
-      
-      // Reset form and close dialog
-      setNewMemberForm({
-        name: "",
-        role: "",
-        phone: "",
-        email: "",
-        skills: "",
-        initialRating: "0",
-      });
-      setIsCreateDialogOpen(false);
-      
+      const specialties = newMemberForm.skills
+        ? newMemberForm.skills.split(',').map(skill => skill.trim()).filter(skill => skill.length > 0)
+        : [];
+
+      if (linkExistingUserId) {
+        // Existing login (e.g. a self-signup) -- just create the team
+        // entry and link it, in one step, instead of the old
+        // create-then-edit-then-link three-step process.
+        await addTeamMember({
+          name: newMemberForm.name.trim(),
+          role: newMemberForm.role.trim(),
+          phone: newMemberForm.phone.trim(),
+          email: newMemberForm.email.trim(),
+          specialties,
+          aura_rating: parseFloat(newMemberForm.initialRating),
+          tasks_completed: 0,
+          tasks_on_time: 0,
+          efficiency: 0,
+          active: true,
+          auth_user_id: linkExistingUserId,
+        } as any);
+        toast.success("Team member added and linked", {
+          description: `${newMemberForm.name} now shows up in Teams and can be assigned.`,
+          duration: 3000,
+          icon: <CheckCircle className="w-4 h-4" />,
+        });
+      } else if (createLogin) {
+        // Create a brand-new login AND the linked team entry in one call
+        // (POST /admin/create-person) -- an admin picking an elevated role
+        // here is honored, unlike the public self-signup path.
+        const result = await createPersonAsAdmin({
+          name: newMemberForm.name.trim(),
+          email: newMemberForm.email.trim(),
+          password: loginPassword,
+          role: accountRole,
+          teamMember: {
+            phone: newMemberForm.phone.trim(),
+            specialties,
+            aura_rating: parseFloat(newMemberForm.initialRating),
+          },
+        });
+        if (result.warning) {
+          toast.warning(result.warning, { duration: 8000 });
+        } else {
+          toast.success("Team member added with a new login!", {
+            description: `${newMemberForm.name} can sign in with the password you set.`,
+            duration: 3000,
+            icon: <CheckCircle className="w-4 h-4" />,
+          });
+        }
+        await refreshUsers?.();
+      } else {
+        // Roster entry only, no login -- link one later from Edit Team Member.
+        await addTeamMember({
+          name: newMemberForm.name.trim(),
+          role: newMemberForm.role.trim(),
+          phone: newMemberForm.phone.trim(),
+          email: newMemberForm.email.trim(),
+          specialties,
+          aura_rating: parseFloat(newMemberForm.initialRating),
+          tasks_completed: 0,
+          tasks_on_time: 0,
+          efficiency: 0,
+          active: true,
+        });
+        toast.success("Team member added!", {
+          description: `${newMemberForm.name} has been added to the team.`,
+          duration: 3000,
+          icon: <CheckCircle className="w-4 h-4" />,
+        });
+      }
+
+      handleCancelAddTeamMember();
+
     } catch (error: any) {
       console.error("Error adding team member:", error);
       toast.error("Failed to add team member", {
@@ -222,6 +274,10 @@ export default function TeamManagement() {
       skills: "",
       initialRating: "0",
     });
+    setCreateLogin(false);
+    setLoginPassword("");
+    setAccountRole("Associate");
+    setLinkExistingUserId(null);
     setIsCreateDialogOpen(false);
   };
 
@@ -316,6 +372,23 @@ export default function TeamManagement() {
     { field: "hoursLogged", label: "Hours Logged" },
   ];
 
+  // Logins that exist but have no matching team_members row -- the state
+  // someone lands in right after signing up, before an admin links them.
+  // Surfaced here (not just discoverable by accident) so "someone signed up
+  // and I can't see them in Teams" stops being a recurring question.
+  useEffect(() => { refreshUsers?.(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const unlinkedUsers = useMemo(
+    () => (users || []).filter((u: any) => !teamMembers.some((m: any) => String(m.authUserId) === String(u.id))),
+    [users, teamMembers]
+  );
+
+  const openAddDialogForUser = (u: any) => {
+    setNewMemberForm({ name: u.name || "", role: "", phone: "", email: u.email || "", skills: "", initialRating: "0" });
+    setLinkExistingUserId(u.id);
+    setCreateLogin(false);
+    setIsCreateDialogOpen(true);
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)', width: '100%', padding: '24px' }}>
       {/* Header */}
@@ -353,10 +426,36 @@ export default function TeamManagement() {
         )}
       </div>
 
+      {/* Needs Team Setup -- logins with no linked team entry yet */}
+      {hasPermission('canEditTeam') && unlinkedUsers.length > 0 && (
+        <div style={{ border: '1px solid var(--warning)', backgroundColor: 'color-mix(in srgb, var(--warning) 10%, transparent)', borderRadius: 'var(--radius-md)', padding: '16px' }}>
+          <p style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-label)', fontWeight: 'var(--font-weight-bold)', marginBottom: '10px' }}>
+            Needs Team Setup ({unlinkedUsers.length})
+          </p>
+          <p style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-sm)', color: 'var(--muted-foreground)', marginBottom: '10px' }}>
+            These people have a login but aren't on the team roster yet, so they can't be assigned to anything.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {unlinkedUsers.map((u: any) => (
+              <div key={u.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                <div>
+                  <span style={{ fontFamily: 'var(--font-family-body)', fontWeight: 'var(--font-weight-bold)', fontSize: 'var(--text-base)' }}>{u.name}</span>
+                  <span style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-sm)', color: 'var(--muted-foreground)', marginLeft: '8px' }}>{u.email} · {u.role}</span>
+                </div>
+                <Button size="sm" variant="secondary" onClick={() => openAddDialogForUser(u)}>
+                  <UserPlus className="w-3.5 h-3.5 mr-1.5" />
+                  Add as Team Member
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Top Actions Bar */}
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
         justifyContent: 'space-between',
         gap: '12px'
       }}>
@@ -862,10 +961,10 @@ export default function TeamManagement() {
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle style={{ fontFamily: 'var(--font-family-heading)', fontSize: 'var(--text-h3)', fontWeight: 'var(--font-weight-extrabold)' }}>
-              Add New Team Member
+              {linkExistingUserId ? "Add to Team" : "Add New Team Member"}
             </DialogTitle>
             <DialogDescription style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-base)', fontWeight: 'var(--font-weight-normal)' }}>
-              Enter the details of the new team member
+              {linkExistingUserId ? "Finish setting up their team entry -- their login already exists." : "Enter the details of the new team member"}
             </DialogDescription>
           </DialogHeader>
           
@@ -910,7 +1009,7 @@ export default function TeamManagement() {
                   onChange={(e) => setNewMemberForm({ ...newMemberForm, email: e.target.value })}
                   placeholder="email@example.com"
                   required
-                  disabled={isCreating}
+                  disabled={isCreating || !!linkExistingUserId}
                   style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-base)', fontWeight: 'var(--font-weight-normal)' }}
                 />
               </div>
@@ -941,7 +1040,59 @@ export default function TeamManagement() {
                 style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-base)', fontWeight: 'var(--font-weight-normal)' }}
               />
             </div>
-            
+
+            {linkExistingUserId ? (
+              <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '12px', backgroundColor: 'var(--muted)' }}>
+                <p style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-sm)' }}>
+                  Linking to the existing login <strong>{newMemberForm.email}</strong> -- no new account will be created.
+                </p>
+              </div>
+            ) : (
+              <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '12px' }}>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="create-login"
+                    checked={createLogin}
+                    onCheckedChange={(checked) => setCreateLogin(checked === true)}
+                    disabled={isCreating}
+                  />
+                  <Label htmlFor="create-login" style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-base)', fontWeight: 'var(--font-weight-normal)' }}>
+                    Also create a login for this person
+                  </Label>
+                </div>
+                {createLogin && (
+                  <div className="grid grid-cols-2 gap-4 mt-3">
+                    <div>
+                      <Label style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-label)', fontWeight: 'var(--font-weight-bold)' }}>
+                        Account Role *
+                      </Label>
+                      <Select value={accountRole} onValueChange={setAccountRole}>
+                        <SelectTrigger disabled={isCreating} style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-base)' }}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ACCOUNT_ROLES.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-label)', fontWeight: 'var(--font-weight-bold)' }}>
+                        Password *
+                      </Label>
+                      <Input
+                        type="password"
+                        value={loginPassword}
+                        onChange={(e) => setLoginPassword(e.target.value)}
+                        placeholder="At least 6 characters"
+                        disabled={isCreating}
+                        style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-base)', fontWeight: 'var(--font-weight-normal)' }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="flex gap-3 justify-end pt-4">
               <Button 
                 type="button" 

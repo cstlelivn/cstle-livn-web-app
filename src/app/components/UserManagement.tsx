@@ -6,6 +6,7 @@ import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
 import { usePermissions, type UserRole } from "./PermissionContext";
 import TableFilter, { FilterConfig, SortOption } from "./TableFilter";
+import { createPersonAsAdmin } from "../src/features/team/api";
 
 interface UserManagementProps {
   onEditUser: (userId: string) => void;
@@ -14,7 +15,7 @@ interface UserManagementProps {
 const ROLES: UserRole[] = ["Super Admin", "Admin", "Manager", "Quality Control", "Accountant", "Contractor", "Associate"];
 
 export default function UserManagement({ onEditUser }: UserManagementProps) {
-  const { users, currentUser, signUp, refreshUsers, deleteUser } = usePermissions() as any;
+  const { users, currentUser, refreshUsers, deleteUser } = usePermissions() as any;
   const [filters, setFilters] = useState<Record<string, any>>({
     search: "",
     dateFrom: undefined,
@@ -114,7 +115,20 @@ export default function UserManagement({ onEditUser }: UserManagementProps) {
     }
     setAddLoading(true);
     try {
-      await signUp(addForm.email.trim(), addForm.password, addForm.name.trim(), addForm.role);
+      // Deliberately NOT the self-signup path (signUp() in AuthContext):
+      // that hits the public, unauthenticated /auth/signup endpoint, which
+      // must clamp every request to Associate/Contractor no matter what
+      // role is picked here (silently -- an admin choosing "Manager" would
+      // have gotten an Associate account back with no error), and it also
+      // signs the caller into the newly created account, kicking the admin
+      // out of their own session. /admin/create-person requires a real
+      // Super Admin/Manager session and does neither.
+      await createPersonAsAdmin({
+        name: addForm.name.trim(),
+        email: addForm.email.trim(),
+        password: addForm.password,
+        role: addForm.role,
+      });
       if (typeof refreshUsers === "function") await refreshUsers();
       setShowAddDialog(false);
       setAddForm({ name: "", email: "", password: "", role: "Associate" });

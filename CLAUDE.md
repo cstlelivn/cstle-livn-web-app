@@ -989,6 +989,69 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   shouldn't close until final balance is received. Not implemented --
   needs a decision first (see conversation).
 
+## Unified people management + two real account-creation bugs found and fixed — August 16, 2026
+
+- **User's own request**: signing up and appearing in Team Management were
+  two disconnected concepts requiring a manual 3-step process (sign up →
+  admin creates a separate Team entry → admin edits it to pick the login
+  from a dropdown). Asked for "a clean solution... think Buildertrend."
+- **While investigating, found two real, currently-live bugs in the
+  existing admin "Add User" flow** (Settings → Users), both now fixed:
+  1. **Silent role downgrade.** `UserManagement.tsx`'s Add User called
+     `signUp()` (`AuthContext.tsx`), which posts to the **public,
+     unauthenticated** `POST /auth/signup` edge route. That route is
+     deliberately hardcoded to clamp any requested role down to
+     Associate/Contractor (a prior, correct fix against self-signup
+     privilege escalation) — but the *admin-facing* Add User dialog reused
+     the same endpoint, so picking "Manager" or "Supervisor" in that
+     dropdown silently created an **Associate** account instead, with a
+     misleading "Account created successfully!" message and no error at
+     all.
+  2. **Session hijack.** That same `signUp()` wrapper also automatically
+     signs the caller into the newly created account right after creating
+     it (`AuthContext.tsx:415-428`, `await signIn(email, password)`) — correct
+     for a person signing themselves up, but it meant an **admin creating
+     someone else's account got logged out of their own session and into
+     the stranger's account** every time.
+  - **Fix**: new authenticated route `POST /make-server-bcab437c/admin/create-person`
+    (Super Admin/Manager only, checked via the caller's real bearer token)
+    that honors the requested role as-is and never touches the caller's
+    session. Optionally creates and links a `team_members` row in the same
+    call. `UserManagement.tsx`'s Add User now calls this instead of `signUp()`.
+- **New unified flow in `TeamManagementNew.tsx`** (the primary "Teams"
+  screen): a **"Needs Team Setup"** banner lists every login with no
+  matching `team_members.authUserId` (i.e. someone signed up and isn't on
+  the roster yet) with a one-click **"Add as Team Member"** that opens the
+  Add dialog pre-filled with their name/email, linking in one step instead
+  of three. The Add Team Member dialog also gained an optional **"Also
+  create a login for this person"** toggle (Account Role + Password),
+  calling the new `/admin/create-person` route so an admin can create the
+  login and the team entry, linked, together — this is the actual
+  Buildertrend-style "add a person" flow the user asked for. Client
+  wrapper: `createPersonAsAdmin()` in `src/app/src/features/team/api.ts`.
+- **Fixed a related latent bug while in this code**: `EditTeamMemberDialog.tsx`'s
+  "Linked Login Account" dropdown listed every login account with no
+  filtering, so picking one already linked to a different team member
+  would silently steal it from them. Now excludes logins already linked
+  elsewhere.
+- **Settings cleanup**: removed the stale default "Diagnostic" tab
+  (`ProjectClientDiagnostic.tsx` + `MigrationInstructions.tsx`) — this is
+  the exact panel the user screenshotted, confused by a "Create Finance &
+  Project Transactions Tables" SQL setup wizard for tables that have
+  existed via real migrations for weeks; the component unconditionally
+  rendered that wizard with no check for whether the table already
+  existed. Also deleted `SchemaInspector.tsx` and
+  `ProjectTransactionsSetupBanner.tsx`, both already-orphaned dead files
+  with no live import path anywhere. Settings now defaults to Phase
+  Templates. `App.tsx`'s dead `"diagnostic"` view/case removed too (it had
+  no sidebar entry — only reachable via the now-removed Settings tab).
+- `npx tsc --noEmit -p tsconfig.sync.json`, `npm run build`, and `npm test`
+  (9/9) all pass. Dev server loads with no new console errors (same
+  standing verification limitation as every other feature this session —
+  the agent doesn't sign in). **The new `/admin/create-person` edge route
+  needs a manual Supabase deploy before it works** — same as the
+  estimating tool's routes below, not done as part of this session.
+
 ## Profitability & Estimating tool — August 16, 2026
 
 - **What this is**: a full port of a standalone prototype (single-file

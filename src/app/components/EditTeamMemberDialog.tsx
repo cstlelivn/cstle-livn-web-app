@@ -28,10 +28,21 @@ interface EditTeamMemberDialogProps {
 }
 
 export default function EditTeamMemberDialog({ isOpen, onClose, member }: EditTeamMemberDialogProps) {
-  const { updateTeamMember } = useApp();
+  const { updateTeamMember, teamMembers } = useApp();
   const { users, hasPermission, refreshUsers } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const canLinkAccount = hasPermission("canManageTeam");
+
+  // A login already linked to a DIFFERENT team member shouldn't be
+  // offered here -- picking it would silently steal it from whoever it's
+  // currently linked to (the dropdown previously listed every login with
+  // no such filtering at all).
+  const linkedElsewhere = new Set(
+    teamMembers
+      .filter((m: any) => m.id !== member.id && m.authUserId)
+      .map((m: any) => String(m.authUserId))
+  );
+  const linkableUsers = users.filter((u: any) => !linkedElsewhere.has(String(u.id)));
 
   const [formData, setFormData] = useState({
     name: member.name,
@@ -200,7 +211,7 @@ export default function EditTeamMemberDialog({ isOpen, onClose, member }: EditTe
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">No linked account</SelectItem>
-                  {users.map((u) => (
+                  {linkableUsers.map((u) => (
                     <SelectItem key={u.id} value={u.id}>
                       {u.name} ({u.email})
                     </SelectItem>

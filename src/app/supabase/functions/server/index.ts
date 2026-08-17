@@ -454,6 +454,81 @@ app.post("/make-server-bcab437c/auth/signup", async (c) => {
   }
 });
 
+// Admin-authenticated account creation -- distinct from the public
+// /auth/signup above on purpose. That route is unauthenticated (anyone can
+// hit it) so it MUST clamp role to the two lowest-privilege options, no
+// exceptions. This route requires a real Super Admin/Manager bearer token,
+// so it's safe to honor whatever role the admin actually picked -- e.g. an
+// admin adding a new Supervisor or Manager here used to silently get an
+// "Associate" account back with no error, because Settings -> Users ->
+// Add User was calling the public clamped endpoint. Also creates and links
+// a team_members row in the same call when `teamMember` is supplied, so
+// "add a person" is one action instead of the previous three-step
+// create-user -> create-team-entry -> edit-and-link-account flow.
+const PEOPLE_ADMIN_ROLES = ["Super Admin", "Manager"];
+const VALID_ROLES = ["Super Admin", "Admin", "Manager", "Quality Control", "Accountant", "Contractor", "Associate", "Supervisor"];
+
+app.post("/make-server-bcab437c/admin/create-person", authMiddleware, async (c) => {
+  const callerRole = c.get("userRole");
+  if (!PEOPLE_ADMIN_ROLES.includes(callerRole)) {
+    return c.json({ error: "You do not have permission to create accounts" }, 403);
+  }
+  try {
+    const { name, email, password, role, teamMember } = await c.req.json();
+    if (!name?.trim() || !email?.trim() || !password || String(password).length < 6) {
+      return c.json({ error: "Name, email, and a password of at least 6 characters are required" }, 400);
+    }
+    const finalRole = VALID_ROLES.includes(role) ? role : "Associate";
+
+    const { data: createData, error: createError } = await supabase.auth.admin.createUser({
+      email,
+      password,
+      user_metadata: { name },
+      app_metadata: { role: finalRole },
+      email_confirm: true,
+    });
+    if (createError) {
+      return c.json({ error: `Failed to create account: ${createError.message}` }, 400);
+    }
+
+    const userData = { id: createData.user.id, name, email, role: finalRole, active: true, createdAt: new Date().toISOString() };
+    await kv.set(`user:${createData.user.id}`, userData);
+
+    let teamMemberRow = null;
+    if (teamMember) {
+      const { data: tm, error: tmError } = await supabase.from("team_members").insert({
+        name,
+        role: finalRole,
+        email,
+        phone: teamMember.phone || null,
+        specialties: teamMember.specialties || [],
+        aura_rating: teamMember.aura_rating || 0,
+        tasks_completed: 0,
+        tasks_on_time: 0,
+        efficiency: 0,
+        active: true,
+        auth_user_id: createData.user.id,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).select().single();
+      if (tmError) {
+        console.error("Failed to create linked team member for new account:", tmError);
+        return c.json({
+          user: createData.user,
+          teamMember: null,
+          warning: `Login created, but the team entry failed: ${tmError.message}. Add them from Team Management and link this account manually.`,
+        });
+      }
+      teamMemberRow = tm;
+    }
+
+    return c.json({ user: createData.user, teamMember: teamMemberRow, success: true });
+  } catch (error: any) {
+    console.error("admin/create-person error:", error);
+    return c.json({ error: error?.message ?? "Failed to create account" }, 500);
+  }
+});
+
 // Get current session
 app.get("/make-server-bcab437c/auth/session", authMiddleware, async (c) => {
   const userData = c.get("userData");

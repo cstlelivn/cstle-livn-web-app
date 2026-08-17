@@ -42,7 +42,6 @@ import UserProfile from "./components/UserProfile";
 import QCReviewQueue, { usePendingQCCount } from "./components/QCReviewQueue";
 import GlobalSearch from "./components/GlobalSearch";
 import NotificationBell from "./components/NotificationBell";
-import ProjectClientDiagnostic from "./components/ProjectClientDiagnostic";
 import TemplateBuilder from "./components/TemplateBuilder";
 import TeamProductivityReport from "./components/TeamProductivityReport";
 import MobileTaskWorkspace from "./components/MobileTaskWorkspace";
@@ -63,7 +62,6 @@ type ViewType =
   | "users"
   | "user-edit"
   | "profile"
-  | "diagnostic"
   | "productivity"
   | "estimating"
   | "task-details";
@@ -448,8 +446,6 @@ function AppContent() {
         return <UserProfile />;
       case "settings":
         return <SettingsModule />;
-      case "diagnostic":
-        return <ProjectClientDiagnostic />;
       case "templates":
         return <TemplateBuilder />;
       case "productivity":
