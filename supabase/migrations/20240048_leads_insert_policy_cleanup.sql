@@ -1,0 +1,25 @@
+-- Cleanup following the public-lead-capture investigation
+-- (20240047_public_lead_capture.sql).
+--
+-- The real root cause of the public website's booking/contact forms
+-- failing was NEVER a missing anon INSERT policy -- one already existed
+-- (leads_insert_web, {anon}, WITH CHECK true), predating this migration
+-- series. The actual bug was the website's fetch calls sending
+-- "Prefer: return=representation", which asks Postgres to hand the newly
+-- inserted row back -- and under RLS, returning a row from INSERT is
+-- governed by the table's SELECT policy, not its INSERT policy. Since
+-- leads_select correctly requires can_view_crm() (staff-only, by design --
+-- the public should never be able to read the leads table), that
+-- RETURNING step failed, and Postgres reports that failure with the exact
+-- same generic "new row violates row-level security policy" message as an
+-- INSERT-time rejection -- which is what made this look like a missing
+-- policy. Fixed by changing the website's requests to
+-- "Prefer: return=minimal" instead (no code change needed here).
+--
+-- 20240047 added a second, redundant anon INSERT policy
+-- (leads_public_insert) chasing what looked like a missing-policy problem.
+-- It was harmless (an extra permissive policy with an identical
+-- unconditional check), but leaves two policies doing the same job with
+-- no record of why. Drop the redundant one; leads_insert_web (already
+-- live, already correct) remains the one real anon-insert policy.
+DROP POLICY IF EXISTS leads_public_insert ON public.leads;

@@ -42,6 +42,21 @@ role-based permissions from Associate up to Super Admin. Deployed on Vercel
   when an edge function change needs deploying — don't assume git push
   covers it.
 
+## Standing rule: push immediately after every verified fix
+
+Once a fix or feature is verified (build/typecheck/tests pass, and live
+behavior checked where feasible), commit and push it **without asking
+first** — this is pre-authorized, not a per-change confirmation. The user
+checks the live deployed site, not localhost or an uncommitted diff, so
+unpushed work is invisible to them no matter how well it's verified
+locally; asking every time is unnecessary friction. This applies to every
+Cstle repo, not just this one (confirmed August 19, 2026 to also cover the
+separate `cstle-website` marketing-site repo). Normal git safety practices
+still apply — stage specific files by name, check `git status`/`git diff`
+before broad adds, never force-push, never touch someone else's
+uncommitted local changes — this rule only removes the confirmation step
+for the push itself.
+
 ## Handoff documentation is part of every change
 
 - **`CLAUDE.md` must be updated before any meaningful piece of work is
