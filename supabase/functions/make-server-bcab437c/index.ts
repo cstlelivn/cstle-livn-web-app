@@ -401,8 +401,38 @@ app.post("/make-server-bcab437c/auth/signup", async (c) => {
         
         await kv.set(`user:${existingAuthUser.id}`, userData);
         console.log("✓ Account recovered successfully!");
-        
-        return c.json({ 
+
+        // Same auto-link as fresh signups -- this account predates the
+        // auto-create, so make sure it still ends up in Team Management.
+        try {
+          const { data: existingLink } = await supabase
+            .from("team_members")
+            .select("id")
+            .eq("auth_user_id", existingAuthUser.id)
+            .maybeSingle();
+          if (!existingLink) {
+            await supabase.from("team_members").insert({
+              name: userData.name,
+              role: userData.role,
+              email: userData.email,
+              phone: null,
+              specialties: [],
+              aura_rating: 0,
+              tasks_completed: 0,
+              tasks_on_time: 0,
+              efficiency: 0,
+              active: true,
+              auth_user_id: existingAuthUser.id,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            });
+            console.log("✓ Linked team_members row created during recovery");
+          }
+        } catch (teamError) {
+          console.error("Failed to auto-create team_members row during recovery (non-fatal):", teamError);
+        }
+
+        return c.json({
           error: `Account recovered! Please use Sign In to access your account.`,
           userExists: true,
           recovered: true
@@ -443,8 +473,51 @@ app.post("/make-server-bcab437c/auth/signup", async (c) => {
     await kv.set(`user:${createData.user.id}`, userData);
     console.log("✓ User data stored in KV store");
 
-    return c.json({ 
-      user: createData.user, 
+    // Auto-create a linked team_members row so every self sign-up shows up
+    // in Team Management immediately -- an admin adjusts role/permissions
+    // there with a few clicks instead of doing a separate "link this login"
+    // step. Best-effort: a failure here must not fail the signup itself,
+    // since the login is already created and usable.
+    try {
+      // If an admin already added this person to the roster by email before
+      // they signed up, link that existing row instead of creating a
+      // duplicate.
+      const { data: unlinkedRosterRow } = await supabase
+        .from("team_members")
+        .select("id")
+        .eq("email", email)
+        .is("auth_user_id", null)
+        .maybeSingle();
+
+      if (unlinkedRosterRow) {
+        await supabase.from("team_members")
+          .update({ auth_user_id: createData.user.id, updated_at: new Date().toISOString() })
+          .eq("id", unlinkedRosterRow.id);
+        console.log("✓ Linked self sign-up to existing roster row:", unlinkedRosterRow.id);
+      } else {
+        await supabase.from("team_members").insert({
+          name,
+          role: role || "Associate",
+          email,
+          phone: null,
+          specialties: [],
+          aura_rating: 0,
+          tasks_completed: 0,
+          tasks_on_time: 0,
+          efficiency: 0,
+          active: true,
+          auth_user_id: createData.user.id,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+        console.log("✓ Linked team_members row created for self sign-up");
+      }
+    } catch (teamError) {
+      console.error("Failed to auto-create team_members row for signup (non-fatal):", teamError);
+    }
+
+    return c.json({
+      user: createData.user,
       success: true,
       message: "Account created successfully! You can now sign in."
     });
