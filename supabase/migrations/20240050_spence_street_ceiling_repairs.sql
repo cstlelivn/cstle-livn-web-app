@@ -1,19 +1,19 @@
 -- 30 & 34 Spence Street Ceiling Repairs -- full work-breakdown seed
 --
--- Creates one client (only if no existing client name-matches "Spence
--- Street" -- safe to re-run), one project, 10 ordered phases, and 24 tasks
--- with the full Work/Materials/Completion-criteria text from the supplied
--- work breakdown. Task-level "Materials and equipment" lists are kept as
--- readable text inside each task's description rather than structured
--- task_tools/task_materials rows, since several of them are administrative
--- items (checklists, access schedules, invoices) rather than physical
--- jobsite tools/materials -- ask if you want the genuinely physical items
--- (drywall, screws, caulk, ladders, etc.) broken out as real Tools &
--- Materials line items later.
+-- Links to the existing "KB Better Construction" client (does NOT create a
+-- new client -- fails with a clear error if that client can't be found by
+-- name, rather than guessing or creating a duplicate). Creates one project,
+-- 10 ordered phases, and 22 tasks with the full Work/Materials/Completion-
+-- criteria text from the supplied work breakdown. Task-level "Materials and
+-- equipment" lists are kept as readable text inside each task's description
+-- rather than structured task_tools/task_materials rows, since several of
+-- them are administrative items (checklists, access schedules, invoices)
+-- rather than physical jobsite tools/materials -- ask if you want the
+-- genuinely physical items (drywall, screws, caulk, ladders, etc.) broken
+-- out as real Tools & Materials line items later.
 --
--- NOT idempotent for the project/phases/tasks themselves (re-running this
--- file will create a second copy of the project) -- only the client
--- lookup is guarded. Run once.
+-- NOT idempotent (re-running this file will create a second copy of the
+-- project). Run once.
 
 DO $$
 DECLARE
@@ -22,20 +22,12 @@ DECLARE
   v_phase uuid;
   v_task uuid;
 BEGIN
-  -- Client: reuse an existing client if one already matches this property.
-  SELECT id INTO v_client_id FROM public.clients WHERE name ILIKE '%Spence Street%' LIMIT 1;
+  -- Client: KB Better Construction is the real, existing client for this
+  -- job -- do NOT create a new client. Fail loudly instead of guessing if
+  -- the name doesn't match, rather than silently creating a duplicate.
+  SELECT id INTO v_client_id FROM public.clients WHERE name ILIKE '%KB Better%' ORDER BY created_at ASC LIMIT 1;
   IF v_client_id IS NULL THEN
-    INSERT INTO public.clients (name, email, phone, company, status, source, notes, created_at, updated_at)
-    VALUES (
-      '30 & 34 Spence Street (Property Management)',
-      'update-me@cstlelivn.ca',
-      NULL,
-      NULL,
-      'Active',
-      'Direct',
-      'Placeholder client auto-created for the Spence Street ceiling repair project. Update with the real property management contact name/email/phone.',
-      now(), now()
-    ) RETURNING id INTO v_client_id;
+    RAISE EXCEPTION 'Could not find an existing client matching ''KB Better'' -- check the exact client name in CRM (Settings/Clients) and update this migration''s ILIKE pattern before running it again.';
   END IF;
 
   -- Project
