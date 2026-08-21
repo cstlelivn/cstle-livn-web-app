@@ -411,7 +411,7 @@ app.post("/make-server-bcab437c/auth/signup", async (c) => {
             .eq("auth_user_id", existingAuthUser.id)
             .maybeSingle();
           if (!existingLink) {
-            await supabase.from("team_members").insert({
+            const { error: insertError } = await supabase.from("team_members").insert({
               name: userData.name,
               role: userData.role,
               email: userData.email,
@@ -426,6 +426,10 @@ app.post("/make-server-bcab437c/auth/signup", async (c) => {
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
             });
+            // supabase-js does NOT throw on a database error here -- it
+            // returns { error } -- so this check is required or a failed
+            // insert would silently "succeed" from this code's view.
+            if (insertError) throw insertError;
             console.log("✓ Linked team_members row created during recovery");
           }
         } catch (teamError) {
@@ -489,13 +493,20 @@ app.post("/make-server-bcab437c/auth/signup", async (c) => {
         .is("auth_user_id", null)
         .maybeSingle();
 
+      // supabase-js does NOT throw on a database error from .insert()/
+      // .update() -- it returns { error } -- so every write below must
+      // check it explicitly and throw, or a failed write silently
+      // "succeeds" from this code's point of view (confirmed live: the
+      // first version of this logged "✓ Linked..." on every signup even
+      // though no row was ever actually created).
       if (unlinkedRosterRow) {
-        await supabase.from("team_members")
+        const { error: linkError } = await supabase.from("team_members")
           .update({ auth_user_id: createData.user.id, updated_at: new Date().toISOString() })
           .eq("id", unlinkedRosterRow.id);
+        if (linkError) throw linkError;
         console.log("✓ Linked self sign-up to existing roster row:", unlinkedRosterRow.id);
       } else {
-        await supabase.from("team_members").insert({
+        const { error: insertError } = await supabase.from("team_members").insert({
           name,
           role: role || "Associate",
           email,
@@ -510,6 +521,7 @@ app.post("/make-server-bcab437c/auth/signup", async (c) => {
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         });
+        if (insertError) throw insertError;
         console.log("✓ Linked team_members row created for self sign-up");
       }
     } catch (teamError) {
