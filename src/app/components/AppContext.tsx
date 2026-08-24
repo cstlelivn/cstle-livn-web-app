@@ -748,7 +748,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         name: clientName,
         email: lead.email,
         phone: lead.phone || null,
-        status: 'new',
+        status: 'Active',
         projects_count: 0,
         total_value: 0,
         source: clientSource,
@@ -759,7 +759,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       console.log('🔄 Converting lead to client:', { lead, clientData });
 
       await addClient(clientData);
-      await updateLead(leadId, { status: "converted" });
+      // "Won" matches the CRM pipeline vocabulary (New/Contacted/Proposal/
+      // Won/Lost) -- the lead stays visible in the leads list afterward
+      // (listLeads no longer hides it) so a won deal remains auditable.
+      await updateLead(leadId, { status: "Won" });
 
       console.log('✅ Lead converted to client successfully');
     } catch (error) {

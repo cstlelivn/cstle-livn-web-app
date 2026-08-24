@@ -28,8 +28,12 @@ export default function LeadListView({
   if (viewMode === "list") {
     return (
       <div className="border border-border rounded-[var(--radius)] overflow-hidden bg-card">
-        {/* Compact List Header */}
-        <div className="grid grid-cols-[40px_200px_120px_120px_180px_1fr_140px] gap-[16px] px-[16px] py-[14px] bg-secondary/50 border-b border-border">
+        {/* Compact List Header -- desktop/tablet only; the fixed-pixel
+            column grid below has no room to shrink further, so it's
+            hidden under md rather than silently clipping the Source/
+            Contact/Actions columns off-screen (the previous bug: this
+            container had overflow-hidden with no way to scroll to them). */}
+        <div className="hidden md:grid grid-cols-[40px_200px_120px_120px_180px_1fr_140px] gap-[16px] px-[16px] py-[14px] bg-secondary/50 border-b border-border">
           <div className="flex items-center justify-center">
             {onToggleSelectAll && (
               <Checkbox
@@ -47,11 +51,11 @@ export default function LeadListView({
           <p className="text-muted-foreground uppercase tracking-wide text-right" style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-label)', fontWeight: 'var(--font-weight-bold)' }}>Actions</p>
         </div>
 
-        {/* Compact List Rows */}
+        {/* Compact List Rows -- desktop/tablet */}
         {leads.map((lead) => (
           <div
             key={lead.id}
-            className="relative group grid grid-cols-[40px_200px_120px_120px_180px_1fr_140px] gap-[16px] px-[16px] py-[14px] border-b border-border/50 hover:bg-accent/5 transition-colors items-center last:border-b-0"
+            className="relative group hidden md:grid grid-cols-[40px_200px_120px_120px_180px_1fr_140px] gap-[16px] px-[16px] py-[14px] border-b border-border/50 hover:bg-accent/5 transition-colors items-center last:border-b-0"
           >
             {/* Checkbox */}
             <div className="flex items-center justify-center">
@@ -87,9 +91,9 @@ export default function LeadListView({
 
             {/* Actions */}
             <div className="flex items-center justify-end gap-[8px]">
-              <Button 
-                variant="ghost" 
-                size="sm" 
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={(e) => {
                   e.stopPropagation();
                   window.location.href = `tel:${lead.phone}`;
@@ -99,9 +103,9 @@ export default function LeadListView({
                 <Phone className="w-[14px] h-[14px] mr-[6px]" />
                 Call
               </Button>
-              <Button 
-                variant="ghost" 
-                size="sm" 
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={(e) => {
                   e.stopPropagation();
                   onLeadClick(lead);
@@ -123,6 +127,56 @@ export default function LeadListView({
             </button>
           </div>
         ))}
+
+        {/* Mobile card rows -- same data/actions as the table above, just
+            stacked instead of clipped. */}
+        <div className="md:hidden divide-y divide-border/50">
+          {leads.map((lead) => (
+            <div key={lead.id} className="relative p-4 space-y-3">
+              <div className="flex items-start gap-3">
+                {onToggleSelection && (
+                  <Checkbox
+                    checked={selectedLeadIds.includes(lead.id)}
+                    onCheckedChange={() => onToggleSelection(lead.id)}
+                    aria-label={`Select ${lead.name}`}
+                    className="mt-1"
+                  />
+                )}
+                <div className="flex-1 min-w-0" onClick={() => onLeadClick(lead)}>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="truncate" style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-base)', fontWeight: 'var(--font-weight-medium)' }}>{lead.name}</p>
+                    <p className="shrink-0" style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-base)', fontWeight: 'var(--font-weight-bold)' }}>${(lead.value / 1000).toFixed(0)}k</p>
+                  </div>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    <Badge className={getStatusColor(lead.status)} style={{ fontSize: 'var(--text-small)' }}>{lead.status}</Badge>
+                    <Badge variant="outline" style={{ fontSize: 'var(--text-small)' }}>{lead.source}</Badge>
+                  </div>
+                  <div className="flex items-center gap-[6px] mt-2 text-muted-foreground">
+                    <Mail className="w-[14px] h-[14px] shrink-0" />
+                    <span className="truncate" style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-label)' }}>{lead.email}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 pl-7">
+                <Button variant="outline" size="sm" className="flex-1" onClick={(e) => { e.stopPropagation(); window.location.href = `tel:${lead.phone}`; }}>
+                  <Phone className="w-[14px] h-[14px] mr-[6px]" />
+                  Call
+                </Button>
+                <Button variant="outline" size="sm" className="flex-1" onClick={(e) => { e.stopPropagation(); onLeadClick(lead); }}>
+                  <ExternalLink className="w-[14px] h-[14px] mr-[6px]" />
+                  View
+                </Button>
+                <button
+                  onClick={(e) => onDeleteLead(lead.id, lead.name, e)}
+                  className="p-2 rounded-[6px] bg-background border border-border hover:bg-destructive hover:border-destructive hover:text-white transition-colors shrink-0"
+                  title="Delete lead"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }

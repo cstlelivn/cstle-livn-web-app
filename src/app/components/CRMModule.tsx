@@ -84,6 +84,7 @@ export default function CRMModule() {
     projectDetails: "",
     estimatedValue: "",
     consultationDate: "",
+    consultationTime: "",
     notes: "",
   });
 
@@ -135,10 +136,11 @@ export default function CRMModule() {
         project_address: newLead.address || null, // Map to correct field name
         estimated_value: newLead.estimatedValue ? parseFloat(newLead.estimatedValue) : 0, // Estimated project value
         consultation_date: newLead.consultationDate || null,
+        consultation_time: newLead.consultationTime || null,
         service_type: newLead.serviceType || null, // Use service_type for database
         project_details: newLead.projectDetails || null, // Use project_details for database
         company: null,
-        status: "New Lead" as const,
+        status: "New" as const,
         source: newLead.source || null,
         notes: newLead.notes || null,
         last_contact: new Date().toISOString().split('T')[0],
@@ -160,6 +162,7 @@ export default function CRMModule() {
         projectDetails: "",
         estimatedValue: "",
         consultationDate: "",
+        consultationTime: "",
         notes: "",
       });
       
@@ -168,7 +171,10 @@ export default function CRMModule() {
       // Force refresh leads to ensure we get the latest data
       await refreshLeads();
     } catch (error) {
-      toast.error("Failed to add lead");
+      // Surface the real error instead of a generic message -- a hidden
+      // real message here is exactly what let the missing estimated_value
+      // column go unnoticed for a long time.
+      toast.error(error instanceof Error ? error.message : "Failed to add lead");
     }
   };
 
@@ -399,9 +405,10 @@ export default function CRMModule() {
     if (status === "New") return "bg-accent/10 text-accent";
     if (status === "Contacted") return "bg-primary/10 text-primary";
     if (status === "Proposal") return "bg-primary text-primary-foreground";
-    if (status === "Won") return "bg-primary text-primary-foreground";
+    if (status === "Won") return "bg-success/10 text-success";
+    if (status === "Lost") return "bg-destructive/10 text-destructive";
     if (status === "Active") return "bg-primary/10 text-primary";
-    return "bg-destructive/10 text-destructive";
+    return "bg-muted/10 text-muted-foreground";
   };
 
   // Transform leads to match the display structure
@@ -430,7 +437,15 @@ export default function CRMModule() {
     message: lead.message, // for contact form (customer message)
     links: lead.links, // URLs submitted by user
     company: lead.company,
-    status: lead.status === "New Lead" ? "New" : (lead.status?.toLowerCase() === "new" ? "New" : lead.status),
+    // Normalize legacy status values (pre-dating the New/Contacted/Proposal/Won/Lost
+    // pipeline vocabulary) so old leads display and filter consistently with new ones.
+    status: (() => {
+      const s = (lead.status || "").toLowerCase();
+      if (s === "new" || s === "new lead") return "New";
+      if (s === "converted" || s === "won") return "Won";
+      if (s === "closed" || s === "lost") return "Lost";
+      return lead.status;
+    })(),
     notes: lead.internal_notes || lead.notes, // Admin internal notes (prefer internal_notes)
     internal_notes: lead.internal_notes, // Admin-only internal notes
     dateAdded: lead.created_at,
@@ -535,14 +550,6 @@ export default function CRMModule() {
       }
     });
 
-  // Calculate pipeline stages from real data
-  const pipelineStages = [
-    { stage: "New", count: filteredLeads.filter((l) => l.status === "New").length },
-    { stage: "Contacted", count: filteredLeads.filter((l) => l.status === "Contacted").length },
-    { stage: "Proposal", count: filteredLeads.filter((l) => l.status === "Proposal").length },
-    { stage: "Won", count: filteredClients.filter((c) => c.status === "Active").length },
-    { stage: "Lost", count: filteredLeads.filter((l) => l.status === "Lost").length },
-  ];
 
   // Selection handlers for bulk operations
   const toggleLeadSelection = (leadId: number) => {
@@ -588,6 +595,8 @@ export default function CRMModule() {
         { value: "New", label: "New" },
         { value: "Contacted", label: "Contacted" },
         { value: "Proposal", label: "Proposal" },
+        { value: "Won", label: "Won" },
+        { value: "Lost", label: "Lost" },
       ],
     },
     {
@@ -635,8 +644,8 @@ export default function CRMModule() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex gap-3">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex gap-3 flex-wrap">
           <Dialog open={isCreateLeadDialogOpen} onOpenChange={setIsCreateLeadDialogOpen}>
             <DialogTrigger asChild>
               <Button>
@@ -705,6 +714,20 @@ export default function CRMModule() {
                   </div>
                 </div>
                 <div>
+                  <Label>Project Address</Label>
+                  <Input placeholder="Enter the project address" value={newLead.address} onChange={(e) => handleLeadChange("address", e.target.value)} />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <Label>Consultation Date</Label>
+                    <Input type="date" value={newLead.consultationDate} onChange={(e) => handleLeadChange("consultationDate", e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>Consultation Time</Label>
+                    <Input type="time" value={newLead.consultationTime} onChange={(e) => handleLeadChange("consultationTime", e.target.value)} />
+                  </div>
+                </div>
+                <div>
                   <Label>Project Details</Label>
                   <Input placeholder="Brief description of the project" value={newLead.projectDetails} onChange={(e) => handleLeadChange("projectDetails", e.target.value)} />
                 </div>
@@ -754,27 +777,36 @@ export default function CRMModule() {
             {leads.length} total lead{leads.length !== 1 ? 's' : ''} • {filteredLeads.length} displayed
           </p>
         </div>
-        <div className="grid grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
           {[
             { stage: "New", count: transformedLeads.filter((l) => l.status === "New").length },
             { stage: "Contacted", count: transformedLeads.filter((l) => l.status === "Contacted").length },
             { stage: "Proposal", count: transformedLeads.filter((l) => l.status === "Proposal").length },
-            { stage: "Won", count: transformedClients.filter((c) => c.status === "Active").length },
+            { stage: "Won", count: transformedLeads.filter((l) => l.status === "Won").length },
             { stage: "Lost", count: transformedLeads.filter((l) => l.status === "Lost").length },
           ].map((item) => (
-            <div key={item.stage} className="text-center p-4 rounded-lg bg-secondary/50">
+            <button
+              key={item.stage}
+              type="button"
+              onClick={() => {
+                setActiveTab("leads");
+                setFilters((prev) => ({ ...prev, selects: { ...prev.selects, status: item.stage } }));
+              }}
+              className="text-center p-4 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors cursor-pointer"
+              title={`Show ${item.stage} leads`}
+            >
               <div className="mb-2">
                 <span className="text-3xl">{item.count}</span>
               </div>
               <p>{item.stage}</p>
-            </div>
+            </button>
           ))}
         </div>
       </Card>
 
       {/* Main Toggle: Leads vs Clients + Filters */}
-      <div className="flex items-center justify-between gap-[12px]">
-        <div className="flex items-center gap-[12px]">
+      <div className="flex items-center justify-between gap-[12px] flex-wrap">
+        <div className="flex items-center gap-[12px] flex-wrap">
           {/* Toggle between Leads and Clients */}
           <ToggleGroup
             type="single"

@@ -59,10 +59,12 @@ export interface LeadUpdate {
 }
 
 export async function listLeads() {
+  // Won/Lost leads are deliberately NOT excluded here -- they stay visible
+  // and filterable in the CRM (status "Won"/"Lost") so a converted deal
+  // remains auditable instead of silently disappearing from the pipeline.
   const { data, error } = await supabase
     .from('leads')
     .select('*')
-    .neq('status', 'converted') // Exclude converted leads
     .order('created_at', { ascending: false })
     .limit(300);
   

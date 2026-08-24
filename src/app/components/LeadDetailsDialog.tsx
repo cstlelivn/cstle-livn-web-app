@@ -176,6 +176,14 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
     return "bg-muted/10 text-muted-foreground border-border";
   };
 
+  // Direct pipeline-stage change, available without entering full Edit
+  // mode -- changing where a lead sits in the pipeline shouldn't require
+  // opening the whole edit form first.
+  const handleStatusChange = (newStatus: string) => {
+    if (!onUpdateLead) return;
+    onUpdateLead(displayLead.id, { status: newStatus });
+  };
+
   const handleCall = () => {
     if (!displayLead.phone) {
       toast.error("No phone number available");
@@ -326,7 +334,7 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
         >
           {/* Header - Fixed */}
           <DialogHeader className="pb-4 border-b border-border shrink-0">
-            <div className="flex items-start justify-between gap-4">
+            <div className="flex flex-col sm:flex-row items-start sm:justify-between gap-4">
               <div className="flex-1">
                 <DialogTitle 
                   className="flex items-center gap-2 mb-2"
@@ -343,13 +351,31 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
                   {isEditMode ? "Edit lead information and update details" : "View complete lead information and take action"}
                 </DialogDescription>
                 <div className="flex items-center gap-2 flex-wrap mt-2">
-                  <Badge 
-                    className={`${getStatusColor(displayLead.status)} border`}
-                    style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-label)' }}
-                  >
-                    {displayLead.status}
-                  </Badge>
-                  <Badge 
+                  {!isEditMode && onUpdateLead ? (
+                    <Select value={displayLead.status} onValueChange={handleStatusChange}>
+                      <SelectTrigger
+                        className={`${getStatusColor(displayLead.status)} border h-7 w-auto min-w-[110px] px-2.5 py-0`}
+                        style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-label)' }}
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="New">New</SelectItem>
+                        <SelectItem value="Contacted">Contacted</SelectItem>
+                        <SelectItem value="Proposal">Proposal</SelectItem>
+                        <SelectItem value="Won">Won</SelectItem>
+                        <SelectItem value="Lost">Lost</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Badge
+                      className={`${getStatusColor(displayLead.status)} border`}
+                      style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-label)' }}
+                    >
+                      {displayLead.status}
+                    </Badge>
+                  )}
+                  <Badge
                     variant="outline"
                     style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-label)' }}
                   >
@@ -412,7 +438,7 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
             {isEditMode ? (
               // Edit Mode - Compact Form
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label style={{ fontSize: 'var(--text-label)' }}>Name</Label>
                     <Input
@@ -431,17 +457,17 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="New Lead">New Lead</SelectItem>
+                        <SelectItem value="New">New</SelectItem>
                         <SelectItem value="Contacted">Contacted</SelectItem>
                         <SelectItem value="Proposal">Proposal</SelectItem>
-                        <SelectItem value="Converted">Converted</SelectItem>
-                        <SelectItem value="Closed">Closed</SelectItem>
+                        <SelectItem value="Won">Won</SelectItem>
+                        <SelectItem value="Lost">Lost</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label style={{ fontSize: 'var(--text-label)' }}>Email</Label>
                     <Input
@@ -462,7 +488,7 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label style={{ fontSize: 'var(--text-label)' }}>Project Address</Label>
                     <Input
@@ -483,7 +509,7 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label style={{ fontSize: 'var(--text-label)' }}>Service Type</Label>
                     <Input
@@ -504,7 +530,7 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label style={{ fontSize: 'var(--text-label)' }}>Preferred Time</Label>
                     <Input
@@ -614,7 +640,7 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
                 )}
 
                 {/* Contact & Service Info — Two Columns */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Contact Information */}
                   <div className="p-4 rounded-lg border border-border bg-card" style={{ borderRadius: 'var(--radius)' }}>
                     <p className="uppercase text-muted-foreground mb-3" style={{ fontSize: 'var(--text-label)', fontWeight: 'var(--font-weight-bold)', letterSpacing: '0.05em' }}>
@@ -777,7 +803,7 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
             ) : (
               <>
                 {/* Quick Actions */}
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   <Button
                     variant="outline"
                     onClick={handleCall}
@@ -862,7 +888,7 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
               </Select>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label style={{ fontSize: 'var(--text-label)' }}>Date</Label>
                 <Input
