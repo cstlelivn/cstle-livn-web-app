@@ -1,4 +1,5 @@
-// work.cstlelivn.ca is a separate hostname pointed at the same deployment,
+// work.cstle.ca (or work.cstlelivn.ca) is a separate hostname pointed at
+// the same deployment,
 // used to hand associates a plain "my tasks" link instead of the admin app
 // URL -- it shouldn't look or feel like they're logging into a back office.
 // Detected purely by hostname so it works the same in prod and in a local
