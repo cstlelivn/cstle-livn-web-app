@@ -23,6 +23,7 @@ import LeadListView from "./LeadListView";
 import BulkCampaignDialog from "./BulkCampaignDialog";
 import { Checkbox } from "./ui/checkbox";
 import { formatDateTime, formatDate, formatForInput } from "../src/lib/dateFormatter";
+import { SERVICE_TYPES } from "../src/constants/serviceTypes";
 
 export default function CRMModule() {
   const { hasPermission } = useAuth();
@@ -89,21 +90,6 @@ export default function CRMModule() {
   });
 
   // Service types - centralized for scalability
-  const serviceTypes = [
-    "Finishing Installation",
-    "Interior Painting",
-    "Trim & Molding",
-    "Cabinet Installation",
-    "Drywall Finishing",
-    "Custom Woodwork",
-    "Full Room Renovation",
-    "Kitchen Renovation",
-    "Bathroom Remodel",
-    "Full House Finishing",
-    "Basement Build",
-    "ADU Construction",
-    "Other"
-  ];
 
   const leadSources = [
     "Website - Book Service",
@@ -709,7 +695,7 @@ export default function CRMModule() {
                         <SelectValue placeholder="Select service" />
                       </SelectTrigger>
                       <SelectContent>
-                        {serviceTypes.map(type => (
+                        {SERVICE_TYPES.map(type => (
                           <SelectItem key={type} value={type}>{type}</SelectItem>
                         ))}
                       </SelectContent>

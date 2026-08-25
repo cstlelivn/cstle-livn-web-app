@@ -9,6 +9,7 @@ import { Textarea } from "./ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { toast } from "sonner";
 import { useApp } from "./AppContext";
+import { SERVICE_TYPES } from "../src/constants/serviceTypes";
 
 interface Lead {
   id: number;
@@ -516,12 +517,19 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label style={{ fontSize: 'var(--text-label)' }}>Service Type</Label>
-                    <Input
+                    <Select
                       value={editedLead?.service_type || ""}
-                      onChange={(e) => handleFieldChange("service_type", e.target.value)}
-                      className="mt-1"
-                      placeholder="e.g. Interior Renovation"
-                    />
+                      onValueChange={(value) => handleFieldChange("service_type", value)}
+                    >
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder="Select service" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SERVICE_TYPES.map((type) => (
+                          <SelectItem key={type} value={type}>{type}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div>
                     <Label style={{ fontSize: 'var(--text-label)' }}>Consultation Date</Label>
