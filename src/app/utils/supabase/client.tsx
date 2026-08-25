@@ -529,26 +529,20 @@ export const authAPI = {
 
 // User API calls
 export const userAPI = {
-  // Read user records directly from the kv_store table (no server deployment needed).
-  // Falls back to empty array so the rest of the app keeps working if the table
-  // isn't accessible via the anon key.
+  // Always goes through the edge function's GET /users route (service-role
+  // read + its own Super Admin/Manager check), matching every other API in
+  // this file. A previous version tried a direct client-side read of the
+  // internal kv_store_bcab437c table first, falling back to this route only
+  // if that read threw -- but kv_store_bcab437c correctly has no RLS grant
+  // for regular users, and a SELECT with no visible rows returns an empty
+  // array with no error (RLS filters rows, it doesn't throw), so the
+  // fallback never actually ran. That silently made User Management show
+  // empty for everyone, including Super Admins with real users to see.
   getAll: async () => {
     try {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from('kv_store_bcab437c')
-        .select('value')
-        .like('key', 'user:%');
-      if (error) throw error;
-      const users = (data ?? []).map((row: any) => row.value).filter(Boolean);
-      return { users };
+      return await apiCall("/users");
     } catch {
-      // Silent fallback — server endpoint will also be tried via the deployed function
-      try {
-        return await apiCall("/users");
-      } catch {
-        return { users: [] };
-      }
+      return { users: [] };
     }
   },
 
