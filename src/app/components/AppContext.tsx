@@ -8,6 +8,7 @@ import { useTeamMembers as useTeamRealtime } from "../src/features/team/useTeamM
 import { useVendors as useVendorsRealtime } from "../src/features/vendors/useVendors";
 import { useClients as useClientsRealtime } from "../src/features/clients/useClients";
 import { useLeads as useLeadsRealtime } from "../src/features/leads/useLeads";
+import { useReminders as useRemindersData } from "../src/features/reminders/useReminders";
 import { useInventory as useInventoryRealtime } from "../src/features/inventory/useInventory";
 import { useTransactions as useTransactionsRealtime } from "../src/features/transactions/useTransactions";
 
@@ -18,6 +19,7 @@ import * as teamAPI from "../src/features/team/api";
 import * as vendorsAPI from "../src/features/vendors/api";
 import * as clientsAPI from "../src/features/clients/api";
 import * as leadsAPI from "../src/features/leads/api";
+import * as remindersAPI from "../src/features/reminders/api";
 import * as inventoryAPI from "../src/features/inventory/api";
 import * as transactionsAPI from "../src/features/transactions/api";
 
@@ -377,6 +379,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   } = useLeadsRealtime(hasPermission("canViewCRM"));
 
   const {
+    reminders: dbReminders,
+    refresh: refreshRemindersHook,
+  } = useRemindersData(hasPermission("canViewCRM"));
+
+  const {
     inventory: realtimeInventory,
     loading: isLoadingInventory,
     refresh: refreshInventoryHook,
@@ -391,8 +398,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Local state for data not yet migrated to PostgreSQL
   const [activities, setActivities] = useState<Activity[]>([]);
   const [taskTemplates, setTaskTemplates] = useState<TaskTemplate[]>([]);
-  const [reminders, setReminders] = useState<Reminder[]>([]);
   const [phaseQCReviews, setPhaseQCReviews] = useState<PhaseQCReview[]>([]);
+
+  // Reminders are real, database-backed (crm_reminders) -- see
+  // useRemindersData above. Transformed here from snake_case DB rows into
+  // the camelCase Reminder shape the rest of the app (NotificationBell,
+  // LeadDetailsDialog) already expects.
+  const reminders: Reminder[] = dbReminders.map((r: any) => ({
+    id: r.id,
+    leadId: r.lead_id ?? undefined,
+    clientId: r.client_id ?? undefined,
+    leadName: r.lead_name ?? undefined,
+    clientName: r.client_name ?? undefined,
+    contactEmail: r.contact_email ?? undefined,
+    contactPhone: r.contact_phone ?? undefined,
+    type: r.type,
+    date: r.due_date,
+    time: r.due_time ?? "",
+    notes: r.notes ?? undefined,
+    completed: r.completed,
+    createdAt: r.created_at,
+  }));
 
   // External URLs
   const googleReviewsUrl = "https://www.google.com/maps/search/Cstle+Livn/@40.7128,-74.0060,15z";
@@ -410,15 +436,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    // Load reminders from localStorage
-    const savedReminders = localStorage.getItem("cstle_local_reminders");
-    if (savedReminders) {
-      try {
-        setReminders(JSON.parse(savedReminders));
-      } catch (error) {
-        // Silently ignore errors
-      }
-    }
   }, []);
 
   // Refresh methods (manual refresh if needed, though realtime handles automatic updates)
@@ -721,6 +738,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const lead = realtimeLeads.find((l) => l.id === leadId);
       if (!lead) throw new Error("Lead not found");
+      // A lead can be created with just a name (email filled in later), but
+      // a client record still needs a real contact method -- clients.email
+      // stays required at the database level.
+      if (!lead.email || !lead.email.trim()) {
+        throw new Error("Add an email address for this lead before converting to a client");
+      }
 
       // EXACT mapping as specified in requirements:
       // clients.name = if leads.name exists use it, else combine first_name + last_name
@@ -830,15 +853,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Reminder methods (still using localStorage)
   const addReminder = async (reminder: Omit<Reminder, "id" | "createdAt" | "completed">) => {
     try {
-      const newReminder: Reminder = {
-        ...reminder,
-        id: Date.now(),
-        completed: false,
-        createdAt: new Date().toISOString(),
-      };
-      const newReminders = [...reminders, newReminder];
-      setReminders(newReminders);
-      localStorage.setItem("cstle_local_reminders", JSON.stringify(newReminders));
+      await remindersAPI.createReminder({
+        lead_id: reminder.leadId != null ? String(reminder.leadId) : null,
+        client_id: reminder.clientId != null ? String(reminder.clientId) : null,
+        lead_name: reminder.leadName ?? null,
+        client_name: reminder.clientName ?? null,
+        contact_email: reminder.contactEmail ?? null,
+        contact_phone: reminder.contactPhone ?? null,
+        type: reminder.type,
+        due_date: reminder.date,
+        due_time: reminder.time || null,
+        notes: reminder.notes ?? null,
+      });
+      await refreshRemindersHook();
     } catch (error) {
       throw error;
     }
@@ -846,9 +873,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const completeReminder = async (id: number) => {
     try {
-      const newReminders = reminders.map((r) => (r.id === id ? { ...r, completed: true } : r));
-      setReminders(newReminders);
-      localStorage.setItem("cstle_local_reminders", JSON.stringify(newReminders));
+      await remindersAPI.completeReminder(String(id));
+      await refreshRemindersHook();
     } catch (error) {
       throw error;
     }
@@ -856,9 +882,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const deleteReminder = async (id: number) => {
     try {
-      const newReminders = reminders.filter((r) => r.id !== id);
-      setReminders(newReminders);
-      localStorage.setItem("cstle_local_reminders", JSON.stringify(newReminders));
+      await remindersAPI.deleteReminder(String(id));
+      await refreshRemindersHook();
     } catch (error) {
       throw error;
     }

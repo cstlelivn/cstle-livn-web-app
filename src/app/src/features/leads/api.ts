@@ -12,7 +12,11 @@ export interface LeadInput {
   first_name?: string | null;
   last_name?: string | null;
   name: string;
-  email: string;
+  // Email is deliberately optional -- a lead can be created with just a
+  // name and filled in later (see 20240053: leads.email is nullable).
+  // clients.email stays required, so a lead needs an email before it can
+  // be converted to a client -- see convertLeadToClient in AppContext.tsx.
+  email?: string | null;
   phone?: string | null;
   project_address?: string | null;
   province?: string | null;
@@ -94,13 +98,13 @@ export async function getLead(id: string) {
 export async function createLead(input: LeadInput) {
   console.log('➕ Creating lead with input:', input);
   
-  // Clean up the input - convert empty strings to null for optional fields
+  // Clean up the input - convert empty strings to null for optional fields.
+  // `name` is the only truly required field (an empty lead isn't useful);
+  // email is optional -- a lead can be created with just a name.
   const cleanedInput = Object.entries(input).reduce((acc, [key, value]) => {
-    // Keep required fields even if empty
-    if (key === 'name' || key === 'email') {
+    if (key === 'name') {
       acc[key] = value;
     } else {
-      // Convert empty strings to null for optional fields
       acc[key] = value === '' ? null : value;
     }
     return acc;
@@ -170,13 +174,12 @@ export async function createLead(input: LeadInput) {
 export async function updateLead(id: string, updates: LeadUpdate) {
   console.log('🔄 API updateLead called:', { id, updates });
   
-  // Clean up the updates - convert empty strings to null for optional fields
+  // Clean up the updates - convert empty strings to null for optional
+  // fields. `name` stays required; email can be cleared back to null.
   const cleanedUpdates = Object.entries(updates).reduce((acc, [key, value]) => {
-    // Keep required fields even if empty
-    if (key === 'name' || key === 'email') {
+    if (key === 'name') {
       acc[key] = value;
     } else {
-      // Convert empty strings to null for optional fields
       acc[key] = value === '' ? null : value;
     }
     return acc;

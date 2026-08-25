@@ -57,7 +57,7 @@ interface LeadDetailsDialogProps {
 export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToClient, onUpdateLead }: LeadDetailsDialogProps) {
   const { addReminder } = useApp();
   const [isReminderDialogOpen, setIsReminderDialogOpen] = useState(false);
-  const [reminderType, setReminderType] = useState<"call" | "email" | "appointment" | "follow-up">("follow-up");
+  const [reminderType, setReminderType] = useState<"call" | "email" | "visit" | "follow-up">("follow-up");
   const [reminderDate, setReminderDate] = useState("");
   const [reminderTime, setReminderTime] = useState("");
   const [reminderNotes, setReminderNotes] = useState("");
@@ -294,6 +294,10 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
   };
 
   const handleSaveReminder = async () => {
+    if (!reminderDate) {
+      toast.error("Pick a date for the follow-up");
+      return;
+    }
     try {
       await addReminder({
         leadId: displayLead.id,
@@ -844,9 +848,11 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
                 <Button
                   className="w-full h-11 bg-accent hover:bg-accent/90"
                   onClick={handleConvertToClient}
+                  disabled={!displayLead.email}
+                  title={!displayLead.email ? "Add an email address first" : undefined}
                 >
                   <UserCheck className="w-4 h-4 mr-2" />
-                  Convert to Client
+                  {displayLead.email ? "Convert to Client" : "Add an email to convert"}
                 </Button>
               </>
             )}
@@ -865,7 +871,7 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
                 fontWeight: 800 
               }}
             >
-              Schedule {reminderType === "appointment" ? "Appointment" : "Reminder"}
+              Schedule {reminderType === "visit" ? "Visit" : "Reminder"}
             </DialogTitle>
             <DialogDescription>
               Set a reminder for {lead?.name}
@@ -882,7 +888,7 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
                 <SelectContent>
                   <SelectItem value="call">Call Reminder</SelectItem>
                   <SelectItem value="email">Email Reminder</SelectItem>
-                  <SelectItem value="appointment">Appointment</SelectItem>
+                  <SelectItem value="visit">Visit</SelectItem>
                   <SelectItem value="follow-up">Follow-up</SelectItem>
                 </SelectContent>
               </Select>

@@ -126,12 +126,19 @@ export default function CRMModule() {
   };
 
   const handleAddLead = async () => {
+    // A lead can be created with just a name -- everything else, including
+    // email, is filled in later. Name is the one thing that's still
+    // required, since a fully blank lead isn't useful.
+    if (!newLead.firstName.trim() && !newLead.lastName.trim()) {
+      toast.error("Enter at least a first or last name");
+      return;
+    }
     try {
       const leadData = {
         first_name: newLead.firstName || null,
         last_name: newLead.lastName || null,
-        name: `${newLead.firstName} ${newLead.lastName}`.trim() || 'Unknown',
-        email: newLead.email,
+        name: `${newLead.firstName} ${newLead.lastName}`.trim(),
+        email: newLead.email || null,
         phone: newLead.phone || null,
         project_address: newLead.address || null, // Map to correct field name
         estimated_value: newLead.estimatedValue ? parseFloat(newLead.estimatedValue) : 0, // Estimated project value
@@ -194,7 +201,7 @@ export default function CRMModule() {
       // Switch to clients tab to show the new client
       setActiveTab("clients");
     } catch (error) {
-      toast.error("Failed to convert lead to client");
+      toast.error(error instanceof Error ? error.message : "Failed to convert lead to client");
     }
   };
 
