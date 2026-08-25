@@ -45,9 +45,9 @@ export default function UserEdit({ userId, onBack }: UserEditProps) {
 
   const handleSave = async () => {
     // Prevent non-super-admins from assigning privileged roles
-    const privilegedRoles: UserRole[] = ["Super Admin", "Admin", "Manager", "Quality Control", "Accountant"];
+    const privilegedRoles: UserRole[] = ["Super Admin", "Admin", "Manager", "Accountant"];
     if (!isSuperAdmin && privilegedRoles.includes(role)) {
-      toast.error("Only Super Admins can assign Admin, Manager, Quality Control, Accountant, or Super Admin roles");
+      toast.error("Only Super Admins can assign Admin, Manager, Accountant, or Super Admin roles");
       return;
     }
     
@@ -173,14 +173,13 @@ export default function UserEdit({ userId, onBack }: UserEditProps) {
                   {isSuperAdmin && <option value="Super Admin">Super Admin</option>}
                   {isSuperAdmin && <option value="Admin">Admin</option>}
                   {isSuperAdmin && <option value="Manager">Manager</option>}
-                  {isSuperAdmin && <option value="Quality Control">Quality Control</option>}
                   {isSuperAdmin && <option value="Accountant">Accountant</option>}
                   <option value="Contractor">Contractor</option>
                   <option value="Associate">Associate</option>
                 </select>
                 {!isSuperAdmin && (
                   <p className="mt-[8px] font-['Roboto_Mono'] text-[9px] text-muted-foreground">
-                    Only Super Admins can assign Admin, Manager, Quality Control, Accountant, or Super Admin roles
+                    Only Super Admins can assign Admin, Manager, Accountant, or Super Admin roles
                   </p>
                 )}
               </div>
@@ -273,11 +272,6 @@ export default function UserEdit({ userId, onBack }: UserEditProps) {
               {role === "Manager" && (
                 <p className="font-['Roboto_Mono'] font-normal text-[12px] text-[#999999]">
                   Managers have full access to Projects and CRM, and can see/set each project's budget -- but not the actual amount charged to the client. They can manage team members and vendors, and approve task QC. Only Super Admins can assign this role.
-                </p>
-              )}
-              {role === "Quality Control" && (
-                <p className="font-['Roboto_Mono'] font-normal text-[12px] text-[#999999]">
-                  Quality Control users can view every project and are responsible for reviewing and approving or rejecting tasks pending QC. They have no project/team/CRM editing powers. Only Super Admins can assign this role.
                 </p>
               )}
               {role === "Accountant" && (

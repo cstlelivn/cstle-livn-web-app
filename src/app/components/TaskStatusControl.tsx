@@ -22,8 +22,8 @@ interface TaskStatusControlProps {
   status: TaskStatus;
   /** Owns the task (assignee) or has general manager/admin edit rights. */
   canEdit: boolean;
-  /** Super Admin / Admin / Manager / Quality Control -- can clear an Under
-   *  Review block and approve/reject out of Pending QC. */
+  /** Super Admin / Admin / Manager -- can clear an Under Review block and
+   *  approve/reject out of Pending QC. */
   canApproveQC: boolean;
   onChange: (status: TaskStatus) => Promise<void> | void;
   triggerClassName?: string;

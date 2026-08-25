@@ -141,7 +141,10 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
   const allProjectTasks = getTasksByProject(projectId);
   const myTeamMember = teamMembers.find((m: any) => String(m.authUserId) === String(currentUser?.id));
   const phaseViewProject = getProject(projectId);
-  const isSupervisorHere = currentUser?.role === "Supervisor" && !!myTeamMember &&
+  // Supervisor is a Team Role, not a login role -- whether this person
+  // supervises this specific project is determined by project.supervisorId,
+  // not by their System Role string.
+  const isSupervisorHere = !!myTeamMember &&
     String((phaseViewProject as any)?.supervisorId) === String(myTeamMember.id);
   const canAssignTasks = isManagerOrAdmin || isSupervisorHere;
   const canSeeAllTasks = hasPermission("canViewAllProjects");

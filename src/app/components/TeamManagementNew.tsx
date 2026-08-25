@@ -20,7 +20,9 @@ import { useAuth } from "./AuthContext";
 import { createPersonAsAdmin } from "../src/features/team/api";
 import { toast } from "sonner";
 
-const ACCOUNT_ROLES = ["Associate", "Contractor", "Supervisor", "Quality Control", "Accountant", "Manager", "Admin", "Super Admin"];
+const ACCOUNT_ROLES = ["Associate", "Contractor", "Accountant", "Manager", "Admin", "Super Admin"];
+
+const TEAM_ROLE_PRESETS = ["General", "Supervisor", "Plumber", "Carpenter", "Electrician", "Painter", "Drywall Installer", "Flooring Installer"];
 
 interface TaskRating {
   taskId: number;
@@ -174,6 +176,18 @@ export default function TeamManagement() {
     if (createLogin && !linkExistingUserId && (!loginPassword || loginPassword.length < 6)) {
       toast.error("Password required", { description: "Enter a password of at least 6 characters for the new login." });
       return;
+    }
+
+    if (newMemberForm.role.trim().toLowerCase() === "supervisor") {
+      const managerPlus = ["Super Admin", "Admin", "Manager"];
+      const linkedUser = linkExistingUserId ? (users || []).find((u: any) => String(u.id) === String(linkExistingUserId)) : null;
+      const effectiveLoginRole = linkExistingUserId ? linkedUser?.role : createLogin ? accountRole : null;
+      if (!effectiveLoginRole || !managerPlus.includes(effectiveLoginRole)) {
+        toast.error("Supervisor requires a Manager+ login", {
+          description: "The Team Role 'Supervisor' requires this person to already have (or be given) a System Role of Manager, Admin, or Super Admin.",
+        });
+        return;
+      }
     }
 
     setIsCreating(true);
@@ -985,16 +999,23 @@ export default function TeamManagement() {
               </div>
               <div>
                 <Label style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-label)', fontWeight: 'var(--font-weight-bold)' }}>
-                  Role *
+                  Team Role *
                 </Label>
                 <Input
+                  list="team-role-presets"
                   value={newMemberForm.role}
                   onChange={(e) => setNewMemberForm({ ...newMemberForm, role: e.target.value })}
-                  placeholder="e.g., Finishing Specialist"
+                  placeholder="e.g., General, Plumber, Supervisor"
                   required
                   disabled={isCreating}
                   style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-base)', fontWeight: 'var(--font-weight-normal)' }}
                 />
+                <datalist id="team-role-presets">
+                  {TEAM_ROLE_PRESETS.map((r) => <option key={r} value={r} />)}
+                </datalist>
+                <p style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-xs)', color: 'var(--muted-foreground)', marginTop: '4px' }}>
+                  Jobsite title/trade -- separate from System Role (login permissions) below.
+                </p>
               </div>
             </div>
             
@@ -1064,7 +1085,7 @@ export default function TeamManagement() {
                   <div className="grid grid-cols-2 gap-4 mt-3">
                     <div>
                       <Label style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-label)', fontWeight: 'var(--font-weight-bold)' }}>
-                        Account Role *
+                        System Role * <span style={{ fontWeight: 'var(--font-weight-normal)', color: 'var(--muted-foreground)' }}>(login permissions)</span>
                       </Label>
                       <Select value={accountRole} onValueChange={setAccountRole}>
                         <SelectTrigger disabled={isCreating} style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-base)' }}>

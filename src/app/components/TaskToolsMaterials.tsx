@@ -12,9 +12,9 @@ import {
 
 const PROVIDED_BY = ['Cstle Livn', 'Client', 'Subcontractor', 'Existing On Site', 'To Be Confirmed'];
 
-export default function TaskToolsMaterials({ taskId }: { taskId: string }) {
-  const { hasPermission, currentUser } = useAuth();
-  const canManage = hasPermission('canEditProjects') || currentUser?.role === 'Supervisor';
+export default function TaskToolsMaterials({ taskId, isSupervisorHere }: { taskId: string; isSupervisorHere?: boolean }) {
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission('canEditProjects') || !!isSupervisorHere;
   const [open, setOpen] = useState(false);
   const [tools, setTools] = useState<any[]>([]);
   const [materials, setMaterials] = useState<any[]>([]);

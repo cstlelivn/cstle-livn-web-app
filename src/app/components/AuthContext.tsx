@@ -2,7 +2,13 @@ import { createContext, useContext, useState, useEffect, useRef, ReactNode } fro
 import { createClient, authAPI, userAPI } from "../utils/supabase/client.tsx";
 import { toast } from "sonner";
 
-export type UserRole = "Super Admin" | "Admin" | "Manager" | "Quality Control" | "Accountant" | "Contractor" | "Associate" | "Supervisor";
+// System Role (login permissions) -- 6 values. "Quality Control" and
+// "Supervisor" are deliberately not login roles: QC authority is already
+// part of Manager/Admin/Super Admin's permission set below, and Supervisor
+// is a Team Role (team_members.role, free text) plus the project-scoped
+// projects.supervisor_id assignment -- assigning someone as a project
+// Supervisor requires their System Role to already be Manager or higher.
+export type UserRole = "Super Admin" | "Admin" | "Manager" | "Accountant" | "Contractor" | "Associate";
 
 export type Permission =
   | "canViewDashboard"
@@ -164,17 +170,6 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "canViewEstimating",
     "canRunEstimating",
   ],
-  // QC-focused role: can review and approve/reject task and phase QC across
-  // every project, but has no project/team/CRM/finance editing powers.
-  "Quality Control": [
-    "canViewDashboard",
-    "canViewProjects",
-    "canViewAllProjects",
-    "canViewQCReviewQueue",
-    "canViewPhaseQCReviewQueue",
-    "canApproveTaskQC",
-    "canViewAnalytics",
-  ],
   // Sees everything in the app (full financial visibility plus every other
   // module) but cannot change settings/permissions or edit most non-finance
   // areas -- broad visibility for bookkeeping/oversight, not an operator.
@@ -208,19 +203,6 @@ const rolePermissions: Record<UserRole, Permission[]> = {
   Associate: [
     "canViewDashboard",
     "canViewProjects",
-  ],
-  // On-site, works alongside Associates but with QC authority scoped to the
-  // specific project(s) they supervise (projects.supervisor_id -- see
-  // 20240026_supervisor_role.sql). Deliberately narrower than Manager: no
-  // canViewAllProjects (only their supervised + assigned projects), no
-  // team/CRM/finance/inventory/analytics/settings access, no phase editing.
-  Supervisor: [
-    "canViewDashboard",
-    "canViewProjects",
-    "canViewTeam",
-    "canViewQCReviewQueue",
-    "canViewPhaseQCReviewQueue",
-    "canApproveTaskQC",
   ],
 };
 

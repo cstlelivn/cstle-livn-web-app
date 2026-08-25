@@ -148,9 +148,12 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
   const project = useMemo(() => {
     return getProject(projectId);
   }, [projectId, projects]); // Only re-run when projectId or projects array changes
+  // Supervisor is a Team Role, not a login role -- whether this person
+  // supervises this specific project is determined by project.supervisorId,
+  // not by their System Role string.
   const canCreateTask = hasPermission("canEditProjects") || (
-    currentUser?.role === "Supervisor"
-    && String(currentTeamMember?.id) === String((project as any)?.supervisorId)
+    !!currentTeamMember && !!(project as any)?.supervisorId
+    && String(currentTeamMember.id) === String((project as any)?.supervisorId)
   );
   
   const [taskView, setTaskView] = useState<"list" | "grid" | "calendar" | "kanban" | "gantt">("list");

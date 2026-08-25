@@ -64,7 +64,10 @@ export default function ProjectPermitsTab({ projectId }: ProjectPermitsTabProps)
   // policies in 20240042_project_permits.sql actually allow to write.
   const project = getProject(projectId);
   const myTeamMember = teamMembers.find((m: any) => String(m.authUserId) === String(currentUser?.id));
-  const isSupervisorHere = currentUser?.role === "Supervisor" && !!myTeamMember &&
+  // Supervisor is a Team Role, not a login role -- whether this person
+  // supervises this specific project is determined by project.supervisorId,
+  // not by their System Role string.
+  const isSupervisorHere = !!myTeamMember &&
     String((project as any)?.supervisorId) === String(myTeamMember.id);
   const canManage = isManagerOrAdmin || isSupervisorHere;
 

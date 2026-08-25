@@ -22,7 +22,7 @@ interface SharedChannel {
 
 const supabase = createClient();
 const channels = new Map<string, SharedChannel>();
-const broadRoles = new Set(['Super Admin', 'Admin', 'Manager', 'Quality Control', 'Accountant']);
+const broadRoles = new Set(['Super Admin', 'Admin', 'Manager', 'Accountant']);
 const safetySyncCallbacks = new Set<() => void>();
 let safetySyncTimer: number | null = null;
 

@@ -93,12 +93,77 @@ for the push itself.
   functions in SQL (e.g. `is_manager_or_admin()`, `can_view_finance()`,
   `is_broad_project_viewer()`) — there's no shared source of truth between
   JS and SQL, so if you add/change a permission, update both sides.
-- **Roles today**: Super Admin, Admin, Manager, Accountant, Quality
-  Control, Contractor, Associate, Supervisor. Supervisor is scoped to
-  `projects.supervisor_id` (see `20240026`) — real QC/edit authority, but
-  only on the project(s) they supervise, not company-wide. Manager is
-  company-wide by explicit product decision (regional/area-scoped Manager
-  was discussed and deliberately deferred, not built).
+- **System Role vs. Team Role (split August 25, 2026)**: two separate
+  concepts that used to be conflated in one 8-value role field. **System
+  Role** controls login/permissions and is now a 6-value enum: Super
+  Admin, Admin, Manager, Accountant, Associate, Contractor (`UserRole` in
+  `AuthContext.tsx`). **Team Role** is `team_members.role`, unconstrained
+  free text describing a jobsite title/trade (General, Supervisor,
+  Plumber, Carpenter, Electrician, Painter, Drywall Installer, Flooring
+  Installer are offered as `<datalist>` presets in
+  `TeamManagementNew.tsx`/`EditTeamMemberDialog.tsx`, but any text is
+  accepted) — it has zero effect on permissions.
+  - "Quality Control" and "Supervisor" are no longer System Roles.
+    Quality Control folded into Manager/Admin/Super Admin (its permission
+    set was already a strict subset of Manager's). Supervisor is now
+    purely a Team Role plus the existing `projects.supervisor_id`
+    project-scoped assignment (`20240026`) — being the Supervisor of a
+    project grants real QC/edit authority on that project, same as
+    before, it's just no longer tied to a login-role string.
+  - **New rule, app-level only (no DB constraint yet)**: setting someone's
+    Team Role to "Supervisor" now requires them to already have (or be
+    given, if creating a login in the same step) a System Role of
+    Manager, Admin, or Super Admin — enforced client-side in both
+    `TeamManagementNew.tsx`'s Add dialog and `EditTeamMemberDialog.tsx`.
+  - Every place that used to check `currentUser?.role === "Supervisor"`
+    (a login-role string that can no longer exist) was changed to check
+    "is this person's linked `team_members.id` equal to this specific
+    project's `supervisor_id`" instead — `TaskDialog.tsx`,
+    `TaskDependencies.tsx`, `TaskToolsMaterials.tsx` (three components
+    that had this check with **no project scoping at all**, a real
+    pre-existing bug independent of this migration — fixed in the same
+    pass), plus `PhaseView.tsx`, `ProjectDetailsReal.tsx`,
+    `ProjectPermitsTab.tsx` (three components that were already
+    project-scoped but still gated on the now-dead role string too, which
+    would have silently broken them). `TaskDialog.tsx`'s "Assigned
+    Supervisor" picker was also fixed to filter by the candidate's
+    *linked login's* System Role (Manager+) instead of their free-text
+    Team Role, which is what it was actually trying to find.
+  - Migration `20240054_role_model_cleanup.sql` drops `'Quality Control'`
+    from `can_approve_task_qc()`/`is_broad_project_viewer()`/
+    `can_upload_task_media()`/`can_approve_task_media()`, and simplifies
+    `can_approve_task_qc_for()` to drop its now-impossible
+    `jwt_role() = 'Supervisor'` check (a project supervisor is already a
+    Manager, who already passes `can_approve_task_qc()` company-wide, so
+    the project-scoped branch is defense-in-depth now, not the only
+    path). It opens with a verification block that aborts if any real
+    account still holds the removed roles — a repo-wide inventory found
+    none at the time this was written, so it was expected to pass clean.
+    **Not yet run by the user** — must be run in the Supabase SQL Editor
+    before relying on any of the RLS-level changes above.
+  - The edge function's dead, hand-duplicated `hasPermission()` matrix
+    (`supabase/functions/make-server-bcab437c/index.ts`) had **zero
+    entries for Admin, Accountant, Quality Control, or Supervisor** —
+    meaning Admin and Accountant logins were already silently blocked on
+    every one of the ~40 routes gated by it, a pre-existing bug unrelated
+    to this migration. Rather than deleting the matrix and rewriting all
+    40 call sites, the matrix itself was corrected to mirror
+    `rolePermissions` from `AuthContext.tsx` for the 6 real roles and the
+    12 permission keys actually checked — same call-site shape, correct
+    data. **Not yet deployed** — needs a manual Supabase Edge Function
+    redeploy of `make-server-bcab437c` before Admin/Accountant logins
+    actually get unblocked in production.
+  - Supervisor is scoped to `projects.supervisor_id` (see `20240026`) —
+    real QC/edit authority, but only on the project(s) they supervise, not
+    company-wide. Manager is company-wide by explicit product decision
+    (regional/area-scoped Manager was discussed and deliberately
+    deferred, not built).
+  - **Data flagged for the user to review, not auto-fixed**: a
+    `team_members` roster row (`role: "Admin"`, no linked login) and a
+    separate login-only account ("Demie A," `demie@cstlelivn.ca`, System
+    Role Super Admin) look like the same person recorded twice — use
+    "Add as Team Member" on the "Needs Team Setup" banner to link them if
+    confirmed, or say if they're actually two different people.
 - **Multi-assignee tasks**: `task_assignees` is the real source of truth;
   `tasks.assignee_id` is a denormalized "primary assignee" kept in sync by
   a trigger so old single-assignee code paths keep working. Never write

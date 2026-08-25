@@ -12,7 +12,7 @@ interface UserManagementProps {
   onEditUser: (userId: string) => void;
 }
 
-const ROLES: UserRole[] = ["Super Admin", "Admin", "Manager", "Quality Control", "Accountant", "Contractor", "Associate"];
+const ROLES: UserRole[] = ["Super Admin", "Admin", "Manager", "Accountant", "Contractor", "Associate"];
 
 export default function UserManagement({ onEditUser }: UserManagementProps) {
   const { users, currentUser, refreshUsers, deleteUser } = usePermissions() as any;
@@ -59,7 +59,6 @@ export default function UserManagement({ onEditUser }: UserManagementProps) {
       case "Super Admin": return "bg-[#748B7B] text-white";
       case "Admin": return "bg-[#5C7A8A] text-white";
       case "Manager": return "bg-[#848580] text-white";
-      case "Quality Control": return "bg-[#B08A5C] text-white";
       case "Accountant": return "bg-[#5B7A99] text-white";
       case "Contractor": return "bg-[#999999] text-white";
       case "Associate": return "bg-[#CECECE] text-[#111111]";
@@ -89,7 +88,6 @@ export default function UserManagement({ onEditUser }: UserManagementProps) {
         { value: "Super Admin", label: "Super Admin" },
         { value: "Admin", label: "Admin" },
         { value: "Manager", label: "Manager" },
-        { value: "Quality Control", label: "Quality Control" },
         { value: "Accountant", label: "Accountant" },
         { value: "Contractor", label: "Contractor" },
         { value: "Associate", label: "Associate" },
@@ -227,12 +225,6 @@ export default function UserManagement({ onEditUser }: UserManagementProps) {
                       <span className="font-['Roboto_Mono'] text-[10px] text-[#111111] bg-white border border-[#999999] px-[8px] py-[4px] rounded-[4px]">CRM</span>
                       <span className="font-['Roboto_Mono'] text-[10px] text-[#111111] bg-white border border-[#999999] px-[8px] py-[4px] rounded-[4px]">Team</span>
                       <span className="font-['Roboto_Mono'] text-[10px] text-[#111111] bg-white border border-[#999999] px-[8px] py-[4px] rounded-[4px]">QC Approval</span>
-                    </>
-                  )}
-                  {user.role === "Quality Control" && (
-                    <>
-                      <span className="font-['Roboto_Mono'] text-[10px] text-[#111111] bg-white border border-[#999999] px-[8px] py-[4px] rounded-[4px]">QC Approval</span>
-                      <span className="font-['Roboto_Mono'] text-[10px] text-[#111111] bg-white border border-[#999999] px-[8px] py-[4px] rounded-[4px]">Projects (View)</span>
                     </>
                   )}
                   {user.role === "Manager" && (

@@ -215,8 +215,8 @@ export default function MobileTaskWorkspace({ taskId, onBack }: { taskId: string
 
         {(task as any).verification_criteria && <section className="rounded-[14px] border border-[var(--olive-300)] bg-white p-4"><p className="font-['Roboto_Mono'] text-[9px] uppercase text-muted-foreground">Verification criteria</p><p className="mt-2 whitespace-pre-wrap font-['Roboto_Mono'] text-[11px]">{(task as any).verification_criteria}</p></section>}
 
-        <TaskDependencies taskId={String(task.id)} projectTasks={tasks.filter((row:any)=>String(row.projectId)===String(task.projectId))}/>
-        <TaskToolsMaterials taskId={String(task.id)}/>
+        <TaskDependencies taskId={String(task.id)} projectTasks={tasks.filter((row:any)=>String(row.projectId)===String(task.projectId))} isSupervisorHere={!!member && String((project as any)?.supervisorId) === String(member.id)}/>
+        <TaskToolsMaterials taskId={String(task.id)} isSupervisorHere={!!member && String((project as any)?.supervisorId) === String(member.id)}/>
 
         {checklist.length > 0 && <section className="border border-[var(--olive-300)] rounded-[14px] overflow-hidden bg-white"><div className="px-4 py-3 flex justify-between"><span className="font-['Roboto_Mono'] text-[10px] font-bold uppercase">Materials & checklist · {checklist.length} items</span><ChevronDown className="w-4 h-4" /></div>{checklist.map((item) => <button key={item.id} onClick={() => toggleItem(item)} className="w-full border-t border-[var(--olive-300)] px-4 py-3 text-left flex gap-3 items-center"><span className={`w-5 h-5 border rounded-sm flex items-center justify-center ${item.completed_at ? 'bg-[var(--green-900)] text-white' : ''}`}>{item.completed_at && <Check className="w-3 h-3" />}</span><span className="font-['Roboto_Mono'] text-[11px]">{item.label}{item.is_required ? ' *' : ''}</span></button>)}</section>}
 

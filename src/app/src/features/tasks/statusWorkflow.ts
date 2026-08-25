@@ -9,8 +9,8 @@
 //
 // A plain assignee can move a task forward through To Do/In Progress/
 // Pending QC on their own, but only QC-capable roles (Super Admin, Admin,
-// Manager, Quality Control -- see canApproveTaskQC in AuthContext) can
-// clear an Under Review block or approve/reject out of Pending QC.
+// Manager -- see canApproveTaskQC in AuthContext) can clear an Under
+// Review block or approve/reject out of Pending QC.
 
 export type TaskStatus = "To Do" | "In Progress" | "Under Review" | "Pending QC" | "Completed";
 

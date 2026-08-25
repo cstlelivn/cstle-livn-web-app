@@ -22,8 +22,8 @@ const supabase = createClient(
 );
 
 const R2_BUCKET_NAME = Deno.env.get("R2_BUCKET_NAME") ?? "cstle-task-media";
-const MEDIA_VIEW_ROLES = ["Super Admin", "Admin", "Manager", "Quality Control", "Accountant"];
-const MEDIA_UPLOAD_ROLES = ["Super Admin", "Admin", "Manager", "Quality Control"];
+const MEDIA_VIEW_ROLES = ["Super Admin", "Admin", "Manager", "Accountant"];
+const MEDIA_UPLOAD_ROLES = ["Super Admin", "Admin", "Manager"];
 const R2_FREE_STORAGE_GUARD_BYTES = 8 * 1024 * 1024 * 1024;
 const MEDIA_ALLOWED_TYPES = /^(image\/(jpeg|png|webp|heic|heif)|video\/(mp4|quicktime|webm)|audio\/(mpeg|mp4|wav|webm|ogg)|application\/pdf)$/i;
 
@@ -211,11 +211,13 @@ async function authMiddleware(c: any, next: any) {
   }
 }
 
-// Permission check helper - Must match frontend AuthContext permissions exactly
+// Permission check helper - must mirror rolePermissions in
+// src/app/components/AuthContext.tsx exactly (no shared source of truth
+// between JS and this edge function -- update both sides together).
+// Only includes the permission keys actually checked by routes below.
 function hasPermission(role: string, permission: string): boolean {
   const permissions: Record<string, Record<string, boolean>> = {
     "Super Admin": {
-      canViewDashboard: true,
       canViewProjects: true,
       canEditProjects: true,
       canViewVendors: true,
@@ -228,14 +230,8 @@ function hasPermission(role: string, permission: string): boolean {
       canEditInventory: true,
       canViewFinance: true,
       canEditFinance: true,
-      canViewAnalytics: true,
-      canViewProposals: true,
-      canEditProposals: true,
-      canViewSettings: true,
-      canEditSettings: true,
     },
-    "Manager": {
-      canViewDashboard: true,
+    "Admin": {
       canViewProjects: true,
       canEditProjects: true,
       canViewVendors: true,
@@ -248,13 +244,36 @@ function hasPermission(role: string, permission: string): boolean {
       canEditInventory: true,
       canViewFinance: false,
       canEditFinance: false,
-      canViewAnalytics: true,
-      canViewProposals: true,
-      canEditProposals: true,
-      canViewSettings: true,
+    },
+    "Manager": {
+      canViewProjects: true,
+      canEditProjects: true,
+      canViewVendors: true,
+      canEditVendors: true,
+      canViewTeam: true,
+      canEditTeam: true,
+      canViewCRM: true,
+      canEditCRM: true,
+      canViewInventory: true,
+      canEditInventory: true,
+      canViewFinance: true,
+      canEditFinance: true,
+    },
+    "Accountant": {
+      canViewProjects: true,
+      canEditProjects: false,
+      canViewVendors: true,
+      canEditVendors: false,
+      canViewTeam: true,
+      canEditTeam: false,
+      canViewCRM: true,
+      canEditCRM: false,
+      canViewInventory: true,
+      canEditInventory: false,
+      canViewFinance: true,
+      canEditFinance: true,
     },
     "Contractor": {
-      canViewDashboard: true,
       canViewProjects: true,
       canEditProjects: false,
       canViewVendors: false,
@@ -267,31 +286,20 @@ function hasPermission(role: string, permission: string): boolean {
       canEditInventory: false,
       canViewFinance: false,
       canEditFinance: false,
-      canViewAnalytics: false,
-      canViewProposals: false,
-      canEditProposals: false,
-      canViewSettings: false,
-      canEditSettings: false,
     },
     "Associate": {
-      canViewDashboard: true,
       canViewProjects: true,
       canEditProjects: false,
-      canViewVendors: true,
+      canViewVendors: false,
       canEditVendors: false,
-      canViewTeam: true,
+      canViewTeam: false,
       canEditTeam: false,
       canViewCRM: false,
       canEditCRM: false,
-      canViewInventory: true,
+      canViewInventory: false,
       canEditInventory: false,
       canViewFinance: false,
       canEditFinance: false,
-      canViewAnalytics: false,
-      canViewProposals: false,
-      canEditProposals: false,
-      canViewSettings: false,
-      canEditSettings: false,
     },
   };
 
@@ -551,7 +559,7 @@ app.post("/make-server-bcab437c/auth/signup", async (c) => {
 // "add a person" is one action instead of the previous three-step
 // create-user -> create-team-entry -> edit-and-link-account flow.
 const PEOPLE_ADMIN_ROLES = ["Super Admin", "Manager"];
-const VALID_ROLES = ["Super Admin", "Admin", "Manager", "Quality Control", "Accountant", "Contractor", "Associate", "Supervisor"];
+const VALID_ROLES = ["Super Admin", "Admin", "Manager", "Accountant", "Contractor", "Associate"];
 
 app.post("/make-server-bcab437c/admin/create-person", authMiddleware, async (c) => {
   const callerRole = c.get("userRole");

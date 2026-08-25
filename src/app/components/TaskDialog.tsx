@@ -40,12 +40,11 @@ export default function TaskDialog({
   defaultStatus,
 }: TaskDialogProps) {
   const { projects, tasks, teamMembers, addTask, updateTask, taskTemplates, saveTaskTemplate, getProject } = useApp();
-  const { hasPermission, currentUser } = useAuth();
+  const { hasPermission, currentUser, users } = useAuth();
   const { taskAssignees } = useTaskAssignees(true);
 
   // Check if user is Manager/Admin
   const isManagerOrAdmin = hasPermission("canEditProjects");
-  const canManageAssignments = isManagerOrAdmin || currentUser?.role === "Supervisor";
   const canApproveQC = hasPermission("canApproveTaskQC");
 
   const currentAssigneeIds = task ? assigneeIdsForTask(taskAssignees, task.id) : [];
@@ -57,6 +56,12 @@ export default function TaskDialog({
   const [selectedProjectId, setSelectedProjectId] = useState<string>(projectId ? String(projectId) : "");
   const effectiveProjectId = task?.projectId ? String(task.projectId) : selectedProjectId;
   const project = effectiveProjectId ? getProject(effectiveProjectId as any) : undefined;
+  // Supervisor is a Team Role, not a login role -- whether this person
+  // supervises this specific project is determined by project.supervisorId,
+  // not by their System Role string.
+  const currentTeamMember = teamMembers.find((m: any) => String(m.authUserId) === String(currentUser?.id));
+  const isSupervisorHere = !!currentTeamMember && String((project as any)?.supervisorId) === String(currentTeamMember.id);
+  const canManageAssignments = isManagerOrAdmin || isSupervisorHere;
   const { phases: normalizedPhases, loading: phasesLoading } = useProjectPhases(effectiveProjectId || null);
   const activeProjects = projects.filter((candidate: any) => candidate.status !== "Completed");
   // A warranty/callback task (added after the project closed -- see
@@ -642,7 +647,11 @@ export default function TaskDialog({
               <Label className="text-[10px]">Assigned Supervisor</Label>
               <Select value={formData.supervisorId || 'project-supervisor'} onValueChange={(value) => setFormData({ ...formData, supervisorId: value === 'project-supervisor' ? '' : value })}>
                 <SelectTrigger className="mt-[8px] text-[10px]"><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="project-supervisor" className="text-[10px]">Use project supervisor</SelectItem>{teamMembers.filter((member: any) => member.active && ['Supervisor','Admin','Manager','Super Admin','Quality Control'].includes(member.role)).map((member: any) => <SelectItem key={member.id} value={String(member.id)} className="text-[10px]">{member.name}</SelectItem>)}</SelectContent>
+                <SelectContent><SelectItem value="project-supervisor" className="text-[10px]">Use project supervisor</SelectItem>{teamMembers.filter((member: any) => {
+                  if (!member.active) return false;
+                  const linkedUser = member.authUserId ? (users || []).find((u: any) => String(u.id) === String(member.authUserId)) : null;
+                  return !!linkedUser && ['Super Admin', 'Admin', 'Manager'].includes(linkedUser.role);
+                }).map((member: any) => <SelectItem key={member.id} value={String(member.id)} className="text-[10px]">{member.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <label className="flex items-center gap-3 rounded-[8px] border border-border px-3 py-3 mt-[18px] font-['Roboto_Mono'] text-[10px]"><input type="checkbox" checked={formData.photosNotRequired} onChange={(event) => setFormData({ ...formData, photosNotRequired: event.target.checked })} />Photos are not required for this task</label>
@@ -752,9 +761,9 @@ export default function TaskDialog({
 
           {mode === "edit" && task && <TaskChecklistEditor taskId={String(task.id)} />}
 
-          {mode === "edit" && task && <TaskDependencies taskId={String(task.id)} projectTasks={tasks.filter((row: any) => String(row.projectId) === String(effectiveProjectId))} />}
+          {mode === "edit" && task && <TaskDependencies taskId={String(task.id)} projectTasks={tasks.filter((row: any) => String(row.projectId) === String(effectiveProjectId))} isSupervisorHere={isSupervisorHere} />}
 
-          {mode === "edit" && task && <TaskToolsMaterials taskId={String(task.id)} />}
+          {mode === "edit" && task && <TaskToolsMaterials taskId={String(task.id)} isSupervisorHere={isSupervisorHere} />}
 
           {mode === "edit" && task && <TaskActivityFeed taskId={String(task.id)} />}
 

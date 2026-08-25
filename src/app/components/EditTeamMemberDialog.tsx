@@ -8,6 +8,9 @@ import { useApp } from "./AppContext";
 import { useAuth } from "./AuthContext";
 import { toast } from "sonner";
 
+const TEAM_ROLE_PRESETS = ["General", "Supervisor", "Plumber", "Carpenter", "Electrician", "Painter", "Drywall Installer", "Flooring Installer"];
+const MANAGER_PLUS_ROLES = ["Super Admin", "Admin", "Manager"];
+
 interface TeamMember {
   id: number;
   name: string;
@@ -73,6 +76,16 @@ export default function EditTeamMemberDialog({ isOpen, onClose, member }: EditTe
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (formData.role.trim().toLowerCase() === "supervisor") {
+      const linkedUser = formData.authUserId !== "none" ? users.find((u: any) => String(u.id) === String(formData.authUserId)) : null;
+      if (!linkedUser || !MANAGER_PLUS_ROLES.includes(linkedUser.role)) {
+        toast.error("Supervisor requires a Manager+ login", {
+          description: "The Team Role 'Supervisor' requires this person to have a linked login with System Role Manager, Admin, or Super Admin.",
+        });
+        return;
+      }
+    }
+
     setIsLoading(true);
 
     try {
@@ -123,15 +136,22 @@ export default function EditTeamMemberDialog({ isOpen, onClose, member }: EditTe
             </div>
             <div>
               <Label style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-label)', fontWeight: 'var(--font-weight-bold)' }}>
-                Role
+                Team Role
               </Label>
               <Input
+                list="team-role-presets-edit"
                 value={formData.role}
                 onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                placeholder="e.g., Finishing Specialist"
+                placeholder="e.g., General, Plumber, Supervisor"
                 required
                 style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-base)', fontWeight: 'var(--font-weight-normal)' }}
               />
+              <datalist id="team-role-presets-edit">
+                {TEAM_ROLE_PRESETS.map((r) => <option key={r} value={r} />)}
+              </datalist>
+              <p className="text-[10px] text-muted-foreground mt-[4px]">
+                Jobsite title/trade -- separate from the linked login's System Role below.
+              </p>
             </div>
           </div>
           
