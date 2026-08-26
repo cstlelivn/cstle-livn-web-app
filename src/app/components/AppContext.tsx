@@ -285,6 +285,7 @@ interface AppContextType {
   addTeamMember: (member: Omit<TeamMember, "id">) => Promise<void>;
   updateTeamMember: (id: number, updates: Partial<TeamMember>) => Promise<void>;
   deleteTeamMember: (id: number) => Promise<void>;
+  deleteTeamMemberAndReassign: (id: number, reassignToId: number) => Promise<{ deletedName: string; reassignedTaskCount: number; reassignedTo: string }>;
   getTeamMember: (id: number | string) => TeamMember | undefined;
 
   // Vendor methods
@@ -644,6 +645,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const deleteTeamMemberAndReassign = async (id: number, reassignToId: number) => {
+    const result = await teamAPI.deleteTeamMemberAndReassign(String(id), String(reassignToId));
+    // Realtime hook will automatically update the list
+    return result;
+  };
+
   const getTeamMember = (id: number | string) => {
     // Convert to string for comparison since database IDs are UUIDs (strings)
     const idStr = String(id);
@@ -942,6 +949,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     addTeamMember,
     updateTeamMember,
     deleteTeamMember,
+    deleteTeamMemberAndReassign,
     getTeamMember,
     addVendor,
     updateVendor,

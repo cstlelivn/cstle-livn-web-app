@@ -253,3 +253,21 @@ export async function deleteTeamMember(id: string) {
   failIf(error, 'Failed to delete team member');
   console.log('✅ Team member deleted successfully via PostgREST');
 }
+
+/**
+ * Deletes a team member who has real recorded history (task assignments,
+ * work sessions, Aura scores). Active/incomplete task assignments move to
+ * `reassignToId`; already-completed work (finished sessions, Aura scores,
+ * QC attributions, time corrections) is kept as a historical record with
+ * the person's name snapshotted, not reassigned -- reassigning it would
+ * fabricate who actually did the work. See
+ * 20240055_team_member_deletion.sql for the full server-side logic.
+ */
+export async function deleteTeamMemberAndReassign(id: string, reassignToId: string) {
+  const { data, error } = await supabase.rpc('delete_team_member_and_reassign', {
+    p_team_member_id: id,
+    p_reassign_to: reassignToId,
+  });
+  failIf(error, 'Failed to delete team member');
+  return data as { deletedName: string; reassignedTaskCount: number; reassignedTo: string };
+}

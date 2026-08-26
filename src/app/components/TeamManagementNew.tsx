@@ -37,7 +37,7 @@ interface TaskRating {
 }
 
 export default function TeamManagement() {
-  const { teamMembers, projects, tasks, deleteTeamMember, addTeamMember, isLoadingTeam } = useApp();
+  const { teamMembers, projects, tasks, deleteTeamMember, deleteTeamMemberAndReassign, addTeamMember, isLoadingTeam } = useApp();
   const { hasPermission, user, users, refreshUsers } = useAuth();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [createLogin, setCreateLogin] = useState(false);
@@ -50,6 +50,13 @@ export default function TeamManagement() {
   const [editingMember, setEditingMember] = useState<any | null>(null);
   const [deletingMemberId, setDeletingMemberId] = useState<number | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  // Shown when a plain delete is blocked by recorded history (task
+  // assignments, work sessions, Aura scores). Offers reassigning active
+  // tasks to someone else, gated behind typing the person's exact name.
+  const [historyBlockedMemberId, setHistoryBlockedMemberId] = useState<number | null>(null);
+  const [reassignToId, setReassignToId] = useState<string>("");
+  const [deleteConfirmName, setDeleteConfirmName] = useState("");
+  const [isReassignDeleting, setIsReassignDeleting] = useState(false);
   const [filters, setFilters] = useState<Record<string, any>>({
     search: "",
     dateFrom: undefined,
@@ -141,17 +148,53 @@ export default function TeamManagement() {
       // A team member with any recorded history (task assignments, work
       // sessions, Aura scores, etc.) is protected by ON DELETE RESTRICT
       // foreign keys -- same class of issue already fixed for task/project
-      // deletion. A raw FK violation means "this can't be deleted," not a
-      // generic failure worth retrying.
+      // deletion. A raw FK violation means "this can't be deleted directly,"
+      // not a generic failure worth retrying -- offer the reassign-and-
+      // delete flow instead of just reporting failure.
       const blocked = /foreign key|violates|restrict/i.test(error?.message || "");
+      if (blocked) {
+        setDeletingMemberId(null);
+        setHistoryBlockedMemberId(memberId);
+        setReassignToId("");
+        setDeleteConfirmName("");
+      } else {
+        toast.error("Failed to delete team member", {
+          description: error.message || "Please try again or contact support.",
+          duration: 6000,
+        });
+      }
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const historyBlockedMember = teamMembers.find((m: any) => m.id === historyBlockedMemberId);
+  const reassignCandidates = teamMembers.filter((m: any) => m.active && m.id !== historyBlockedMemberId);
+  const deleteConfirmMatches = !!historyBlockedMember &&
+    deleteConfirmName.trim().toLowerCase() === String(historyBlockedMember.name).trim().toLowerCase();
+
+  const handleConfirmReassignDelete = async () => {
+    if (!historyBlockedMemberId || !reassignToId || !deleteConfirmMatches) return;
+    setIsReassignDeleting(true);
+    try {
+      const result = await deleteTeamMemberAndReassign(historyBlockedMemberId, Number(reassignToId));
+      toast.success("Team member deleted", {
+        description: result.reassignedTaskCount > 0
+          ? `${result.reassignedTaskCount} active task(s) reassigned to ${result.reassignedTo}. Their past work history was kept as a record, not reassigned.`
+          : "Their past work history was kept as a record.",
+        duration: 6000,
+      });
+      if (selectedMember?.id === historyBlockedMemberId) setSelectedMember(null);
+      setHistoryBlockedMemberId(null);
+      setReassignToId("");
+      setDeleteConfirmName("");
+    } catch (error: any) {
       toast.error("Failed to delete team member", {
-        description: blocked
-          ? "This person has recorded history (task assignments, work sessions, or Aura scores) and can't be deleted. Mark them inactive instead, or ask an admin to clear their history first."
-          : (error.message || "Please try again or contact support."),
+        description: error.message || "Please try again or contact support.",
         duration: 6000,
       });
     } finally {
-      setIsDeleting(false);
+      setIsReassignDeleting(false);
     }
   };
 
@@ -1219,6 +1262,92 @@ export default function TeamManagement() {
                 </>
               )}
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reassign & Delete Dialog -- shown when a plain delete is blocked by
+          recorded history. Active tasks move to a chosen person; past work
+          sessions/Aura scores/QC attributions stay as a historical record
+          (name snapshotted, not reassigned) rather than being fabricated as
+          someone else's work. Gated behind typing the exact name so this
+          heavier, harder-to-undo delete can't happen by mistake. */}
+      <AlertDialog open={historyBlockedMemberId !== null} onOpenChange={(open) => !open && setHistoryBlockedMemberId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle style={{ fontFamily: 'var(--font-family-heading)', fontSize: 'var(--text-h3)', fontWeight: 'var(--font-weight-extrabold)' }}>
+              Delete {historyBlockedMember?.name} &amp; Reassign Tasks
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-base)', fontWeight: 'var(--font-weight-normal)' }} className="space-y-3">
+                <p>
+                  <strong>{historyBlockedMember?.name}</strong> has recorded history (task assignments, work sessions, or Aura scores),
+                  so a plain delete is blocked. This will move their active/incomplete tasks to someone else, then delete their record.
+                </p>
+                <p className="text-[12px] text-muted-foreground">
+                  Their already-completed work (finished sessions, Aura scores, QC results) is kept as a historical record with their
+                  name preserved -- it is NOT reassigned, so no one else's performance record is affected.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="space-y-3 py-2">
+            <div>
+              <Label style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-label)', fontWeight: 'var(--font-weight-bold)' }}>
+                Reassign active tasks to *
+              </Label>
+              <Select value={reassignToId} onValueChange={setReassignToId} disabled={isReassignDeleting}>
+                <SelectTrigger style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-base)' }}>
+                  <SelectValue placeholder="Choose a team member" />
+                </SelectTrigger>
+                <SelectContent>
+                  {reassignCandidates.map((m: any) => (
+                    <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-label)', fontWeight: 'var(--font-weight-bold)' }}>
+                Type <strong>{historyBlockedMember?.name}</strong> to confirm *
+              </Label>
+              <Input
+                value={deleteConfirmName}
+                onChange={(e) => setDeleteConfirmName(e.target.value)}
+                placeholder={historyBlockedMember?.name || ""}
+                disabled={isReassignDeleting}
+                style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-base)' }}
+              />
+            </div>
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              disabled={isReassignDeleting}
+              style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-base)', fontWeight: 'var(--font-weight-normal)' }}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <Button
+              type="button"
+              disabled={isReassignDeleting || !reassignToId || !deleteConfirmMatches}
+              onClick={handleConfirmReassignDelete}
+              style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-base)', fontWeight: 'var(--font-weight-normal)', backgroundColor: 'var(--destructive)', color: 'white' }}
+            >
+              {isReassignDeleting ? (
+                <>
+                  <Loader2 className="w-3 h-3 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-3 h-3 mr-2" />
+                  Delete &amp; Reassign
+                </>
+              )}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

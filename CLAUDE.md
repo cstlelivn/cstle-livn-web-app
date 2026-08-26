@@ -72,6 +72,80 @@ for the push itself.
 - If another project instruction or code comment becomes stale because of a
   change, update it in the same work rather than leaving conflicting guidance.
 
+## Team member delete-and-reassign — August 25, 2026
+
+- **The problem**: deleting a team member with any recorded history (task
+  assignments, work sessions, Aura scores, QC attributions, time
+  corrections) was permanently blocked by `ON DELETE RESTRICT` foreign
+  keys — the only options were "mark inactive" or manually clearing
+  history in the database. User wanted a real delete path, with active
+  tasks moving to someone else, gated behind an explicit confirmation step
+  so it can't happen by accident.
+- **Explicit product decision, confirmed with the user**: active/incomplete
+  task assignments move to a person the admin picks at delete time (not
+  auto-derived per project). Already-completed work (finished sessions,
+  Aura scores, QC results, time corrections) is **never** reassigned to
+  that person — doing so would fabricate who actually did the work and
+  corrupt real Aura performance numbers, which directly conflicts with
+  this app's existing Aura design principle (see "Aura (performance
+  rating)" above). Instead those historical rows are kept, with the
+  identity column set to `NULL` and the deleted person's name snapshotted
+  into a new `..._name_snapshot` text column, so the record stays
+  human-readable without pretending someone else did that work.
+- Migration `20240055_team_member_deletion.sql`: drops `NOT NULL` on the
+  five FK columns that needed to survive their person being deleted
+  (`task_assignees.team_member_id`, `task_work_sessions.team_member_id`,
+  `task_aura_scores.team_member_id`,
+  `task_completion_attributions.recorded_by`,
+  `task_time_corrections.corrected_by`), adds the matching snapshot
+  columns, and adds `delete_team_member_and_reassign(p_team_member_id,
+  p_reassign_to)` — a `SECURITY DEFINER` RPC (Super Admin/Admin/Manager
+  only) that: moves every active `task_assignees` row to the reassign
+  target (finishing any open timer session first, same handling as
+  `unassign_task_member` from `20240032`); snapshots-and-nulls the
+  identity column on every historical row across `task_assignees`,
+  `task_work_sessions`, `task_aura_scores`, `task_completion_attributions`,
+  `task_time_corrections`; nulls (no snapshot needed) purely incidental
+  audit columns (`assigned_by`, `delay_reviewed_by`, `resolved_by`,
+  `completed_by`, `marketing_saved_by`, `created_by`/`approved_by` on
+  dependencies/tools/materials, `requested_by`); then deletes the
+  `team_members` row. `projects.supervisor_id` already had `ON DELETE SET
+  NULL` from `20240035`, so it needs no handling here.
+- **Real bug found in passing, deliberately not fixed in this migration**:
+  `is_manager_or_admin()` (`20240004_role_source_and_rls.sql`) only checks
+  `jwt_role() IN ('Super Admin', 'Manager')` — it silently excludes
+  `Admin` despite Admin having the same `canEditTeam`/`canEditProjects`
+  permissions as Manager in `AuthContext.tsx`. This is the same
+  Admin-lockout bug class already found and fixed in the edge function's
+  `hasPermission()` matrix (see the role-model-split section below), this
+  time at the RLS-policy level, affecting every policy that calls this
+  helper (e.g. `team_members_insert`/`update`/`delete` in
+  `20240023_associate_scoped_rls_hardening.sql`). Flagged as its own
+  follow-up task rather than fixed here since widening it touches every
+  policy using it — a separate, larger change than this feature. The new
+  `delete_team_member_and_reassign()` function does NOT reuse this helper;
+  it checks `jwt_role() IN ('Super Admin', 'Admin', 'Manager')` directly.
+- **Frontend**: `TeamManagementNew.tsx`'s existing delete confirmation
+  dialog is unchanged for the common case (no history → deletes
+  instantly, same as before). When the delete is blocked by history, a
+  second `AlertDialog` opens instead of just showing an error toast: a
+  "Reassign active tasks to" picker (any other active team member) and a
+  "Type `<exact name>` to confirm" text input — the destructive button
+  stays disabled until both are filled in and the typed name matches
+  exactly. New `deleteTeamMemberAndReassign()` in
+  `src/app/src/features/team/api.ts` (calls the RPC via `supabase.rpc`)
+  and a matching `AppContext.tsx` wrapper.
+- `npx tsc --noEmit -p tsconfig.sync.json`, `npm run build`, and `npm test`
+  (9/9) all pass. **Not verified live** — this is a destructive,
+  permission-gated admin action against real team member records, so it
+  wasn't exercised against the real database from this session. **Not yet
+  run**: migration `20240055_team_member_deletion.sql`. The user should
+  run it, then test the flow on a real team member with recorded history
+  (reassign target receives the active tasks; historical
+  sessions/Aura/QC rows keep the deleted person's name via the snapshot
+  columns rather than disappearing or being reattributed) before relying
+  on it for a real deletion.
+
 ## Conventions that matter (read before changing permissions/RLS)
 
 - **RLS is the real security boundary, not the UI.** Hiding a menu item or
