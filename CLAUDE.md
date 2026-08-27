@@ -23,6 +23,11 @@
 - The public page can capture scored leads before `20240057` is run, but offer
   assignment, touchpoint history, automatic task, and follow-up outbox hook do
   not exist until the user runs that migration successfully in Supabase.
+- Website commit `ad356f4` was pushed to `cstle-website/main` and production was
+  verified serving `/book/basement-development-regina` from bundle
+  `index-BkxgTd4U.js` with no browser-console errors. The migration is in web
+  app commit `e25c2be`; deployment of frontend code does not run SQL, so its
+  database status remains pending until the user explicitly confirms success.
 
 ## Revenue OS foundation — August 26, 2026 (repository only; migration not run)
 
