@@ -2,6 +2,15 @@
 
 ## Public Project Fit intake — August 27, 2026
 
+- Homepage typography alignment: after direct screenshot comparison, the
+  Project Fit hero now deliberately reuses the homepage `Install. Perfect.
+  Finish.` display recipe exactly: Anybody width 137, weight 700, `#191919`,
+  line-height 1.031, 24/32/39.075px responsive sizing, and the homepage's
+  -0.96/-1.563px tracking. Form question headings use the matching homepage
+  section-heading recipe (22/28/32px and -0.88/-1.28px tracking). Supporting
+  copy now uses the homepage's softer `#191919` at 70%, width 137, weight 500
+  and restrained tracking. Aeonik was evaluated locally and explicitly
+  rejected by the user; do not introduce it into Cstle branding.
 - Post-launch visual refinement: the public Project Fit option previously
   labeled `Rental-income suite` is now the clearer `Short-term rental
   (shortlet)`. Hero and question display sizes were stepped down at phone and
