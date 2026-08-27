@@ -42,6 +42,27 @@
   validates the `Date` first and falls back to `date unavailable`; this repair
   must remain covered by live lead-dialog QA, not build checks alone.
 
+## Revenue OS sales operations + UUID fallback fix — August 27, 2026
+
+- The recurring `invalid input syntax for type uuid: "1"` project-phase error
+  came from `RecentTasksWidget.tsx`, which passed a fake numeric project ID of
+  `1` into `TaskDialog` when neither a selected task nor a real project was
+  available. The fake fallback is removed; `TaskDialog.projectId` now accepts
+  the UUID string type the rest of the project model actually uses.
+- The next Revenue OS layer adds `features/revenue/api.ts` and a compact
+  `LeadOperationsPanel` inside each lead: owner assignment, shared next-action
+  tasks, consultation/site-visit/estimate-review scheduling, and database-backed
+  activity notes/history. Scheduling advances the lead to Consultation Booked
+  or Site Visit through the existing pipeline trigger, so the activity log and
+  automation outbox receive the same change. No new migration is required;
+  this uses the tables already deployed in `20240056`.
+- Before this batch ships, the lead-dialog display typography was tightened at
+  the user's request: every Anybody use in this dialog is explicitly width 135
+  and weight 700. Customer name, estimated value, project address, and reminder
+  title were reduced, with compact line heights and safe long-text wrapping so
+  realistic long names/addresses remain composed inside the dialog. This is a
+  dialog-specific visual decision; the global brand width remains unchanged.
+
 Read this first, before touching code. It's written so a new developer, a
 new AI agent, or a fresh Claude Code session can pick this project up cold
 with no other context.

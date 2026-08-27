@@ -23,7 +23,7 @@ import TaskDependencies from './TaskDependencies';
 interface TaskDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  projectId?: number;
+  projectId?: string | number;
   task?: Task;
   mode: "add" | "edit";
   onSave?: (taskData: any) => void;

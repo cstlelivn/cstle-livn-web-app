@@ -12,6 +12,7 @@ import { useApp } from "./AppContext";
 import { SERVICE_TYPES } from "../src/constants/serviceTypes";
 import { ProjectFitPanel } from "./revenue/ProjectFitPanel";
 import { formatDateTimeInOrgTz } from "../src/lib/timezone";
+import { LeadOperationsPanel } from "./revenue/LeadOperationsPanel";
 
 interface Lead {
   id: number;
@@ -52,6 +53,7 @@ interface Lead {
   qualification_reasons?: string[];
   qualification_answers?: Record<string, unknown>;
   city?: string;
+  owner_user_id?: string;
   created_at?: string;
 }
 
@@ -357,12 +359,15 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
             <div className="flex flex-col sm:flex-row items-start sm:justify-between gap-4">
               <div className="flex-1">
                 <DialogTitle 
-                  className="flex items-center gap-2 mb-2"
+                  className="flex items-center gap-2 mb-2 max-w-[28ch] [overflow-wrap:anywhere]"
                   style={{ 
                     fontFamily: 'var(--font-family-heading)', 
-                    fontVariationSettings: "'wdth' 137", 
-                    fontWeight: 800,
-                    fontSize: 'var(--text-h2)'
+                    fontVariationSettings: "'wdth' 135",
+                    fontStretch: '135%',
+                    fontWeight: 700,
+                    fontSize: 'clamp(1.35rem, 3vw, 1.75rem)',
+                    lineHeight: 0.98,
+                    letterSpacing: '-0.035em'
                   }}
                 >
                   {displayLead.name}
@@ -434,10 +439,14 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
                     Est. Value
                   </p>
                   <p 
+                    className="max-w-[16ch] [overflow-wrap:anywhere]"
                     style={{ 
                       fontFamily: 'var(--font-family-heading)', 
-                      fontWeight: 'var(--font-weight-bold)',
-                      fontSize: 'var(--text-h3)'
+                      fontVariationSettings: "'wdth' 135",
+                      fontStretch: '135%',
+                      fontWeight: 700,
+                      fontSize: '1.2rem',
+                      lineHeight: 1
                     }}
                   >
                     ${(displayLead.estimated_value || displayLead.value || 0).toLocaleString()}
@@ -459,6 +468,7 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
           {/* Content - Scrollable */}
           <div className="flex-1 overflow-y-auto py-4">
             {!isEditMode && onUpdateLead && <div className="mb-4"><ProjectFitPanel lead={displayLead} onSave={(updates) => onUpdateLead(displayLead.id, updates)} /></div>}
+            {!isEditMode && onUpdateLead && <div className="mb-4"><LeadOperationsPanel lead={displayLead} onUpdateLead={(updates) => onUpdateLead(displayLead.id, updates)} /></div>}
             {isEditMode ? (
               // Edit Mode - Compact Form
               <div className="space-y-4">
@@ -659,7 +669,7 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
                           Project Location
                         </p>
                         {(displayLead.project_address || displayLead.address) && (
-                          <p style={{ fontFamily: 'var(--font-family-heading)', fontSize: 'var(--text-h3)', fontWeight: 'var(--font-weight-bold)', fontVariationSettings: "'wdth' 137" }}>
+                          <p className="max-w-[36ch] [overflow-wrap:anywhere]" style={{ fontFamily: 'var(--font-family-heading)', fontSize: '1.1rem', lineHeight: 1.08, letterSpacing: '-0.02em', fontWeight: 700, fontVariationSettings: "'wdth' 135", fontStretch: '135%' }}>
                             {displayLead.project_address || displayLead.address}
                           </p>
                         )}
@@ -897,8 +907,11 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
             <DialogTitle 
               style={{ 
                 fontFamily: 'var(--font-family-heading)', 
-                fontVariationSettings: "'wdth' 137", 
-                fontWeight: 800 
+                fontVariationSettings: "'wdth' 135",
+                fontStretch: '135%',
+                fontWeight: 700,
+                fontSize: '1.25rem',
+                lineHeight: 1
               }}
             >
               Schedule {reminderType === "visit" ? "Visit" : "Reminder"}

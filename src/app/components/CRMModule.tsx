@@ -347,6 +347,7 @@ export default function CRMModule() {
       if (updates.qualification_score !== undefined) mappedUpdates.qualification_score = updates.qualification_score;
       if (updates.qualification_band !== undefined) mappedUpdates.qualification_band = updates.qualification_band;
       if (updates.qualification_reasons !== undefined) mappedUpdates.qualification_reasons = updates.qualification_reasons;
+      if (updates.owner_user_id !== undefined) mappedUpdates.owner_user_id = updates.owner_user_id;
       if (updates.source !== undefined) mappedUpdates.source = updates.source;
       if (updates.project_address !== undefined) mappedUpdates.project_address = updates.project_address;
       if (updates.province !== undefined) mappedUpdates.province = updates.province;
@@ -450,6 +451,7 @@ export default function CRMModule() {
     qualification_score: (lead as any).qualification_score,
     qualification_reasons: (lead as any).qualification_reasons,
     qualification_answers: (lead as any).qualification_answers,
+    owner_user_id: (lead as any).owner_user_id,
     city: (lead as any).city,
     notes: lead.internal_notes || lead.notes, // Admin internal notes (prefer internal_notes)
     internal_notes: lead.internal_notes, // Admin-only internal notes

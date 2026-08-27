@@ -149,7 +149,7 @@ export default function RecentTasksWidget({ onNavigateToProjects }: RecentTasksW
       <TaskDialog
         open={isTaskDialogOpen}
         onOpenChange={setIsTaskDialogOpen}
-        projectId={selectedTask?.projectId || projects[0]?.id || 1}
+        projectId={selectedTask?.projectId || projects[0]?.id}
         task={selectedTask}
         mode={taskDialogMode}
       />
