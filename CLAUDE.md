@@ -11,10 +11,9 @@
   soft elevation, keyboard-visible focus, and short transform/shadow feedback;
   step transitions are subtle and respect reduced-motion preferences. These
   are conversion-usability decisions, not a change to scoring or lead data.
-- The public hero headline was tightened after user review from `Plan the
-  basement your home needs next.` to the approved, more direct `Plan a basement
-  that works for you.` Keep this exact wording unless the user requests another
-  copy change.
+- The public hero headline was refined through user review and is now the
+  explicitly approved `Plan the basement that works for you.` Keep this
+  exact wording unless the user requests another copy change.
 - The separate `cstle-website` repository now contains a reusable public
   Revenue OS intake module and a dedicated Regina Basement Development journey
   at `/book/basement-development-regina`. The general `/book` form remains for
