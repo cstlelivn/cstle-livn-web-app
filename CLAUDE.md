@@ -1,5 +1,29 @@
 # Cstle Livn Web App — Project Handoff
 
+## Public Project Fit intake — August 27, 2026
+
+- The separate `cstle-website` repository now contains a reusable public
+  Revenue OS intake module and a dedicated Regina Basement Development journey
+  at `/book/basement-development-regina`. The general `/book` form remains for
+  every other service and now captures the same UTM/click-id/landing/referrer
+  attribution; its email/phone fields correctly accept either contact method
+  rather than requiring both.
+- The basement journey uses four progressive steps (outcome, budget/timeline,
+  readiness, contact), the same deterministic Hot/Warm/Nurture/Reject rules as
+  the admin app, and sends qualification answers/reasons plus first-touch
+  attribution directly into `leads`. Hot/Warm submissions enter Qualified;
+  others enter New. GA4 receives non-PII start/step/conversion events only.
+- Migration `20240057_public_lead_intake_automation.sql` is additive and **has
+  not been run at the time of this note**. It assigns the seeded
+  `regina-basement-development` offer server-side and, for public booking/fit
+  submissions, creates the initial activity, attribution touchpoint,
+  urgency-based follow-up task, and `lead.captured` automation-outbox event.
+  Anonymous visitors remain INSERT-only on `leads`; SECURITY DEFINER triggers
+  create internal operational records without opening their RLS policies.
+- The public page can capture scored leads before `20240057` is run, but offer
+  assignment, touchpoint history, automatic task, and follow-up outbox hook do
+  not exist until the user runs that migration successfully in Supabase.
+
 ## Revenue OS foundation — August 26, 2026 (repository only; migration not run)
 
 - The Saskatchewan Revenue OS is being added around the existing CRM,
