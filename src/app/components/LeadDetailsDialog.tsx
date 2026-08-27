@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { useApp } from "./AppContext";
 import { SERVICE_TYPES } from "../src/constants/serviceTypes";
 import { ProjectFitPanel } from "./revenue/ProjectFitPanel";
+import { formatDateTimeInOrgTz } from "../src/lib/timezone";
 
 interface Lead {
   id: number;
@@ -416,7 +417,7 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
                     className="text-muted-foreground"
                     style={{ fontSize: 'var(--text-label)' }}
                   >
-                    • Added {displayLead.dateAdded}
+                    • Added {formatDateTimeInOrgTz(displayLead.dateAdded)}
                   </span>
                 </div>
               </div>

@@ -23,8 +23,10 @@ export function ProjectFitPanel({ lead, onSave }: { lead: any; onSave: (updates:
     } finally { setSaving(false); }
   };
   const tone = result.band === 'Hot' ? 'bg-success/10 text-success' : result.band === 'Warm' ? 'bg-primary/10 text-primary' : result.band === 'Nurture' ? 'bg-accent/10 text-accent' : 'bg-destructive/10 text-destructive';
+  const hasDraftSignal = Boolean(answers.city || answers.budgetRange || answers.timeline || answers.ownsProperty || answers.financingReady || answers.consultationRequested);
+  const scoreLabel = lead.qualification_score == null && !hasDraftSignal ? 'Not scored' : `${lead.qualification_score == null ? 'Draft · ' : ''}${result.band} · ${result.score}`;
   return <Card className="p-4 space-y-4">
-    <div className="flex items-start justify-between gap-3"><div><h3 className="text-sm font-semibold">Project Fit — Regina Basement Development</h3><p className="text-xs text-muted-foreground mt-1">Deterministic qualification; reusable rules, no AI override.</p></div><Badge className={tone}>{result.band} · {result.score}</Badge></div>
+    <div className="flex items-start justify-between gap-3"><div><h3 className="text-sm font-semibold">Project Fit — Regina Basement Development</h3><p className="text-xs text-muted-foreground mt-1">A consistent fit check for prioritizing the next sales action.</p></div><Badge className={lead.qualification_score == null && !hasDraftSignal ? 'bg-secondary text-secondary-foreground' : tone}>{scoreLabel}</Badge></div>
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
       <div><Label>City</Label><Input className="mt-1" value={answers.city || ''} onChange={(e) => set('city', e.target.value)} /></div>
       <div><Label>Budget</Label><Select value={answers.budgetRange || ''} onValueChange={(v) => set('budgetRange', v as any)}><SelectTrigger className="mt-1"><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{['Under $35,000','$35,000–$49,999','$50,000–$74,999','$75,000+'].map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent></Select></div>

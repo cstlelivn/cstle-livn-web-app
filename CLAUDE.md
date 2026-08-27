@@ -31,6 +31,10 @@
   lead record that saves the deterministic score/band/reasons and advances
   Hot/Warm leads to Qualified. This frontend is not yet deployed at the time
   of this note; verification and deployment state must be recorded separately.
+- Live visual QA on `admin.cstle.ca` confirmed the new production bundle and
+  authenticated CRM render. A follow-up polish prevents unassessed leads from
+  being labeled Reject/0 (they show Not scored until there is input) and
+  formats the raw lead-created timestamp in the fixed Regina org timezone.
 
 Read this first, before touching code. It's written so a new developer, a
 new AI agent, or a fresh Claude Code session can pick this project up cold
