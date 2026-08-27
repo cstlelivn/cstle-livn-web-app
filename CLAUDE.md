@@ -2,6 +2,15 @@
 
 ## Public Project Fit intake — August 27, 2026
 
+- Post-launch visual refinement: the public Project Fit option previously
+  labeled `Rental-income suite` is now the clearer `Short-term rental
+  (shortlet)`. Hero and question display sizes were stepped down at phone and
+  desktop breakpoints, text containers were widened, and hyphenation is
+  disabled at the page root so words are never broken to satisfy a line. The
+  form surface, choices, inputs and primary actions now use restrained borders,
+  soft elevation, keyboard-visible focus, and short transform/shadow feedback;
+  step transitions are subtle and respect reduced-motion preferences. These
+  are conversion-usability decisions, not a change to scoring or lead data.
 - The separate `cstle-website` repository now contains a reusable public
   Revenue OS intake module and a dedicated Regina Basement Development journey
   at `/book/basement-development-regina`. The general `/book` form remains for
