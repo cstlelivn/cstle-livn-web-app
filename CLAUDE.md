@@ -35,6 +35,12 @@
   authenticated CRM render. A follow-up polish prevents unassessed leads from
   being labeled Reject/0 (they show Not scored until there is input) and
   formats the raw lead-created timestamp in the fixed Regina org timezone.
+- Production QA caught a runtime regression in that timestamp polish: the
+  shared formatter accepts a `Date`, not the database timestamp string. The
+  first deployment passed the string directly and opening a lead threw
+  `RangeError: Invalid time value`. `LeadDetailsDialog` now constructs and
+  validates the `Date` first and falls back to `date unavailable`; this repair
+  must remain covered by live lead-dialog QA, not build checks alone.
 
 Read this first, before touching code. It's written so a new developer, a
 new AI agent, or a fresh Claude Code session can pick this project up cold

@@ -77,6 +77,9 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
 
   if (!lead) return null;
 
+  const addedAt = new Date(lead.dateAdded);
+  const addedLabel = Number.isNaN(addedAt.getTime()) ? 'date unavailable' : formatDateTimeInOrgTz(addedAt);
+
   // Initialize edited lead when entering edit mode
   const handleEnterEditMode = () => {
     setEditedLead({ ...lead });
@@ -417,7 +420,7 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
                     className="text-muted-foreground"
                     style={{ fontSize: 'var(--text-label)' }}
                   >
-                    • Added {formatDateTimeInOrgTz(displayLead.dateAdded)}
+                    • Added {addedLabel}
                   </span>
                 </div>
               </div>
