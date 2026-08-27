@@ -62,6 +62,12 @@
   title were reduced, with compact line heights and safe long-text wrapping so
   realistic long names/addresses remain composed inside the dialog. This is a
   dialog-specific visual decision; the global brand width remains unchanged.
+- Stabilization before the next Revenue OS phase: inline lead mutations now
+  merge into the open dialog rather than closing it, while the shared list is
+  refreshed in the background. The second raw Submission timestamp now reuses
+  the validated Regina `addedLabel`. Sales Operations writes are single-flight,
+  disable relevant controls while saving, surface success/failure, and rethrow
+  parent update failures so the panel cannot falsely report completion.
 
 Read this first, before touching code. It's written so a new developer, a
 new AI agent, or a fresh Claude Code session can pick this project up cold

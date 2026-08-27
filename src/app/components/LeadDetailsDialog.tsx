@@ -799,7 +799,7 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-muted-foreground shrink-0" />
                       <span className="text-muted-foreground" style={{ fontSize: 'var(--text-label)' }}>Submitted:</span>
-                      <span style={{ fontSize: 'var(--text-base)' }}>{displayLead.dateAdded}</span>
+                      <span style={{ fontSize: 'var(--text-base)' }}>{addedLabel}</span>
                     </div>
                     {displayLead.links && (
                       <div className="flex items-start gap-2">

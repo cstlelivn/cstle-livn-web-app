@@ -370,11 +370,17 @@ export default function CRMModule() {
       console.log('📤 Sending to API:', mappedUpdates);
       
       await updateLead(leadId, mappedUpdates);
-      
-      toast.success("Lead updated successfully!");
-      
-      // Close the dialog
-      setSelectedLead(null);
+
+      // Inline Revenue OS actions (owner, Project Fit, stage/scheduling)
+      // should keep the workspace open. Merge the saved values immediately;
+      // the subsequent refresh reconciles the shared CRM list.
+      setSelectedLead((current: any) => current ? {
+        ...current,
+        ...updates,
+        status: updates.pipeline_stage ?? updates.status ?? current.status,
+      } : current);
+
+      toast.success("Lead updated");
       
       // Refresh leads to reflect changes including pipeline
       await refreshLeads();
@@ -382,7 +388,8 @@ export default function CRMModule() {
       console.log('✅ Lead updated successfully');
     } catch (error) {
       console.error('❌ Error updating lead:', error);
-      toast.error("Failed to update lead");
+      toast.error(error instanceof Error ? error.message : "Failed to update lead");
+      throw error;
     }
   };
 
