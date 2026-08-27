@@ -1,5 +1,37 @@
 # Cstle Livn Web App — Project Handoff
 
+## Revenue OS foundation — August 26, 2026 (repository only; migration not run)
+
+- The Saskatchewan Revenue OS is being added around the existing CRM,
+  estimating, and estimate-to-project conversion flows rather than creating a
+  second sales system. Cstle remains the source of truth; external ad,
+  email/SMS, Make, and AI services are replaceable adapters.
+- Migration `20240056_revenue_os_foundation.sql` is written but **has not been
+  run**. It is additive: reusable `revenue_offers`; offer/qualification,
+  ownership, response and UTM/click-id fields on `leads`; the requested
+  New → Contacted → Qualified → Consultation Booked → Site Visit → Estimate →
+  Won/Lost pipeline; lead activity, operational tasks, appointments,
+  attribution touchpoints, daily ad spend, and a retryable automation outbox;
+  plus an RLS-authorized KPI view. It seeds the first offer,
+  `regina-basement-development`, without hard-coding future offers into the
+  table design.
+- Do not wire frontend reads/writes to migration-56 columns until the user
+  confirms the migration ran successfully in Supabase. The existing CRM stays
+  operational on its old `status` vocabulary in the meantime.
+- `src/app/src/features/revenue/scoring.ts` is database-independent and safe
+  before migration deployment. It implements the first deterministic Project
+  Fit score (Hot/Warm/Nurture/Reject) with explicit service-area,
+  budget/timeline, property, funding, consultation, and hard-disqualifier
+  signals. AI may later explain or suggest follow-up, but must not silently
+  override this deterministic qualification result.
+- Migration `20240056` was confirmed successfully run by the user on August
+  26, 2026, including RLS. The first application wiring is now present:
+  lead API fields for Revenue OS data, an eight-stage CRM overview with
+  qualified/pipeline/won/close-rate metrics, and a Project Fit panel in each
+  lead record that saves the deterministic score/band/reasons and advances
+  Hot/Warm leads to Qualified. This frontend is not yet deployed at the time
+  of this note; verification and deployment state must be recorded separately.
+
 Read this first, before touching code. It's written so a new developer, a
 new AI agent, or a fresh Claude Code session can pick this project up cold
 with no other context.

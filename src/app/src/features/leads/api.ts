@@ -7,6 +7,7 @@ import { projectId, publicAnonKey } from '../../../utils/supabase/info';
 const supabase = createClient();
 
 export interface LeadInput {
+  offer_id?: string | null;
   source_form?: string | null;
   source_page?: string | null;
   first_name?: string | null;
@@ -34,9 +35,25 @@ export interface LeadInput {
   notes?: string | null;
   internal_notes?: string | null;
   last_contact?: string | null;
+  pipeline_stage?: string | null;
+  qualification_band?: 'Hot' | 'Warm' | 'Nurture' | 'Reject' | null;
+  qualification_score?: number | null;
+  qualification_reasons?: string[] | null;
+  qualification_answers?: Record<string, unknown> | null;
+  owner_user_id?: string | null;
+  utm_source?: string | null;
+  utm_medium?: string | null;
+  utm_campaign?: string | null;
+  utm_content?: string | null;
+  utm_term?: string | null;
+  gclid?: string | null;
+  fbclid?: string | null;
+  landing_page?: string | null;
+  referrer?: string | null;
 }
 
 export interface LeadUpdate {
+  offer_id?: string | null;
   source_form?: string | null;
   source_page?: string | null;
   first_name?: string | null;
@@ -60,6 +77,13 @@ export interface LeadUpdate {
   notes?: string | null;
   internal_notes?: string | null;
   last_contact?: string | null;
+  pipeline_stage?: string | null;
+  qualification_band?: 'Hot' | 'Warm' | 'Nurture' | 'Reject' | null;
+  qualification_score?: number | null;
+  qualification_reasons?: string[] | null;
+  qualification_answers?: Record<string, unknown> | null;
+  owner_user_id?: string | null;
+  lost_reason?: string | null;
 }
 
 export async function listLeads() {

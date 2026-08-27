@@ -24,6 +24,7 @@ import BulkCampaignDialog from "./BulkCampaignDialog";
 import { Checkbox } from "./ui/checkbox";
 import { formatDateTime, formatDate, formatForInput } from "../src/lib/dateFormatter";
 import { SERVICE_TYPES } from "../src/constants/serviceTypes";
+import { RevenueOverview } from "./revenue/RevenueOverview";
 
 export default function CRMModule() {
   const { hasPermission } = useAuth();
@@ -341,6 +342,11 @@ export default function CRMModule() {
       if (updates.email !== undefined) mappedUpdates.email = updates.email;
       if (updates.phone !== undefined) mappedUpdates.phone = updates.phone;
       if (updates.status !== undefined) mappedUpdates.status = updates.status;
+      if (updates.pipeline_stage !== undefined) mappedUpdates.pipeline_stage = updates.pipeline_stage;
+      if (updates.qualification_answers !== undefined) mappedUpdates.qualification_answers = updates.qualification_answers;
+      if (updates.qualification_score !== undefined) mappedUpdates.qualification_score = updates.qualification_score;
+      if (updates.qualification_band !== undefined) mappedUpdates.qualification_band = updates.qualification_band;
+      if (updates.qualification_reasons !== undefined) mappedUpdates.qualification_reasons = updates.qualification_reasons;
       if (updates.source !== undefined) mappedUpdates.source = updates.source;
       if (updates.project_address !== undefined) mappedUpdates.project_address = updates.project_address;
       if (updates.province !== undefined) mappedUpdates.province = updates.province;
@@ -432,13 +438,19 @@ export default function CRMModule() {
     company: lead.company,
     // Normalize legacy status values (pre-dating the New/Contacted/Proposal/Won/Lost
     // pipeline vocabulary) so old leads display and filter consistently with new ones.
-    status: (() => {
+    status: (lead as any).pipeline_stage || (() => {
       const s = (lead.status || "").toLowerCase();
       if (s === "new" || s === "new lead") return "New";
       if (s === "converted" || s === "won") return "Won";
       if (s === "closed" || s === "lost") return "Lost";
       return lead.status;
     })(),
+    pipeline_stage: (lead as any).pipeline_stage,
+    qualification_band: (lead as any).qualification_band,
+    qualification_score: (lead as any).qualification_score,
+    qualification_reasons: (lead as any).qualification_reasons,
+    qualification_answers: (lead as any).qualification_answers,
+    city: (lead as any).city,
     notes: lead.internal_notes || lead.notes, // Admin internal notes (prefer internal_notes)
     internal_notes: lead.internal_notes, // Admin-only internal notes
     dateAdded: lead.created_at,
@@ -587,7 +599,10 @@ export default function CRMModule() {
       options: [
         { value: "New", label: "New" },
         { value: "Contacted", label: "Contacted" },
-        { value: "Proposal", label: "Proposal" },
+        { value: "Qualified", label: "Qualified" },
+        { value: "Consultation Booked", label: "Consultation Booked" },
+        { value: "Site Visit", label: "Site Visit" },
+        { value: "Estimate", label: "Estimate" },
         { value: "Won", label: "Won" },
         { value: "Lost", label: "Lost" },
       ],
@@ -762,40 +777,7 @@ export default function CRMModule() {
         </div>
       </div>
 
-      {/* Pipeline Overview */}
-      <Card className="p-6">
-        <div className="mb-4">
-          <h3>Sales Pipeline</h3>
-          <p className="text-muted-foreground">
-            {leads.length} total lead{leads.length !== 1 ? 's' : ''} • {filteredLeads.length} displayed
-          </p>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-          {[
-            { stage: "New", count: transformedLeads.filter((l) => l.status === "New").length },
-            { stage: "Contacted", count: transformedLeads.filter((l) => l.status === "Contacted").length },
-            { stage: "Proposal", count: transformedLeads.filter((l) => l.status === "Proposal").length },
-            { stage: "Won", count: transformedLeads.filter((l) => l.status === "Won").length },
-            { stage: "Lost", count: transformedLeads.filter((l) => l.status === "Lost").length },
-          ].map((item) => (
-            <button
-              key={item.stage}
-              type="button"
-              onClick={() => {
-                setActiveTab("leads");
-                setFilters((prev) => ({ ...prev, selects: { ...prev.selects, status: item.stage } }));
-              }}
-              className="text-center p-4 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors cursor-pointer"
-              title={`Show ${item.stage} leads`}
-            >
-              <div className="mb-2">
-                <span className="text-3xl">{item.count}</span>
-              </div>
-              <p>{item.stage}</p>
-            </button>
-          ))}
-        </div>
-      </Card>
+      <RevenueOverview leads={transformedLeads} onStage={(stage) => { setActiveTab('leads'); setFilters((prev) => ({ ...prev, selects: { ...prev.selects, status: stage } })); }} />
 
       {/* Main Toggle: Leads vs Clients + Filters */}
       <div className="flex items-center justify-between gap-[12px] flex-wrap">

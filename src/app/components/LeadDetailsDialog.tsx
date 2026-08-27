@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { toast } from "sonner";
 import { useApp } from "./AppContext";
 import { SERVICE_TYPES } from "../src/constants/serviceTypes";
+import { ProjectFitPanel } from "./revenue/ProjectFitPanel";
 
 interface Lead {
   id: number;
@@ -44,6 +45,12 @@ interface Lead {
   company?: string;
   lastContact?: string;
   last_contact?: string;
+  pipeline_stage?: string;
+  qualification_band?: string;
+  qualification_score?: number;
+  qualification_reasons?: string[];
+  qualification_answers?: Record<string, unknown>;
+  city?: string;
   created_at?: string;
 }
 
@@ -89,7 +96,7 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
       name: editedLead.name,
       email: editedLead.email,
       phone: editedLead.phone,
-      status: editedLead.status,
+      pipeline_stage: editedLead.status,
       source: editedLead.source,
       project_address: editedLead.project_address || editedLead.address,
       province: editedLead.province,
@@ -182,7 +189,10 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
   // opening the whole edit form first.
   const handleStatusChange = (newStatus: string) => {
     if (!onUpdateLead) return;
-    onUpdateLead(displayLead.id, { status: newStatus });
+    const legacyStatus = newStatus === 'Estimate' ? 'Proposal'
+      : ['Qualified', 'Consultation Booked', 'Site Visit'].includes(newStatus) ? 'Contacted'
+      : newStatus;
+    onUpdateLead(displayLead.id, { pipeline_stage: newStatus, status: legacyStatus });
   };
 
   const handleCall = () => {
@@ -198,6 +208,7 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
     if ((displayLead.status === "New Lead" || displayLead.status === "New") && onUpdateLead) {
       onUpdateLead(displayLead.id, { 
         status: "Contacted",
+        pipeline_stage: "Contacted",
         last_contact: new Date().toISOString()
       });
     }
@@ -367,7 +378,10 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
                       <SelectContent>
                         <SelectItem value="New">New</SelectItem>
                         <SelectItem value="Contacted">Contacted</SelectItem>
-                        <SelectItem value="Proposal">Proposal</SelectItem>
+                        <SelectItem value="Qualified">Qualified</SelectItem>
+                        <SelectItem value="Consultation Booked">Consultation Booked</SelectItem>
+                        <SelectItem value="Site Visit">Site Visit</SelectItem>
+                        <SelectItem value="Estimate">Estimate</SelectItem>
                         <SelectItem value="Won">Won</SelectItem>
                         <SelectItem value="Lost">Lost</SelectItem>
                       </SelectContent>
@@ -440,6 +454,7 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
 
           {/* Content - Scrollable */}
           <div className="flex-1 overflow-y-auto py-4">
+            {!isEditMode && onUpdateLead && <div className="mb-4"><ProjectFitPanel lead={displayLead} onSave={(updates) => onUpdateLead(displayLead.id, updates)} /></div>}
             {isEditMode ? (
               // Edit Mode - Compact Form
               <div className="space-y-4">
@@ -464,7 +479,10 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
                       <SelectContent>
                         <SelectItem value="New">New</SelectItem>
                         <SelectItem value="Contacted">Contacted</SelectItem>
-                        <SelectItem value="Proposal">Proposal</SelectItem>
+                        <SelectItem value="Qualified">Qualified</SelectItem>
+                        <SelectItem value="Consultation Booked">Consultation Booked</SelectItem>
+                        <SelectItem value="Site Visit">Site Visit</SelectItem>
+                        <SelectItem value="Estimate">Estimate</SelectItem>
                         <SelectItem value="Won">Won</SelectItem>
                         <SelectItem value="Lost">Lost</SelectItem>
                       </SelectContent>

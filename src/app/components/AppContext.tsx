@@ -159,6 +159,11 @@ export interface Lead {
   created_at: string; // Timestamp when lead was created
   updated_at?: string; // Timestamp when lead was last updated
   last_contact?: string; // Last time admin contacted this lead
+  pipeline_stage?: "New" | "Contacted" | "Qualified" | "Consultation Booked" | "Site Visit" | "Estimate" | "Won" | "Lost";
+  qualification_band?: "Hot" | "Warm" | "Nurture" | "Reject";
+  qualification_score?: number;
+  qualification_reasons?: string[];
+  qualification_answers?: Record<string, unknown>;
 }
 
 export interface InventoryItem {
@@ -792,7 +797,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // "Won" matches the CRM pipeline vocabulary (New/Contacted/Proposal/
       // Won/Lost) -- the lead stays visible in the leads list afterward
       // (listLeads no longer hides it) so a won deal remains auditable.
-      await updateLead(leadId, { status: "Won" });
+      await updateLead(leadId, { status: "Won", pipeline_stage: "Won" });
 
       console.log('✅ Lead converted to client successfully');
     } catch (error) {
