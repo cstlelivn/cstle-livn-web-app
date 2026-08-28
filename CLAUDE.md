@@ -2,6 +2,29 @@
 
 ## Public Project Fit intake — August 27, 2026
 
+- **Application-wide table standard (explicit user direction, August 28):**
+  dense business tables must read as one continuous table across the available
+  width, even when rows have a subtle card-like hover/surface. Use compact row
+  height, one shared column template for header and every row, invisible column
+  boundaries, truncation inside cells, and horizontal overflow only when the
+  combined useful minimums cannot fit. Give concise data (status, counts,
+  money, dates) deliberately narrow columns and give identity/address/
+  description the remaining room. On desktop, useful columns should expose a
+  quiet drag-resize edge that redistributes width with the adjacent column
+  instead of growing the entire table. Safe, common inline actions such as a
+  stage dropdown belong in the row and must stop row navigation; clicking the
+  rest of the row opens the complete record. Destructive actions stay in a
+  dedicated trailing action rail and never float over content. Mobile may
+  collapse into compact full-width rows rather than preserve a wide grid.
+- The lead table is the first working reference for that standard. Its desktop
+  header and rows share a resizable pixel template; dragging Name, Project,
+  Status, Value or Contact boundaries gives space to the adjacent column while
+  preserving total table width. Rows were reduced to a compact 40–44px visual
+  rhythm, and pipeline stage is now an in-row dropdown using the existing
+  update path. Selecting, calling, deleting or changing stage does not open the
+  lead; every other part of the row does. Extend this implementation pattern to
+  client/project/estimate/finance tables during their navigation passes rather
+  than producing isolated table styles.
 - CRM is now the benchmark for a broader human-navigation standard. Lead list
   rows open from the complete row by mouse or keyboard rather than requiring a
   tiny `View` target. Desktop uses one stable seven-column grid (selection,

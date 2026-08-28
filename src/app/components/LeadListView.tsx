@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { Mail, MapPin, Phone, TrendingUp, Trash2 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Checkbox } from "./ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 
 interface LeadListViewProps {
   leads: any[];
@@ -13,6 +15,7 @@ interface LeadListViewProps {
   selectedLeadIds?: number[];
   onToggleSelection?: (leadId: number) => void;
   onToggleSelectAll?: () => void;
+  onStatusChange?: (lead: any, status: string) => void;
 }
 
 export default function LeadListView({
@@ -24,7 +27,24 @@ export default function LeadListView({
   selectedLeadIds = [],
   onToggleSelection,
   onToggleSelectAll,
+  onStatusChange,
 }: LeadListViewProps) {
+  const [columnWidths, setColumnWidths] = useState([40, 190, 250, 130, 92, 230, 84]);
+  const columnTemplate = columnWidths.map((width) => `${width}px`).join(' ');
+  const tableWidth = columnWidths.reduce((sum, width) => sum + width, 0) + 96;
+  const startResize = (index: number, event: React.PointerEvent<HTMLButtonElement>) => {
+    event.preventDefault(); event.stopPropagation();
+    const startX = event.clientX; const initial = [...columnWidths];
+    const move = (moveEvent: PointerEvent) => {
+      const delta = moveEvent.clientX - startX;
+      const leftMin = index === 0 ? 40 : index === 3 || index === 4 ? 76 : 120;
+      const rightMin = index + 1 === 3 || index + 1 === 4 ? 76 : index + 1 === 6 ? 72 : 120;
+      const adjusted = Math.max(leftMin - initial[index], Math.min(delta, initial[index + 1] - rightMin));
+      setColumnWidths(initial.map((width, column) => column === index ? width + adjusted : column === index + 1 ? width - adjusted : width));
+    };
+    const end = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', end); };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', end);
+  };
   if (viewMode === "list") {
     return (
       <div className="overflow-x-auto rounded-[14px] border border-black/[0.07] bg-card shadow-[0_14px_36px_rgba(25,25,25,0.06)]">
@@ -33,7 +53,7 @@ export default function LeadListView({
             hidden under md rather than silently clipping the Source/
             Contact/Actions columns off-screen (the previous bug: this
             container had overflow-hidden with no way to scroll to them). */}
-        <div className="hidden min-w-[1060px] md:grid grid-cols-[40px_minmax(180px,1.1fr)_minmax(190px,1.35fr)_120px_100px_minmax(190px,1fr)_88px] gap-4 border-b border-black/[0.07] bg-[#f4f5ef] px-4 py-3">
+        <div className="hidden md:grid gap-4 border-b border-black/[0.07] bg-[#f4f5ef] px-4 py-2.5" style={{ gridTemplateColumns: columnTemplate, width: `max(100%, ${tableWidth}px)` }}>
           <div className="flex items-center justify-center">
             {onToggleSelectAll && (
               <Checkbox
@@ -43,11 +63,7 @@ export default function LeadListView({
               />
             )}
           </div>
-          <p className="text-muted-foreground uppercase tracking-wide" style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-label)', fontWeight: 'var(--font-weight-bold)' }}>Name</p>
-          <p className="text-muted-foreground uppercase tracking-wide" style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-label)', fontWeight: 'var(--font-weight-bold)' }}>Project</p>
-          <p className="text-muted-foreground uppercase tracking-wide" style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-label)', fontWeight: 'var(--font-weight-bold)' }}>Status</p>
-          <p className="text-muted-foreground uppercase tracking-wide" style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-label)', fontWeight: 'var(--font-weight-bold)' }}>Value</p>
-          <p className="text-muted-foreground uppercase tracking-wide" style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-label)', fontWeight: 'var(--font-weight-bold)' }}>Contact</p>
+          {['Name','Project','Status','Value','Contact'].map((label, offset) => <div key={label} className="relative min-w-0"><p className="truncate text-muted-foreground uppercase tracking-wide" style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-label)', fontWeight: 'var(--font-weight-bold)' }}>{label}</p><button type="button" onPointerDown={(event) => startResize(offset + 1, event)} className="absolute -right-2 top-1/2 h-7 w-3 -translate-y-1/2 cursor-col-resize touch-none rounded-full opacity-0 transition-opacity hover:bg-[#65733d]/15 group-hover:opacity-100 focus:opacity-100" aria-label={`Resize ${label} column`} /></div>)}
           <p className="text-muted-foreground uppercase tracking-wide text-right" style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-label)', fontWeight: 'var(--font-weight-bold)' }}>Actions</p>
         </div>
 
@@ -59,7 +75,8 @@ export default function LeadListView({
             tabIndex={0}
             onClick={() => onLeadClick(lead)}
             onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onLeadClick(lead); } }}
-            className="group hidden min-w-[1060px] cursor-pointer md:grid grid-cols-[40px_minmax(180px,1.1fr)_minmax(190px,1.35fr)_120px_100px_minmax(190px,1fr)_88px] items-center gap-4 border-b border-black/[0.055] px-4 py-3.5 transition-[background-color,box-shadow] hover:bg-[#f7f8f2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#65733d] last:border-b-0"
+            className="group hidden cursor-pointer md:grid items-center gap-4 border-b border-black/[0.055] px-4 py-2.5 transition-[background-color,box-shadow] hover:bg-[#f7f8f2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#65733d] last:border-b-0"
+            style={{ gridTemplateColumns: columnTemplate, width: `max(100%, ${tableWidth}px)` }}
           >
             {/* Checkbox */}
             <div className="flex items-center justify-center">
@@ -80,9 +97,7 @@ export default function LeadListView({
             <div className="min-w-0"><p className="truncate text-[12px] font-medium text-[#191919]/85">{lead.service_type || lead.project_type || lead.interest || 'Project not specified'}</p><p className="mt-0.5 flex min-w-0 items-center gap-1 text-[10px] text-muted-foreground"><MapPin className="size-3 shrink-0" /><span className="truncate">{lead.project_address || lead.address || lead.city || 'Address not added'}</span></p></div>
 
             {/* Status */}
-            <Badge className={`${getStatusColor(lead.status)}`} style={{ fontSize: 'var(--text-small)' }}>
-              {lead.status}
-            </Badge>
+            <div onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>{onStatusChange ? <Select value={lead.status} onValueChange={(status) => onStatusChange(lead, status)}><SelectTrigger className={`h-8 w-full border-0 px-2 text-[10px] shadow-none ${getStatusColor(lead.status)}`}><SelectValue /></SelectTrigger><SelectContent>{['New','Contacted','Qualified','Consultation Booked','Site Visit','Estimate','Won','Lost'].map((status) => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent></Select> : <Badge className={getStatusColor(lead.status)} style={{ fontSize: 'var(--text-small)' }}>{lead.status}</Badge>}</div>
 
             {/* Value */}
             <p style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-base)', fontWeight: 'var(--font-weight-bold)' }}>${(lead.value / 1000).toFixed(0)}k</p>

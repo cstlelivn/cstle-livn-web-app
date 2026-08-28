@@ -941,6 +941,7 @@ export default function CRMModule({ onOpenEstimate, onOpenProject }: { onOpenEst
               selectedLeadIds={selectedLeadIds}
               onToggleSelection={toggleLeadSelection}
               onToggleSelectAll={toggleSelectAll}
+              onStatusChange={(lead, status) => handleUpdateLead(lead.id, { pipeline_stage: status })}
             />
           )}
         </div>
