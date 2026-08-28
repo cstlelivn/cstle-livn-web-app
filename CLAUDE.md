@@ -14,6 +14,11 @@
   Cstle, states why it was sent, and supports unsubscribe by reply. No timed
   nurture, SMS send, polling or Cron is enabled; broader marketing remains
   blocked pending express consent capture and a compliant unsubscribe handler.
+- Production activation: the public Cstle contact page was checked directly and
+  lists `1862 Angus Street, Regina, SK — By appointment only`. That exact text
+  is now configured as the `CSTLE_POSTAL_ADDRESS` Edge Function secret; the
+  customer estimate-request acknowledgement is active for future real Project
+  Fit/booking leads. The internal `SYSTEM TEST`/`.invalid` guard remains active.
 
 - Migration `20240057_public_lead_intake_automation.sql` was confirmed by the
   user as successfully run on August 27, 2026. New public Project Fit and
