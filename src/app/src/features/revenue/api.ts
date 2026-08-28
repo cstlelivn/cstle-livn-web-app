@@ -13,6 +13,7 @@ export interface LeadMessage { id: string; channel: 'email' | 'sms'; purpose: st
 export interface AutomationStatus { attentionCount: number; failedCount: number; oldestCreatedAt: string | null; lastError: string | null; }
 export interface RevenueAdSpend { platform: string; campaign_name: string | null; spend_cents: number; }
 export interface RevenueOperationalMetrics { appointmentsMtd: number; estimatesMtd: number; adSpendCentsMtd: number; adSpend: RevenueAdSpend[]; }
+export interface SalesWorkItem { leadId: string; priority: 'Urgent' | 'Today' | 'Next'; score: number; reason: string; detail: string; }
 
 async function automationRequest(path: string, init?: RequestInit) {
   const { data: { session } } = await supabase.auth.getSession();
@@ -30,6 +31,38 @@ export async function getAutomationStatus(): Promise<AutomationStatus> { return 
 export async function retryLeadAutomations() { return automationRequest('retry', { method: 'POST' }); }
 export async function getLeadAutomationStatus(leadId: string): Promise<AutomationStatus> { return automationRequest(`status/${encodeURIComponent(leadId)}`); }
 export async function retryLeadAutomation(leadId: string) { return automationRequest(`retry/${encodeURIComponent(leadId)}`, { method: 'POST' }); }
+
+export async function getSalesWorkQueue(leads: any[]): Promise<SalesWorkItem[]> {
+  const openLeads = leads.filter((lead) => !['Won', 'Lost'].includes(lead.status));
+  if (!openLeads.length) return [];
+  const ids = openLeads.map((lead) => String(lead.id));
+  const [tasksResult, appointmentsResult, estimatesResult, automationContext] = await Promise.all([
+    supabase.from('lead_tasks').select('lead_id,title,due_at,completed_at').in('lead_id', ids).is('completed_at', null).limit(250),
+    supabase.from('lead_appointments').select('lead_id,appointment_type,starts_at,status').in('lead_id', ids).gte('starts_at', new Date().toISOString()).order('starts_at', { ascending: true }).limit(100),
+    supabase.from('estimates').select('lead_id,created_at,status').in('lead_id', ids).not('lead_id', 'is', null).limit(100),
+    automationRequest('work-queue'),
+  ]);
+  failIf(tasksResult.error, 'Failed to load sales tasks'); failIf(appointmentsResult.error, 'Failed to load sales appointments'); failIf(estimatesResult.error, 'Failed to load estimate follow-up');
+  const tasks = tasksResult.data || []; const appointments = appointmentsResult.data || []; const estimates = estimatesResult.data || [];
+  const attention = new Map((automationContext.events || []).map((event: any) => [String(event.leadId), event]));
+  const now = Date.now(); const twoDays = now + 48 * 60 * 60 * 1000;
+  return openLeads.map((lead): SalesWorkItem | null => {
+    const leadId = String(lead.id); const leadTasks = tasks.filter((task: any) => String(task.lead_id) === leadId);
+    const overdue = leadTasks.filter((task: any) => task.due_at && new Date(task.due_at).getTime() < now).sort((a: any, b: any) => new Date(a.due_at).getTime() - new Date(b.due_at).getTime())[0];
+    const appointment = appointments.find((item: any) => String(item.lead_id) === leadId && new Date(item.starts_at).getTime() <= twoDays);
+    const hasEstimate = estimates.some((item: any) => String(item.lead_id) === leadId);
+    const automation = attention.get(leadId) as any;
+    const hot = ['Hot', 'Warm'].includes(lead.qualification_band); const uncontacted = !lead.first_responded_at && lead.status === 'New';
+    if (uncontacted) return { leadId, priority: 'Urgent', score: 130 + (hot ? 20 : 0), reason: hot ? `${lead.qualification_band} lead awaiting first contact` : 'New lead awaiting first contact', detail: 'Respond, assign an owner and set the next action.' };
+    if (overdue) return { leadId, priority: 'Urgent', score: 120, reason: `Overdue: ${overdue.title}`, detail: 'Complete or reschedule this follow-up.' };
+    if (automation) return { leadId, priority: 'Urgent', score: 110, reason: 'Follow-up delivery needs attention', detail: automation.lastError || 'Open the lead and retry its delivery.' };
+    if (hot && !lead.owner_user_id) return { leadId, priority: 'Today', score: 95, reason: `${lead.qualification_band} opportunity has no owner`, detail: 'Assign accountability before the opportunity goes cold.' };
+    if (appointment) return { leadId, priority: 'Today', score: 85, reason: `${appointment.appointment_type} coming up`, detail: new Intl.DateTimeFormat('en-CA', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'America/Regina' }).format(new Date(appointment.starts_at)) };
+    if (lead.status === 'Estimate' && !hasEstimate) return { leadId, priority: 'Today', score: 80, reason: 'Estimate stage without a linked estimate', detail: 'Create or link the estimate from this lead.' };
+    if (!leadTasks.length) return { leadId, priority: 'Next', score: 60 + (hot ? 10 : 0), reason: 'No next action scheduled', detail: 'Add the specific next step and due time.' };
+    return null;
+  }).filter((item): item is SalesWorkItem => Boolean(item)).sort((a, b) => b.score - a.score).slice(0, 12);
+}
 
 export async function getRevenueOperationalMetrics(): Promise<RevenueOperationalMetrics> {
   const monthStart = new Date();

@@ -2291,6 +2291,18 @@ app.get("/make-server-bcab437c/automations/status/:leadId", authMiddleware, asyn
   });
 });
 
+app.get("/make-server-bcab437c/automations/work-queue", authMiddleware, async (c) => {
+  if (!hasPermission(c.get("userRole"), "canEditCRM")) return c.json({ error: "Insufficient permissions" }, 403);
+  const { data, error } = await supabase
+    .from("automation_outbox")
+    .select("aggregate_id,status,last_error,created_at")
+    .in("status", ["pending", "failed"])
+    .order("created_at", { ascending: true })
+    .limit(100);
+  if (error) return c.json({ error: error.message }, 500);
+  return c.json({ events: (data || []).map((event: any) => ({ leadId: event.aggregate_id, status: event.status, lastError: event.last_error, createdAt: event.created_at })) });
+});
+
 app.post("/make-server-bcab437c/automations/retry", authMiddleware, async (c) => {
   if (!hasPermission(c.get("userRole"), "canEditCRM")) return c.json({ error: "Insufficient permissions" }, 403);
   const { error } = await supabase

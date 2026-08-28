@@ -25,6 +25,7 @@ import { Checkbox } from "./ui/checkbox";
 import { formatDateTime, formatDate, formatForInput } from "../src/lib/dateFormatter";
 import { SERVICE_TYPES } from "../src/constants/serviceTypes";
 import { RevenueOverview } from "./revenue/RevenueOverview";
+import { SalesWorkQueue } from "./revenue/SalesWorkQueue";
 import { addLeadActivity, openOrCreateEstimateFromLead } from "../src/features/revenue/api";
 
 export default function CRMModule({ onOpenEstimate }: { onOpenEstimate?: (estimateId: string) => void }) {
@@ -809,6 +810,7 @@ export default function CRMModule({ onOpenEstimate }: { onOpenEstimate?: (estima
       </div>
 
       <RevenueOverview leads={transformedLeads} onStage={(stage) => { setActiveTab('leads'); setFilters((prev) => ({ ...prev, selects: { ...prev.selects, status: stage } })); }} />
+      <SalesWorkQueue leads={transformedLeads} onOpenLead={setSelectedLead} />
 
       {/* Main Toggle: Leads vs Clients + Filters */}
       <div className="flex items-center justify-between gap-[12px] flex-wrap">

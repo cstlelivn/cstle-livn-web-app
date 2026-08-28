@@ -2,6 +2,16 @@
 
 ## Public Project Fit intake — August 27, 2026
 
+- CRM now opens with a compact `Today’s sales work` queue beneath the Revenue
+  Overview. It ranks at most 12 open opportunities by action risk: untouched
+  Hot/Warm leads, any new lead awaiting first contact, overdue lead tasks,
+  failed/pending delivery, unowned qualified opportunities, appointments in
+  the next 48 hours, estimate-stage records missing a linked estimate, then
+  leads with no next action. Each row explains the required action and opens
+  the existing lead dialog; it does not create a duplicate task or CRM flow.
+  Queue reads are bounded and happen only when CRM loads or relevant lead state
+  changes. A protected Edge endpoint exposes only pending/failed outbox lead
+  IDs and failure context to CRM editors. No new migration is required.
 - Lead-level delivery recovery now lives inside Sales Operations. Opening a
   lead performs one bounded status read for that lead's pending/failed outbox
   event; when attention is needed, the panel shows the actual failure and a
