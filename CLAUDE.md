@@ -2,6 +2,12 @@
 
 ## Public Project Fit intake — August 27, 2026
 
+- Hero cadence correction: the approved headline is intentionally rendered as
+  two fixed lines (`Plan the basement` / `that works for you.`) so `that` can
+  never hang at the end of the first line. Supporting copy was shortened to
+  avoid an orphaned `call.` and now ends `without the sales pressure.` The
+  redundant `Saskatchewan-based team` micro-proof was removed; only `About 2
+  minutes` and `Clear next steps` remain.
 - Homepage typography alignment: after direct screenshot comparison, the
   Project Fit hero now deliberately reuses the homepage `Install. Perfect.
   Finish.` display recipe exactly: Anybody width 137, weight 700, `#191919`,
