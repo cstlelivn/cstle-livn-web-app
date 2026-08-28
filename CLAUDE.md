@@ -55,6 +55,11 @@
   status control and resize affordances; destructive colour appears only on
   Delete interaction. This is a client-only UI change with no migration, Edge
   Function, polling or additional Supabase read pattern.
+- Customer `Last contact` timestamps must use a natural Regina-local label in
+  the table: `Today, 2:14 PM`, `Yesterday, 4:30 PM`, or a compact dated label
+  such as `Aug 24, 10:05 AM`. The exact Regina timestamp remains available as
+  hover text. Never expose a raw ISO/database timestamp in this human-facing
+  column. The shared formatter performs this locally and adds no data request.
 - The Estimating pipeline list now follows that same table standard through a
   dedicated `EstimateListView`. Estimate, Customer and Site address hold the
   primary flexible space; Progress, Status, Updated and the far-right Actions

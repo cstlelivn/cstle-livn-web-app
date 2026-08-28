@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Mail, Trash2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { formatDateTime, formatNaturalDateTime } from '../src/lib/dateFormatter';
 
 export function ClientListView({ clients, canViewFinance, onOpen, onDelete, onStatusChange }: { clients: any[]; canViewFinance: boolean; onOpen: (client: any) => void; onDelete: (client: any, event: React.MouseEvent) => void; onStatusChange: (client: any, status: string) => void }) {
   const [widths, setWidths] = useState(canViewFinance ? [240, 120, 110, 260, 150, 92] : [260, 130, 290, 160, 92]);
@@ -23,7 +24,7 @@ export function ClientListView({ clients, canViewFinance, onOpen, onDelete, onSt
       <div className="min-w-0" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}><Select value={client.status || 'Active'} onValueChange={(status) => onStatusChange(client, status)}><SelectTrigger className="h-8 w-full justify-start gap-2 overflow-hidden border-0 bg-[#eef1e3] px-2 text-left text-[10px] text-[#53602f] shadow-none [&>span]:truncate"><SelectValue /></SelectTrigger><SelectContent>{['Active','Past','On Hold','Lost'].map((status) => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent></Select></div>
       {canViewFinance && <p className="truncate text-[12px] font-semibold tabular-nums">${Number(client.totalSpent || 0).toLocaleString()}</p>}
       <div className="flex min-w-0 items-center gap-2"><Mail className="size-3.5 shrink-0 text-muted-foreground" /><span className="truncate text-[10px] text-muted-foreground">{client.email || 'Email not added'}</span></div>
-      <p className="truncate text-[10px] text-muted-foreground">{client.lastContact || 'Never'}</p>
+      <p className="truncate text-[10px] text-muted-foreground" title={client.lastContact ? `${formatDateTime(client.lastContact)} Regina time` : 'No contact recorded'}>{formatNaturalDateTime(client.lastContact)}</p>
       <div className="flex items-center justify-end gap-1 border-l border-black/[0.07] pl-2"><Button variant="ghost" size="sm" disabled={!client.email} onClick={(event) => { event.stopPropagation(); if (client.email) window.location.href = `mailto:${client.email}`; }} className="h-8 w-8 p-0" aria-label={`Email ${client.name}`}><Mail className="size-3.5" /></Button><Button variant="ghost" size="sm" onClick={(event) => onDelete(client, event)} className="h-8 w-8 p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" aria-label={`Delete ${client.name}`}><Trash2 className="size-3.5" /></Button></div>
     </div>)}
   </div>;

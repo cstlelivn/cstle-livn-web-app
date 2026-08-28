@@ -13,7 +13,7 @@
  */
 
 import { format, parseISO, isValid } from 'date-fns';
-import { formatDateInOrgTz, formatDateTimeInOrgTz, formatTimeInOrgTz } from './timezone';
+import { ORG_TIMEZONE, dayKeyInOrgTz, formatDateInOrgTz, formatDateTimeInOrgTz, formatTimeInOrgTz } from './timezone';
 
 /**
  * Standard date/time format for the entire application
@@ -128,6 +128,33 @@ export function formatTime(timestamp: string | Date | number | null | undefined)
  */
 export function formatNow(includeTime: boolean = true): string {
   return formatDateTime(new Date(), includeTime);
+}
+
+/**
+ * Compact human label for activity timestamps in Regina time.
+ * Examples: "Today, 2:14 PM", "Yesterday, 4:30 PM", "Aug 24, 10:05 AM".
+ */
+export function formatNaturalDateTime(timestamp: string | Date | number | null | undefined): string {
+  if (!timestamp) return 'Never';
+  const date = typeof timestamp === 'string' ? parseISO(timestamp) : timestamp instanceof Date ? timestamp : new Date(timestamp);
+  if (!isValid(date)) return 'Invalid date';
+
+  const now = new Date();
+  const today = dayKeyInOrgTz(now);
+  const yesterday = dayKeyInOrgTz(new Date(now.getTime() - 86_400_000));
+  const day = dayKeyInOrgTz(date);
+  const time = formatTimeInOrgTz(date);
+  if (day === today) return `Today, ${time}`;
+  if (day === yesterday) return `Yesterday, ${time}`;
+
+  const sameYear = day.slice(0, 4) === today.slice(0, 4);
+  const dateLabel = new Intl.DateTimeFormat('en-US', {
+    timeZone: ORG_TIMEZONE,
+    month: 'short',
+    day: 'numeric',
+    ...(sameYear ? {} : { year: 'numeric' as const }),
+  }).format(date);
+  return `${dateLabel}, ${time}`;
 }
 
 /**
