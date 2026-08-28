@@ -2,6 +2,16 @@
 
 ## Public Project Fit intake — August 27, 2026
 
+- Public Project Fit and general estimate forms now include one optional,
+  unchecked email-marketing choice using versioned wording. Submission never
+  requires marketing consent. The website stores the boolean, exact wording,
+  version, source page and client-recorded timestamp in the lead's existing
+  `qualification_answers`. Migration `20240059_marketing_consent_intake.sql`
+  updates the existing intake trigger so only an affirmative choice paired
+  with an email address becomes `express`; unchecked submissions retain the
+  existing `requested_estimate` service-response basis and six-month limit.
+  SMS remains unauthorized. Repository verification is complete; migration
+  `20240059` has not yet been confirmed live at the time of this entry.
 - Module 1 customer follow-up is deliberately CASL-aware. Migration
   `20240058_lead_communications.sql` adds a per-lead channel/contact-basis and
   opt-out record plus an auditable message ledger. Public Project Fit/general
