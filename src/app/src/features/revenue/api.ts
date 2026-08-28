@@ -71,6 +71,12 @@ export async function getLeadRelatedRecords(leadId: string): Promise<LeadRelated
   return { estimateId: data?.id || null, estimateName: data?.name || null, estimateStatus: data?.status || null, clientId: data?.client_id || null, projectId: data?.converted_project_id || null };
 }
 
+export async function listClientRelatedEstimates(clientId: string) {
+  const { data, error } = await supabase.from('estimates').select('id,name,status,site_address,converted_project_id,created_at').eq('client_id', clientId).order('created_at', { ascending: false }).limit(50);
+  failIf(error, 'Failed to load customer estimates');
+  return data || [];
+}
+
 export async function getRevenueOperationalMetrics(): Promise<RevenueOperationalMetrics> {
   const monthStart = new Date();
   monthStart.setUTCDate(1); monthStart.setUTCHours(0, 0, 0, 0);

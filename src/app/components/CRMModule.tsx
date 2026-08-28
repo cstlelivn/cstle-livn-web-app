@@ -1007,20 +1007,12 @@ export default function CRMModule({ onOpenEstimate, onOpenProject }: { onOpenEst
 
                   {/* Actions */}
                   <div className="flex items-center justify-end gap-[8px]">
-                    <Button variant="ghost" size="sm" style={{ fontSize: 'var(--text-small)' }}>
+                    <Button variant="ghost" size="sm" onClick={(event) => event.stopPropagation()} style={{ fontSize: 'var(--text-small)' }}>
                       <MessageSquare className="w-[14px] h-[14px] mr-[6px]" />
                       Message
                     </Button>
+                    <Button variant="ghost" size="sm" onClick={(event) => handleDeleteClient(client.id, client.name, event)} className="h-8 w-8 p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" aria-label={`Delete ${client.name}`}><Trash2 className="size-3.5" /></Button>
                   </div>
-
-                  {/* Delete button - appears on hover */}
-                  <button
-                    onClick={(e) => handleDeleteClient(client.id, client.name, e)}
-                    className="absolute right-[16px] top-1/2 -translate-y-1/2 p-[8px] rounded-[6px] bg-background border border-border hover:bg-destructive hover:border-destructive hover:text-white transition-colors opacity-0 group-hover:opacity-100"
-                    title="Delete client"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
                 </div>
               ))}
             </div>
@@ -1108,6 +1100,8 @@ export default function CRMModule({ onOpenEstimate, onOpenProject }: { onOpenEst
         isOpen={!!selectedClient}
         onClose={() => setSelectedClient(null)}
         onUpdateClient={handleUpdateClient}
+        onOpenEstimate={(estimateId) => { setSelectedClient(null); onOpenEstimate?.(estimateId); }}
+        onOpenProject={(projectId) => { setSelectedClient(null); onOpenProject?.(projectId); }}
       />
 
       {/* Add Client Dialog */}

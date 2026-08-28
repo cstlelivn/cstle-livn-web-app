@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { 
   Dialog, 
   DialogContent, 
@@ -28,12 +28,15 @@ import {
   TrendingUp,
   User,
   MessageCircle,
-  HardDrive
+  HardDrive,
+  ScrollText,
+  ArrowUpRight
 } from "lucide-react";
 import { toast } from "sonner";
 import { useApp } from "./AppContext";
 import GoogleDriveIntegration, { GoogleDriveFile } from "./GoogleDriveIntegration";
 import { formatDate } from "../src/lib/dates";
+import { listClientRelatedEstimates } from "../src/features/revenue/api";
 
 // Helper function to clean phone numbers
 function encodeTel(raw: string) {
@@ -46,6 +49,8 @@ interface ClientDetailsDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onUpdateClient?: (id: number, updates: any) => void;
+  onOpenEstimate?: (estimateId: string) => void;
+  onOpenProject?: (projectId: string) => void;
 }
 
 export default function ClientDetailsDialog({
@@ -53,10 +58,14 @@ export default function ClientDetailsDialog({
   isOpen,
   onClose,
   onUpdateClient,
+  onOpenEstimate,
+  onOpenProject,
 }: ClientDetailsDialogProps) {
   const { projects } = useApp();
   const [isEditMode, setIsEditMode] = useState(false);
   const [editedClient, setEditedClient] = useState<any>(null);
+  const [clientEstimates, setClientEstimates] = useState<any[]>([]);
+  useEffect(() => { let active = true; if (!client?.id || !isOpen) { setClientEstimates([]); return; } listClientRelatedEstimates(String(client.id)).then((rows) => active && setClientEstimates(rows)).catch(() => active && setClientEstimates([])); return () => { active = false; }; }, [client?.id, isOpen]);
 
   // Early return AFTER all hooks have been called
   if (!client) {
@@ -71,9 +80,7 @@ export default function ClientDetailsDialog({
   const name = (displayClient.name ?? "").trim();
 
   // Get projects associated with this client
-  const clientProjects = projects.filter(p => 
-    p.client.toLowerCase() === client.name.toLowerCase()
-  );
+  const clientProjects = projects.filter((project: any) => String(project.clientId || '') === String(client.id) || String(project.client || '').toLowerCase() === String(client.name || '').toLowerCase());
 
   const handleEnterEditMode = () => {
     setEditedClient({ ...client });
@@ -289,12 +296,13 @@ export default function ClientDetailsDialog({
         </Card>
 
         <Tabs defaultValue="overview" className="mt-6">
-          <TabsList 
-            className="grid w-full grid-cols-3" 
+          <TabsList
+            className="grid w-full grid-cols-4"
             style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-label)' }}
           >
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="projects">Projects ({clientProjects.length})</TabsTrigger>
+            <TabsTrigger value="estimates">Estimates ({clientEstimates.length})</TabsTrigger>
             <TabsTrigger value="google-drive">
               <HardDrive className="w-4 h-4 mr-2" />
               Google Drive
@@ -554,7 +562,7 @@ export default function ClientDetailsDialog({
                 </Card>
               ) : (
                 clientProjects.map((project) => (
-                  <Card key={project.id} className="p-4">
+                  <Card key={project.id} role="button" tabIndex={0} onClick={() => onOpenProject?.(String(project.id))} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') onOpenProject?.(String(project.id)); }} className="cursor-pointer p-4 transition-[transform,box-shadow] hover:-translate-y-px hover:shadow-[0_12px_28px_rgba(25,25,25,0.08)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#65733d]">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <h4 
@@ -592,7 +600,9 @@ export default function ClientDetailsDialog({
                           </div>
                         </div>
                       </div>
-                      <div className="text-right">
+                      <div className="flex items-start gap-3 text-right">
+                        <Button variant="outline" size="sm" onClick={(event) => { event.stopPropagation(); onOpenProject?.(String(project.id)); }}>Open <ArrowUpRight className="ml-1 size-3.5" /></Button>
+                        <div>
                         <p 
                           className="text-muted-foreground uppercase mb-1" 
                           style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-label)' }}
@@ -602,12 +612,17 @@ export default function ClientDetailsDialog({
                         <p style={{ fontFamily: 'var(--font-family-heading)', fontSize: 'var(--text-h2)', fontVariationSettings: "'wdth' 137", fontWeight: 700 }}>
                           {project.progress}%
                         </p>
+                        </div>
                       </div>
                     </div>
                   </Card>
                 ))
               )}
             </div>
+          </TabsContent>
+
+          <TabsContent value="estimates" className="mt-6">
+            <div className="space-y-2">{clientEstimates.length === 0 ? <Card className="p-10 text-center"><ScrollText className="mx-auto mb-3 size-9 text-muted-foreground" /><p className="text-sm text-muted-foreground">No estimates found for this customer.</p></Card> : clientEstimates.map((estimate) => <button key={estimate.id} type="button" onClick={() => onOpenEstimate?.(String(estimate.id))} className="grid w-full grid-cols-[1fr_auto] items-center gap-4 rounded-[12px] border border-black/[0.07] bg-card p-3 text-left transition-colors hover:bg-[#f7f8f2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#65733d]"><span className="min-w-0"><span className="block truncate text-sm font-semibold">{estimate.name}</span><span className="mt-1 block truncate text-[10px] text-muted-foreground">{estimate.site_address || 'Address not added'} · {String(estimate.status).replace(/_/g, ' ')}</span></span><span className="flex items-center gap-2 text-[10px] font-semibold uppercase text-[#53602f]">Open estimate <ArrowUpRight className="size-3.5" /></span></button>)}</div>
           </TabsContent>
 
           {/* GOOGLE DRIVE TAB */}

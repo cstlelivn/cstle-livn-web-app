@@ -35,6 +35,15 @@
   dropdown starts on the same vertical line. Resize handles have a quiet olive
   affordance, including the Contact/Actions boundary; dragging that boundary
   changes the action allocation while the rail remains anchored to the edge.
+- Client/customer navigation now follows the related-record rule. The customer
+  dialog matches projects by UUID first (with legacy name fallback), makes the
+  whole project card keyboard/click navigable, and includes an explicit Open
+  action. A new Estimates tab loads the customer's real estimate rows by
+  `client_id`; each row opens that exact estimate in the existing Estimating
+  workspace. Both routes close the customer modal before changing workspaces.
+  In the client list, Delete is no longer an absolute hover control layered over
+  Message; both occupy the trailing action column and stop the row-open event.
+  This batch is navigation/UI only and needs no migration or Edge deployment.
 - CRM is now the benchmark for a broader human-navigation standard. Lead list
   rows open from the complete row by mouse or keyboard rather than requiring a
   tiny `View` target. Desktop uses one stable seven-column grid (selection,
