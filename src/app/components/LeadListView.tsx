@@ -29,8 +29,8 @@ export default function LeadListView({
   onToggleSelectAll,
   onStatusChange,
 }: LeadListViewProps) {
-  const [columnWidths, setColumnWidths] = useState([40, 190, 250, 130, 92, 230, 84]);
-  const columnTemplate = columnWidths.map((width) => `${width}px`).join(' ');
+  const [columnWidths, setColumnWidths] = useState([40, 210, 180, 160, 92, 250, 84]);
+  const columnTemplate = `${columnWidths[0]}px minmax(${columnWidths[1]}px,1.35fr) minmax(${columnWidths[2]}px,0.9fr) ${columnWidths[3]}px ${columnWidths[4]}px minmax(${columnWidths[5]}px,1.5fr) ${columnWidths[6]}px`;
   const tableWidth = columnWidths.reduce((sum, width) => sum + width, 0) + 96;
   const startResize = (index: number, event: React.PointerEvent<HTMLButtonElement>) => {
     event.preventDefault(); event.stopPropagation();
@@ -53,7 +53,7 @@ export default function LeadListView({
             hidden under md rather than silently clipping the Source/
             Contact/Actions columns off-screen (the previous bug: this
             container had overflow-hidden with no way to scroll to them). */}
-        <div className="hidden md:grid gap-4 border-b border-black/[0.07] bg-[#f4f5ef] px-4 py-2.5" style={{ gridTemplateColumns: columnTemplate, width: `max(100%, ${tableWidth}px)` }}>
+        <div className="hidden w-full md:grid gap-4 border-b border-black/[0.07] bg-[#f4f5ef] px-4 py-2.5" style={{ gridTemplateColumns: columnTemplate, minWidth: tableWidth }}>
           <div className="flex items-center justify-center">
             {onToggleSelectAll && (
               <Checkbox
@@ -63,7 +63,7 @@ export default function LeadListView({
               />
             )}
           </div>
-          {['Name','Project','Status','Value','Contact'].map((label, offset) => <div key={label} className="relative min-w-0"><p className="truncate text-muted-foreground uppercase tracking-wide" style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-label)', fontWeight: 'var(--font-weight-bold)' }}>{label}</p><button type="button" onPointerDown={(event) => startResize(offset + 1, event)} className="absolute -right-2 top-1/2 h-7 w-3 -translate-y-1/2 cursor-col-resize touch-none rounded-full opacity-0 transition-opacity hover:bg-[#65733d]/15 group-hover:opacity-100 focus:opacity-100" aria-label={`Resize ${label} column`} /></div>)}
+          {['Name','Project','Status','Value','Contact'].map((label, offset) => <div key={label} className="relative min-w-0"><p className="truncate text-muted-foreground uppercase tracking-wide" style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-label)', fontWeight: 'var(--font-weight-bold)' }}>{label}</p><button type="button" onPointerDown={(event) => startResize(offset + 1, event)} className="absolute -right-2 top-1/2 h-7 w-3 -translate-y-1/2 cursor-col-resize touch-none rounded-full bg-[#65733d]/10 opacity-30 transition-opacity hover:opacity-100 focus:opacity-100" aria-label={`Resize ${label} column`} /></div>)}
           <p className="text-muted-foreground uppercase tracking-wide text-right" style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-label)', fontWeight: 'var(--font-weight-bold)' }}>Actions</p>
         </div>
 
@@ -76,7 +76,7 @@ export default function LeadListView({
             onClick={() => onLeadClick(lead)}
             onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onLeadClick(lead); } }}
             className="group hidden cursor-pointer md:grid items-center gap-4 border-b border-black/[0.055] px-4 py-2.5 transition-[background-color,box-shadow] hover:bg-[#f7f8f2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#65733d] last:border-b-0"
-            style={{ gridTemplateColumns: columnTemplate, width: `max(100%, ${tableWidth}px)` }}
+            style={{ gridTemplateColumns: columnTemplate, minWidth: tableWidth, width: '100%' }}
           >
             {/* Checkbox */}
             <div className="flex items-center justify-center">
@@ -97,7 +97,7 @@ export default function LeadListView({
             <div className="min-w-0"><p className="truncate text-[12px] font-medium text-[#191919]/85">{lead.service_type || lead.project_type || lead.interest || 'Project not specified'}</p><p className="mt-0.5 flex min-w-0 items-center gap-1 text-[10px] text-muted-foreground"><MapPin className="size-3 shrink-0" /><span className="truncate">{lead.project_address || lead.address || lead.city || 'Address not added'}</span></p></div>
 
             {/* Status */}
-            <div onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>{onStatusChange ? <Select value={lead.status} onValueChange={(status) => onStatusChange(lead, status)}><SelectTrigger className={`h-8 w-full border-0 px-2 text-[10px] shadow-none ${getStatusColor(lead.status)}`}><SelectValue /></SelectTrigger><SelectContent>{['New','Contacted','Qualified','Consultation Booked','Site Visit','Estimate','Won','Lost'].map((status) => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent></Select> : <Badge className={getStatusColor(lead.status)} style={{ fontSize: 'var(--text-small)' }}>{lead.status}</Badge>}</div>
+            <div className="min-w-0" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>{onStatusChange ? <Select value={lead.status} onValueChange={(status) => onStatusChange(lead, status)}><SelectTrigger className={`h-8 w-full justify-start gap-2 overflow-hidden border-0 px-2 text-left text-[10px] shadow-none [&>span]:truncate ${getStatusColor(lead.status)}`}><SelectValue /></SelectTrigger><SelectContent>{['New','Contacted','Qualified','Consultation Booked','Site Visit','Estimate','Won','Lost'].map((status) => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent></Select> : <Badge className={getStatusColor(lead.status)} style={{ fontSize: 'var(--text-small)' }}>{lead.status}</Badge>}</div>
 
             {/* Value */}
             <p style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-base)', fontWeight: 'var(--font-weight-bold)' }}>${(lead.value / 1000).toFixed(0)}k</p>

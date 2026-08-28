@@ -25,6 +25,16 @@
   lead; every other part of the row does. Extend this implementation pattern to
   client/project/estimate/finance tables during their navigation passes rather
   than producing isolated table styles.
+- Lead-table distribution correction after live user review: a purely fixed
+  pixel template left unused space after the Actions rail on wide screens.
+  Actions must always terminate at the table's far-right edge. The reference
+  template now fills 100% of the container: Name and Contact receive the
+  largest flexible shares, Project receives a smaller flexible share, and
+  Status/Value/selection/Actions remain concise. Status is a single 160px
+  column with identical left padding and truncation for long stages, so every
+  dropdown starts on the same vertical line. Resize handles have a quiet olive
+  affordance, including the Contact/Actions boundary; dragging that boundary
+  changes the action allocation while the rail remains anchored to the edge.
 - CRM is now the benchmark for a broader human-navigation standard. Lead list
   rows open from the complete row by mouse or keyboard rather than requiring a
   tiny `View` target. Desktop uses one stable seven-column grid (selection,
