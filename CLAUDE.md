@@ -11,7 +11,11 @@
   the existing lead dialog; it does not create a duplicate task or CRM flow.
   Queue reads are bounded and happen only when CRM loads or relevant lead state
   changes. A protected Edge endpoint exposes only pending/failed outbox lead
-  IDs and failure context to CRM editors. No new migration is required.
+  IDs and failure context to CRM editors. No new migration is required. Commit
+  `fdaa4c3` is deployed: production serves a bundle containing the queue copy,
+  and Supabase reports `make-server-bcab437c` ACTIVE at version 75. The final
+  authenticated browser render timed out during navigation, so role-session
+  visual QA remains a follow-up rather than being overstated here.
 - Lead-level delivery recovery now lives inside Sales Operations. Opening a
   lead performs one bounded status read for that lead's pending/failed outbox
   event; when attention is needed, the panel shows the actual failure and a
