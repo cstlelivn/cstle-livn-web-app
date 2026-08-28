@@ -10,8 +10,10 @@
   retry another customer's event or the entire queue. The communication card
   also translates `express` into the human label `Marketing permission
   recorded`. This adds no scheduler or recurring background work. Frontend and
-  Edge Function code are verified locally; production deployment state is
-  recorded separately below.
+  Edge Function code passed scoped TypeScript, production build, mirror and
+  diff checks. Commit `da830e2` is live: `admin.cstle.ca` serves its matching
+  `index-Cjo1I5d4.js` bundle and Supabase reports `make-server-bcab437c`
+  ACTIVE at version 74.
 - Public Project Fit and general estimate forms now include one optional,
   unchecked email-marketing choice using versioned wording. Submission never
   requires marketing consent. The website stores the boolean, exact wording,
