@@ -199,6 +199,13 @@
   Initial live QA caught an import-name collision between the Supabase client
   factory and the CRM client-record creator (`createClient`) before either
   record was written. Both are now explicitly aliased; keep those distinct.
+  After the alias repair deployed, the labelled internal test lead completed
+  the full handoff: one linked client and one linked estimate were created, the
+  lead moved from Qualified to Estimate, and Cstle opened the existing
+  eight-step estimator directly at Site Capture. The estimate was explicitly
+  renamed `SYSTEM TEST — DO NOT CONTACT — Basement Development`; it is a test
+  artifact, not a customer project. Reopening from the lead must reuse this
+  estimate rather than create another.
 
 - The recurring `invalid input syntax for type uuid: "1"` project-phase error
   came from `RecentTasksWidget.tsx`, which passed a fake numeric project ID of
