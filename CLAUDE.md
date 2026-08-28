@@ -44,6 +44,17 @@
   In the client list, Delete is no longer an absolute hover control layered over
   Message; both occupy the trailing action column and stop the row-open event.
   This batch is navigation/UI only and needs no migration or Edge deployment.
+- The customer list now uses the same compact, resizable business-table system
+  as Leads rather than its former fixed-width grid. Name and Contact receive
+  the flexible space; Status, Value, Last contact and Actions stay concise and
+  aligned; the action rail terminates at the far-right edge without dead space.
+  The full row opens the customer by mouse or keyboard, while Status updates
+  inline and Email/Delete remain direct actions that do not trigger row
+  navigation. Column drag handles redistribute space between neighbours and
+  preserve the total table width. The olive treatment is reserved for the safe
+  status control and resize affordances; destructive colour appears only on
+  Delete interaction. This is a client-only UI change with no migration, Edge
+  Function, polling or additional Supabase read pattern.
 - CRM is now the benchmark for a broader human-navigation standard. Lead list
   rows open from the complete row by mouse or keyboard rather than requiring a
   tiny `View` target. Desktop uses one stable seven-column grid (selection,

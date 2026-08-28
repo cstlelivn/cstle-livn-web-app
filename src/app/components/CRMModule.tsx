@@ -20,6 +20,7 @@ import LeadDetailsDialog from "./LeadDetailsDialog";
 import ClientDialog from "./ClientDialog";
 import ClientDetailsDialog from "./ClientDetailsDialog";
 import LeadListView from "./LeadListView";
+import { ClientListView } from "./ClientListView";
 import BulkCampaignDialog from "./BulkCampaignDialog";
 import { Checkbox } from "./ui/checkbox";
 import { formatDateTime, formatDate, formatForInput } from "../src/lib/dateFormatter";
@@ -963,59 +964,7 @@ export default function CRMModule({ onOpenEstimate, onOpenProject }: { onOpenEst
               </Button>
             </Card>
           ) : viewMode === "list" ? (
-            <div className="border border-border rounded-[var(--radius)] overflow-hidden bg-card">
-              {/* Compact List Header */}
-              <div className={`grid ${canViewFinance ? 'grid-cols-[200px_100px_140px_200px_1fr_120px]' : 'grid-cols-[200px_100px_200px_1fr_120px]'} gap-[16px] px-[16px] py-[14px] bg-secondary/50 border-b border-border`}>
-                <p className="text-muted-foreground uppercase tracking-wide" style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-label)', fontWeight: 'var(--font-weight-bold)' }}>Name</p>
-                <p className="text-muted-foreground uppercase tracking-wide" style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-label)', fontWeight: 'var(--font-weight-bold)' }}>Status</p>
-                {canViewFinance && (
-                  <p className="text-muted-foreground uppercase tracking-wide" style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-label)', fontWeight: 'var(--font-weight-bold)' }}>Total Value</p>
-                )}
-                <p className="text-muted-foreground uppercase tracking-wide" style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-label)', fontWeight: 'var(--font-weight-bold)' }}>Contact</p>
-                <p className="text-muted-foreground uppercase tracking-wide" style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-label)', fontWeight: 'var(--font-weight-bold)' }}>Last Contact</p>
-                <p className="text-muted-foreground uppercase tracking-wide text-right" style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-label)', fontWeight: 'var(--font-weight-bold)' }}>Actions</p>
-              </div>
-
-              {/* Compact List Rows */}
-              {filteredClients.map((client) => (
-                <div
-                  key={client.id}
-                  className={`relative group grid ${canViewFinance ? 'grid-cols-[200px_100px_140px_200px_1fr_120px]' : 'grid-cols-[200px_100px_200px_1fr_120px]'} gap-[16px] px-[16px] py-[14px] border-b border-border/50 hover:bg-accent/5 transition-colors items-center cursor-pointer last:border-b-0`}
-                  onClick={() => setSelectedClient(client)}
-                >
-                  {/* Name */}
-                  <p className="truncate" style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-base)', fontWeight: 'var(--font-weight-medium)' }}>{client.name}</p>
-
-                  {/* Status */}
-                  <Badge className="bg-primary/10 text-primary" style={{ fontSize: 'var(--text-small)' }}>
-                    {client.status}
-                  </Badge>
-
-                  {/* Total Value */}
-                  {canViewFinance && (
-                    <p style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-base)', fontWeight: 'var(--font-weight-bold)' }}>${(client.totalSpent / 1000).toFixed(0)}k</p>
-                  )}
-
-                  {/* Contact */}
-                  <div className="flex items-center gap-[8px]">
-                    <Mail className="w-[14px] h-[14px] text-muted-foreground shrink-0" />
-                    <span className="text-muted-foreground truncate" style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-label)', fontWeight: 'var(--font-weight-normal)' }}>{client.email}</span>
-                  </div>
-
-                  {/* Last Contact */}
-                  <p className="text-muted-foreground" style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-label)', fontWeight: 'var(--font-weight-normal)' }}>{client.lastContact}</p>
-
-                  {/* Actions */}
-                  <div className="flex items-center justify-end gap-[8px]">
-                    <Button variant="ghost" size="sm" onClick={(event) => event.stopPropagation()} style={{ fontSize: 'var(--text-small)' }}>
-                      <MessageSquare className="w-[14px] h-[14px] mr-[6px]" />
-                      Message
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={(event) => handleDeleteClient(client.id, client.name, event)} className="h-8 w-8 p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" aria-label={`Delete ${client.name}`}><Trash2 className="size-3.5" /></Button>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <ClientListView clients={filteredClients} canViewFinance={canViewFinance} onOpen={setSelectedClient} onDelete={(client, event) => handleDeleteClient(client.id, client.name, event)} onStatusChange={(client, status) => handleUpdateClient(client.id, { status })} />
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {filteredClients.map((client) => (
