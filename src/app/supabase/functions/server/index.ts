@@ -2195,12 +2195,14 @@ function hasServiceRoleClaim(token?: string) {
   }
 }
 
-async function processAutomationQueue(limit: number) {
-  const { data: candidates, error: candidateError } = await supabase
+async function processAutomationQueue(limit: number, aggregateId?: string) {
+  let candidateQuery = supabase
     .from("automation_outbox")
     .select("id,event_type,aggregate_id,payload,attempt_count")
     .in("status", ["pending", "failed"])
-    .lte("available_at", new Date().toISOString())
+    .lte("available_at", new Date().toISOString());
+  if (aggregateId) candidateQuery = candidateQuery.eq("aggregate_id", aggregateId);
+  const { data: candidates, error: candidateError } = await candidateQuery
     .order("created_at", { ascending: true })
     .limit(limit);
   if (candidateError) throw candidateError;
@@ -2269,6 +2271,26 @@ app.get("/make-server-bcab437c/automations/status", authMiddleware, async (c) =>
   });
 });
 
+app.get("/make-server-bcab437c/automations/status/:leadId", authMiddleware, async (c) => {
+  if (!hasPermission(c.get("userRole"), "canEditCRM")) return c.json({ error: "Insufficient permissions" }, 403);
+  const leadId = c.req.param("leadId");
+  const { data, error } = await supabase
+    .from("automation_outbox")
+    .select("id,status,last_error,created_at,available_at")
+    .eq("aggregate_id", leadId)
+    .in("status", ["pending", "failed"])
+    .order("created_at", { ascending: true })
+    .limit(10);
+  if (error) return c.json({ error: error.message }, 500);
+  const events = data || [];
+  return c.json({
+    attentionCount: events.length,
+    failedCount: events.filter((event: any) => event.status === "failed").length,
+    oldestCreatedAt: events[0]?.created_at || null,
+    lastError: events.find((event: any) => event.last_error)?.last_error || null,
+  });
+});
+
 app.post("/make-server-bcab437c/automations/retry", authMiddleware, async (c) => {
   if (!hasPermission(c.get("userRole"), "canEditCRM")) return c.json({ error: "Insufficient permissions" }, 403);
   const { error } = await supabase
@@ -2280,6 +2302,22 @@ app.post("/make-server-bcab437c/automations/retry", authMiddleware, async (c) =>
     return c.json(await processAutomationQueue(25));
   } catch (processError: any) {
     return c.json({ error: processError?.message || "Automation retry failed" }, 500);
+  }
+});
+
+app.post("/make-server-bcab437c/automations/retry/:leadId", authMiddleware, async (c) => {
+  if (!hasPermission(c.get("userRole"), "canEditCRM")) return c.json({ error: "Insufficient permissions" }, 403);
+  const leadId = c.req.param("leadId");
+  const { error } = await supabase
+    .from("automation_outbox")
+    .update({ status: "pending", available_at: new Date().toISOString(), last_error: null })
+    .eq("aggregate_id", leadId)
+    .in("status", ["pending", "failed"]);
+  if (error) return c.json({ error: error.message }, 500);
+  try {
+    return c.json(await processAutomationQueue(1, leadId));
+  } catch (processError: any) {
+    return c.json({ error: processError?.message || "Lead automation retry failed" }, 500);
   }
 });
 

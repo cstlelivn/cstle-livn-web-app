@@ -28,6 +28,8 @@ async function automationRequest(path: string, init?: RequestInit) {
 
 export async function getAutomationStatus(): Promise<AutomationStatus> { return automationRequest('status'); }
 export async function retryLeadAutomations() { return automationRequest('retry', { method: 'POST' }); }
+export async function getLeadAutomationStatus(leadId: string): Promise<AutomationStatus> { return automationRequest(`status/${encodeURIComponent(leadId)}`); }
+export async function retryLeadAutomation(leadId: string) { return automationRequest(`retry/${encodeURIComponent(leadId)}`, { method: 'POST' }); }
 
 export async function getRevenueOperationalMetrics(): Promise<RevenueOperationalMetrics> {
   const monthStart = new Date();

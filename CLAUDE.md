@@ -2,6 +2,16 @@
 
 ## Public Project Fit intake — August 27, 2026
 
+- Lead-level delivery recovery now lives inside Sales Operations. Opening a
+  lead performs one bounded status read for that lead's pending/failed outbox
+  event; when attention is needed, the panel shows the actual failure and a
+  `Retry this lead` action. The protected Edge routes filter by that exact lead
+  ID before resetting or processing anything, so the action cannot silently
+  retry another customer's event or the entire queue. The communication card
+  also translates `express` into the human label `Marketing permission
+  recorded`. This adds no scheduler or recurring background work. Frontend and
+  Edge Function code are verified locally; production deployment state is
+  recorded separately below.
 - Public Project Fit and general estimate forms now include one optional,
   unchecked email-marketing choice using versioned wording. Submission never
   requires marketing consent. The website stores the boolean, exact wording,
