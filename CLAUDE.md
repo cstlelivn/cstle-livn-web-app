@@ -2,6 +2,13 @@
 
 ## Public Project Fit intake — August 27, 2026
 
+- Full-page hierarchy correction: a stale page-level CSS rule was still forcing
+  steps 2–4 form prompts to 32px on desktop, despite the refined step-1 utility
+  classes. All four prompts now share the intended 21/22/24px, weight-650,
+  90%-ink secondary hierarchy and all context labels use the subdued numbered
+  9px mono pattern. The three-column `What happens next` explainer is quieter
+  and better fitted to its narrow columns: concise 12px Anybody at weight 500 and
+  70% ink, 9px mono titles, restrained column dividers, and a section rule.
 - Form hierarchy refinement: the first Project Fit question, `What should this
   basement do for you?`, is a secondary 21–24px prompt at weight 650 and 90%
   ink—not another display headline. Its subdued 9px numbered context label
