@@ -18,8 +18,17 @@
   `AUTOMATION_WEBHOOK_URL`, `AUTOMATION_WEBHOOK_SECRET`. The webhook payload
   advertises available email/SMS channels, but customer email/SMS delivery is
   intentionally delegated to the configured adapter so providers remain
-  replaceable. This Edge Function change is repository-only until manually
-  deployed and scheduled; a git push does not deploy it.
+  replaceable. A git push does not deploy this Edge Function; see the
+  production activation update below for its current deployment state.
+- Production activation update: commit `fd7ba9e` was deployed manually with
+  Supabase CLI to project `mlxsfhdzlcxtvqeshgjx` on August 27, 2026. Existing
+  `RESEND_API_KEY` was preserved; `AUTOMATION_WORKER_SECRET` and
+  `LEAD_NOTIFICATION_EMAIL=info@cstlelivn.ca` are configured. A live request
+  with valid Supabase anonymous authorization but no worker secret reaches the
+  new route and returns the worker's own `401 {"error":"Unauthorized"}`,
+  confirming the new code is deployed and the machine-to-machine guard is
+  active. The worker is **not scheduled yet** and no real queue event was
+  processed during verification.
 - Full-page hierarchy correction: a stale page-level CSS rule was still forcing
   steps 2–4 form prompts to 32px on desktop, despite the refined step-1 utility
   classes. All four prompts now share the intended 21/22/24px, weight-650,
