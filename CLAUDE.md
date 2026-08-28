@@ -20,7 +20,12 @@
   is the reusable pattern to extend to client, estimate, project and finance
   records: when displayed information names another real Cstle record, provide
   an in-context destination rather than forcing manual navigation. No migration
-  or Edge Function change is required for this batch.
+  or Edge Function change is required for this batch. Commit `3421ba8` is live;
+  production serves the matching `index-DE5dGFbW.js` bundle containing the
+  related-record bridge and stable project/address column fallbacks. The
+  authenticated Chrome navigation session timed out twice before a visual
+  screenshot could be captured, so the live bundle is verified but final
+  signed-in visual QA remains explicit follow-up.
 - CRM now opens with a compact `Today’s sales work` queue beneath the Revenue
   Overview. It ranks at most 12 open opportunities by action risk: untouched
   Hot/Warm leads, any new lead awaiting first contact, overdue lead tasks,
