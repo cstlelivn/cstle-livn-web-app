@@ -126,6 +126,15 @@
 
 ## Revenue OS foundation — August 26, 2026 (repository only; migration not run)
 
+- Revenue measurement now uses the deployed Revenue OS and estimating tables
+  directly on CRM open: qualified leads MTD, average first-response time MTD,
+  appointments MTD, estimates MTD, open pipeline value, won revenue, close
+  rate, and CAC MTD. CAC appears only when `ad_spend_daily` contains spend; it
+  reports `Pending wins` rather than dividing by zero when spend exists before
+  the first won lead. These are compact, responsive cards and perform three
+  bounded reads when CRM loads or its lead count changes. There is no polling,
+  Realtime subscription, Cron, or background usage added by this dashboard.
+
 - The Saskatchewan Revenue OS is being added around the existing CRM,
   estimating, and estimate-to-project conversion flows rather than creating a
   second sales system. Cstle remains the source of truth; external ad,

@@ -7,6 +7,7 @@ export interface LeadActivity { id: string; activity_type: string; summary: stri
 export interface LeadTask { id: string; title: string; task_type: string; assigned_to: string | null; due_at: string | null; completed_at: string | null; }
 export interface LeadAppointment { id: string; appointment_type: string; status: string; starts_at: string; location: string | null; assigned_to: string | null; }
 export interface AutomationStatus { attentionCount: number; failedCount: number; oldestCreatedAt: string | null; lastError: string | null; }
+export interface RevenueOperationalMetrics { appointmentsMtd: number; estimatesMtd: number; adSpendCentsMtd: number; }
 
 async function automationRequest(path: string, init?: RequestInit) {
   const { data: { session } } = await supabase.auth.getSession();
@@ -22,6 +23,25 @@ async function automationRequest(path: string, init?: RequestInit) {
 
 export async function getAutomationStatus(): Promise<AutomationStatus> { return automationRequest('status'); }
 export async function retryLeadAutomations() { return automationRequest('retry', { method: 'POST' }); }
+
+export async function getRevenueOperationalMetrics(): Promise<RevenueOperationalMetrics> {
+  const monthStart = new Date();
+  monthStart.setUTCDate(1); monthStart.setUTCHours(0, 0, 0, 0);
+  const dateOnly = monthStart.toISOString().slice(0, 10);
+  const [appointments, estimates, spend] = await Promise.all([
+    supabase.from('lead_appointments').select('id', { count: 'exact', head: true }).gte('created_at', monthStart.toISOString()),
+    supabase.from('estimates').select('id', { count: 'exact', head: true }).gte('created_at', monthStart.toISOString()),
+    supabase.from('ad_spend_daily').select('spend_cents').gte('spend_date', dateOnly),
+  ]);
+  failIf(appointments.error, 'Failed to load appointment KPI');
+  failIf(estimates.error, 'Failed to load estimate KPI');
+  failIf(spend.error, 'Failed to load acquisition KPI');
+  return {
+    appointmentsMtd: appointments.count || 0,
+    estimatesMtd: estimates.count || 0,
+    adSpendCentsMtd: (spend.data || []).reduce((sum, row: any) => sum + Number(row.spend_cents || 0), 0),
+  };
+}
 
 export async function listLeadOperations(leadId: string) {
   const [activityResult, taskResult, appointmentResult] = await Promise.all([
