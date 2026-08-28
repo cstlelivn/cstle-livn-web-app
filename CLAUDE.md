@@ -47,6 +47,15 @@
   when CRM loads or its lead count changes; there is no timer, Cron, or idle
   polling. This keeps failures visible and recoverable while preserving the
   Free-plan event-driven design.
+- Production verification completed August 27: Edge Function deployment and
+  frontend commit `a6dbc52` are live. The CRM warning correctly surfaced the
+  deliberately queued `SYSTEM TEST — DO NOT CONTACT` event; `Retry now`
+  delivered it through the configured internal email adapter, cleared the
+  warning, changed the outbox row to `delivered` with one attempt, and wrote
+  exactly one `automation_delivered` activity. The test used no real customer
+  contact details. The Database Webhook service-role correction is deployed;
+  the next new Project Fit submission is expected to process immediately with
+  one event-triggered invocation and no idle usage.
 - Full-page hierarchy correction: a stale page-level CSS rule was still forcing
   steps 2–4 form prompts to 32px on desktop, despite the refined step-1 utility
   classes. All four prompts now share the intended 21/22/24px, weight-650,
