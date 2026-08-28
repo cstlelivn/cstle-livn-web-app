@@ -462,6 +462,13 @@ export default function CRMModule() {
     created_at: lead.created_at,
     first_responded_at: (lead as any).first_responded_at,
     won_at: (lead as any).won_at,
+    utm_source: (lead as any).utm_source,
+    utm_medium: (lead as any).utm_medium,
+    utm_campaign: (lead as any).utm_campaign,
+    gclid: (lead as any).gclid,
+    fbclid: (lead as any).fbclid,
+    landing_page: (lead as any).landing_page,
+    referrer: (lead as any).referrer,
     city: (lead as any).city,
     notes: lead.internal_notes || lead.notes, // Admin internal notes (prefer internal_notes)
     internal_notes: lead.internal_notes, // Admin-only internal notes

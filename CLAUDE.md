@@ -138,6 +138,12 @@
   `created_at`, `first_responded_at`, and `won_at`; those timestamps now reach
   the KPI component, so MTD qualification, response-time, and CAC denominators
   reflect the stored lead records rather than incorrectly reading as zero.
+- Module 1 acquisition reporting now groups current-month leads by captured
+  source and campaign, with gclid/fbclid fallbacks for Google/Meta traffic, and
+  shows leads, qualified opportunities, wins, attributed revenue, CPL and CAC.
+  Spend is matched from existing `ad_spend_daily` rows; absent spend remains an
+  honest dash rather than a fabricated zero. This reuses the same three bounded
+  CRM-open reads above and adds no migration, polling, or background usage.
 
 - The Saskatchewan Revenue OS is being added around the existing CRM,
   estimating, and estimate-to-project conversion flows rather than creating a

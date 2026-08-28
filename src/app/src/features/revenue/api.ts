@@ -7,7 +7,8 @@ export interface LeadActivity { id: string; activity_type: string; summary: stri
 export interface LeadTask { id: string; title: string; task_type: string; assigned_to: string | null; due_at: string | null; completed_at: string | null; }
 export interface LeadAppointment { id: string; appointment_type: string; status: string; starts_at: string; location: string | null; assigned_to: string | null; }
 export interface AutomationStatus { attentionCount: number; failedCount: number; oldestCreatedAt: string | null; lastError: string | null; }
-export interface RevenueOperationalMetrics { appointmentsMtd: number; estimatesMtd: number; adSpendCentsMtd: number; }
+export interface RevenueAdSpend { platform: string; campaign_name: string | null; spend_cents: number; }
+export interface RevenueOperationalMetrics { appointmentsMtd: number; estimatesMtd: number; adSpendCentsMtd: number; adSpend: RevenueAdSpend[]; }
 
 async function automationRequest(path: string, init?: RequestInit) {
   const { data: { session } } = await supabase.auth.getSession();
@@ -31,7 +32,7 @@ export async function getRevenueOperationalMetrics(): Promise<RevenueOperational
   const [appointments, estimates, spend] = await Promise.all([
     supabase.from('lead_appointments').select('id', { count: 'exact', head: true }).gte('created_at', monthStart.toISOString()),
     supabase.from('estimates').select('id', { count: 'exact', head: true }).gte('created_at', monthStart.toISOString()),
-    supabase.from('ad_spend_daily').select('spend_cents').gte('spend_date', dateOnly),
+    supabase.from('ad_spend_daily').select('platform,campaign_name,spend_cents').gte('spend_date', dateOnly),
   ]);
   failIf(appointments.error, 'Failed to load appointment KPI');
   failIf(estimates.error, 'Failed to load estimate KPI');
@@ -40,6 +41,7 @@ export async function getRevenueOperationalMetrics(): Promise<RevenueOperational
     appointmentsMtd: appointments.count || 0,
     estimatesMtd: estimates.count || 0,
     adSpendCentsMtd: (spend.data || []).reduce((sum, row: any) => sum + Number(row.spend_cents || 0), 0),
+    adSpend: (spend.data || []) as RevenueAdSpend[],
   };
 }
 
