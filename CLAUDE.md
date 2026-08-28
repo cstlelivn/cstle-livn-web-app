@@ -10,8 +10,9 @@
   updates the existing intake trigger so only an affirmative choice paired
   with an email address becomes `express`; unchecked submissions retain the
   existing `requested_estimate` service-response basis and six-month limit.
-  SMS remains unauthorized. Repository verification is complete; migration
-  `20240059` has not yet been confirmed live at the time of this entry. Website
+  SMS remains unauthorized. Migration `20240059` was applied successfully in
+  the production SQL Editor on August 27, 2026; a live function-definition
+  read-back returned `marketing_consent_active = true`. Website
   commit `7bc36bb` was pushed and production was verified serving its matching
   `index-Cn0P83lA.js` bundle. The linked CLI migration ledger only records
   `20240001`–`20240011`, because later migrations were historically applied
