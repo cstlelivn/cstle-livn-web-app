@@ -19,6 +19,12 @@
   is now configured as the `CSTLE_POSTAL_ADDRESS` Edge Function secret; the
   customer estimate-request acknowledgement is active for future real Project
   Fit/booking leads. The internal `SYSTEM TEST`/`.invalid` guard remains active.
+- Each lead's Sales Operations panel now reads the communication preference and
+  message ledger, shows email/SMS authorization state and recent delivery
+  status, and lets CRM editors record an email or SMS opt-out in one click. An
+  opt-out also writes a human-readable lead activity. The UI intentionally has
+  no one-click “opt back in”; restoring consent requires real evidence rather
+  than undoing a compliance record casually.
 
 - Migration `20240057_public_lead_intake_automation.sql` was confirmed by the
   user as successfully run on August 27, 2026. New public Project Fit and
