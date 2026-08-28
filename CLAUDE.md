@@ -134,6 +134,10 @@
   the first won lead. These are compact, responsive cards and perform three
   bounded reads when CRM loads or its lead count changes. There is no polling,
   Realtime subscription, Cron, or background usage added by this dashboard.
+  Live QA caught and fixed the CRM transform initially dropping
+  `created_at`, `first_responded_at`, and `won_at`; those timestamps now reach
+  the KPI component, so MTD qualification, response-time, and CAC denominators
+  reflect the stored lead records rather than incorrectly reading as zero.
 
 - The Saskatchewan Revenue OS is being added around the existing CRM,
   estimating, and estimate-to-project conversion flows rather than creating a

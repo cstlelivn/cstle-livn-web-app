@@ -459,6 +459,9 @@ export default function CRMModule() {
     qualification_reasons: (lead as any).qualification_reasons,
     qualification_answers: (lead as any).qualification_answers,
     owner_user_id: (lead as any).owner_user_id,
+    created_at: lead.created_at,
+    first_responded_at: (lead as any).first_responded_at,
+    won_at: (lead as any).won_at,
     city: (lead as any).city,
     notes: lead.internal_notes || lead.notes, // Admin internal notes (prefer internal_notes)
     internal_notes: lead.internal_notes, // Admin-only internal notes
