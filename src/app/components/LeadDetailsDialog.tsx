@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { X, Phone, Mail, Calendar, Bell, UserCheck, Clock, Edit, MapPin, DollarSign, Tag, ExternalLink, Save, Building2, User, ScrollText } from "lucide-react";
+import { useEffect, useState } from "react";
+import { X, Phone, Mail, Calendar, Bell, UserCheck, Clock, Edit, MapPin, DollarSign, Tag, ExternalLink, Save, Building2, User, ScrollText, ArrowUpRight, FolderKanban } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "./ui/dialog";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -13,6 +13,7 @@ import { SERVICE_TYPES } from "../src/constants/serviceTypes";
 import { ProjectFitPanel } from "./revenue/ProjectFitPanel";
 import { formatDateTimeInOrgTz } from "../src/lib/timezone";
 import { LeadOperationsPanel } from "./revenue/LeadOperationsPanel";
+import { getLeadRelatedRecords, type LeadRelatedRecords } from "../src/features/revenue/api";
 
 interface Lead {
   id: number;
@@ -64,9 +65,11 @@ interface LeadDetailsDialogProps {
   onConvertToClient?: (leadId: number) => void;
   onUpdateLead?: (leadId: number, updates: Partial<Lead>) => void;
   onOpenEstimate?: (lead: Lead) => Promise<void>;
+  onOpenClient?: (clientId: string) => void;
+  onOpenProject?: (projectId: string) => void;
 }
 
-export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToClient, onUpdateLead, onOpenEstimate }: LeadDetailsDialogProps) {
+export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToClient, onUpdateLead, onOpenEstimate, onOpenClient, onOpenProject }: LeadDetailsDialogProps) {
   const { addReminder } = useApp();
   const [isReminderDialogOpen, setIsReminderDialogOpen] = useState(false);
   const [reminderType, setReminderType] = useState<"call" | "email" | "visit" | "follow-up">("follow-up");
@@ -74,6 +77,8 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
   const [reminderTime, setReminderTime] = useState("");
   const [reminderNotes, setReminderNotes] = useState("");
   const [openingEstimate, setOpeningEstimate] = useState(false);
+  const [related, setRelated] = useState<LeadRelatedRecords | null>(null);
+  useEffect(() => { let active = true; if (!lead?.id || !isOpen) { setRelated(null); return; } getLeadRelatedRecords(String(lead.id)).then((value) => active && setRelated(value)).catch(() => active && setRelated(null)); return () => { active = false; }; }, [lead?.id, isOpen]);
   
   // Edit mode state
   const [isEditMode, setIsEditMode] = useState(false);
@@ -476,6 +481,7 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
 
           {/* Content - Scrollable */}
           <div className="flex-1 overflow-y-auto py-4">
+            {!isEditMode && <div className="mb-4 rounded-[12px] border border-[#65733d]/20 bg-[#f4f6ec] p-3"><div className="flex items-center justify-between gap-3"><div><p className="font-['Roboto_Mono'] text-[9px] font-bold uppercase tracking-[0.08em] text-[#53602f]">Related records</p><p className="mt-1 text-xs text-[#191919]/65">Move between the customer, estimate and active project without leaving the workflow.</p></div></div><div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">{related?.clientId && onOpenClient && <Button variant="outline" className="justify-between bg-white" onClick={() => onOpenClient(related.clientId!)}><span className="flex items-center"><User className="mr-2 size-4" />Customer</span><ArrowUpRight className="size-3.5" /></Button>}{onOpenEstimate && <Button variant="outline" className="justify-between bg-white" disabled={openingEstimate || (!related?.estimateId && !displayLead.email)} onClick={handleOpenEstimate}><span className="flex min-w-0 items-center"><ScrollText className="mr-2 size-4 shrink-0" /><span className="truncate">{related?.estimateId ? 'Open estimate' : 'Create estimate'}</span></span><ArrowUpRight className="size-3.5 shrink-0" /></Button>}{related?.projectId && onOpenProject && <Button variant="outline" className="justify-between bg-white" onClick={() => onOpenProject(related.projectId!)}><span className="flex items-center"><FolderKanban className="mr-2 size-4" />Project</span><ArrowUpRight className="size-3.5" /></Button>}</div></div>}
             {!isEditMode && onUpdateLead && <div className="mb-4"><ProjectFitPanel lead={displayLead} onSave={(updates) => onUpdateLead(displayLead.id, updates)} /></div>}
             {!isEditMode && onUpdateLead && <div className="mb-4"><LeadOperationsPanel lead={displayLead} onUpdateLead={(updates) => onUpdateLead(displayLead.id, updates)} /></div>}
             {isEditMode ? (

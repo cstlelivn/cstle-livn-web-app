@@ -28,7 +28,7 @@ import { RevenueOverview } from "./revenue/RevenueOverview";
 import { SalesWorkQueue } from "./revenue/SalesWorkQueue";
 import { addLeadActivity, openOrCreateEstimateFromLead } from "../src/features/revenue/api";
 
-export default function CRMModule({ onOpenEstimate }: { onOpenEstimate?: (estimateId: string) => void }) {
+export default function CRMModule({ onOpenEstimate, onOpenProject }: { onOpenEstimate?: (estimateId: string) => void; onOpenProject?: (projectId: string) => void }) {
   const { hasPermission, currentUser } = useAuth();
   const { 
     leads, 
@@ -1097,6 +1097,8 @@ export default function CRMModule({ onOpenEstimate }: { onOpenEstimate?: (estima
         onConvertToClient={handleConvertToClient}
         onUpdateLead={handleUpdateLead}
         onOpenEstimate={handleOpenLeadEstimate}
+        onOpenClient={(clientId) => { const client = transformedClients.find((item: any) => String(item.id) === String(clientId)); if (client) { setSelectedLead(null); setSelectedClient(client); } else toast.error('Related customer could not be opened'); }}
+        onOpenProject={(projectId) => { setSelectedLead(null); onOpenProject?.(projectId); }}
       />
 
       {/* Client Details Dialog */}

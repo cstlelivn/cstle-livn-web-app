@@ -426,7 +426,7 @@ function AppContent() {
       case "teams":
         return <TeamsGroup initialTab={teamsSubView} />;
       case "crm":
-        return <CRMModule onOpenEstimate={(estimateId) => { setEstimateToOpen(estimateId); setCurrentView('estimating'); }} />;
+        return <CRMModule onOpenEstimate={(estimateId) => { setEstimateToOpen(estimateId); setCurrentView('estimating'); }} onOpenProject={(projectId) => { setSelectedProjectId(projectId); setCurrentView('projects'); }} />;
       case "inventory":
         return <InventoryModule />;
       case "finance":

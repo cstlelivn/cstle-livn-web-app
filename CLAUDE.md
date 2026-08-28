@@ -2,6 +2,25 @@
 
 ## Public Project Fit intake — August 27, 2026
 
+- CRM is now the benchmark for a broader human-navigation standard. Lead list
+  rows open from the complete row by mouse or keyboard rather than requiring a
+  tiny `View` target. Desktop uses one stable seven-column grid (selection,
+  identity/source, project/address, status, value, contact, actions) with a
+  shared minimum width and horizontal overflow, so long names and addresses
+  truncate inside their own columns instead of pushing every status out of
+  alignment. The action rail is structurally separate; call and delete never
+  overlap, and delete uses a restrained destructive treatment rather than a
+  floating hover control. Mobile rows and grid cards follow the same full-card
+  navigation rule while interactive children stop propagation.
+- The lead dialog now loads its newest linked estimate and presents a quiet
+  olive `Related records` bridge near the top. From the lead, staff can open
+  the related customer, open/create the estimate through the authoritative
+  estimating handoff, or open the converted project directly. The route closes
+  the lead dialog before changing workspace, preventing stacked modals. This
+  is the reusable pattern to extend to client, estimate, project and finance
+  records: when displayed information names another real Cstle record, provide
+  an in-context destination rather than forcing manual navigation. No migration
+  or Edge Function change is required for this batch.
 - CRM now opens with a compact `Today’s sales work` queue beneath the Revenue
   Overview. It ranks at most 12 open opportunities by action risk: untouched
   Hot/Warm leads, any new lead awaiting first contact, overdue lead tasks,

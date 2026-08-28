@@ -14,6 +14,7 @@ export interface AutomationStatus { attentionCount: number; failedCount: number;
 export interface RevenueAdSpend { platform: string; campaign_name: string | null; spend_cents: number; }
 export interface RevenueOperationalMetrics { appointmentsMtd: number; estimatesMtd: number; adSpendCentsMtd: number; adSpend: RevenueAdSpend[]; }
 export interface SalesWorkItem { leadId: string; priority: 'Urgent' | 'Today' | 'Next'; score: number; reason: string; detail: string; }
+export interface LeadRelatedRecords { estimateId: string | null; estimateName: string | null; estimateStatus: string | null; clientId: string | null; projectId: string | null; }
 
 async function automationRequest(path: string, init?: RequestInit) {
   const { data: { session } } = await supabase.auth.getSession();
@@ -62,6 +63,12 @@ export async function getSalesWorkQueue(leads: any[]): Promise<SalesWorkItem[]> 
     if (!leadTasks.length) return { leadId, priority: 'Next', score: 60 + (hot ? 10 : 0), reason: 'No next action scheduled', detail: 'Add the specific next step and due time.' };
     return null;
   }).filter((item): item is SalesWorkItem => Boolean(item)).sort((a, b) => b.score - a.score).slice(0, 12);
+}
+
+export async function getLeadRelatedRecords(leadId: string): Promise<LeadRelatedRecords> {
+  const { data, error } = await supabase.from('estimates').select('id,name,status,client_id,converted_project_id').eq('lead_id', leadId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+  failIf(error, 'Failed to load related records');
+  return { estimateId: data?.id || null, estimateName: data?.name || null, estimateStatus: data?.status || null, clientId: data?.client_id || null, projectId: data?.converted_project_id || null };
 }
 
 export async function getRevenueOperationalMetrics(): Promise<RevenueOperationalMetrics> {
