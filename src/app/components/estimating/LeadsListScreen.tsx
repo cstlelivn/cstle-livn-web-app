@@ -10,22 +10,7 @@ import { useEstimates } from "../../src/features/estimating/useEstimates";
 import { createEstimate } from "../../src/features/estimating/api";
 import { listClients, createClient as createClientRecord } from "../../src/features/clients/api";
 import { listLeads } from "../../src/features/leads/api";
-import { formatDate } from "../../src/lib/dates";
-
-function statusColor(s: string) {
-  switch (s) {
-    case "approved":
-    case "converted": return "bg-success/10 text-success border-success/20";
-    case "proposal_sent": return "bg-warning/10 text-warning border-warning/20";
-    case "estimating": return "bg-primary/10 text-primary border-primary/20";
-    case "declined":
-    case "lost": return "bg-destructive/10 text-destructive border-destructive/20";
-    default: return "bg-muted/10 text-muted-foreground border-muted/20";
-  }
-}
-function statusLabel(s: string) {
-  return ({ lead: "Lead", estimating: "Estimating", proposal_sent: "Proposal sent", approved: "Approved", converted: "Converted to project", declined: "Declined", lost: "Lost" } as Record<string, string>)[s] || s;
-}
+import EstimateListView from "./EstimateListView";
 
 interface LeadsListScreenProps {
   onOpen: (estimateId: string) => void;
@@ -133,25 +118,7 @@ export default function LeadsListScreen({ onOpen }: LeadsListScreenProps) {
           </p>
         </div>
       ) : (
-        <div className="bg-card border border-border rounded-[12px] divide-y divide-border">
-          {filtered.map((e) => (
-            <button
-              key={e.id}
-              onClick={() => onOpen(e.id)}
-              className="w-full flex items-center justify-between gap-[12px] px-[16px] py-[14px] text-left hover:bg-accent/5 transition-colors"
-            >
-              <div className="min-w-0">
-                <p className="font-['Roboto_Mono'] font-bold text-[12px] text-foreground truncate">{e.name}</p>
-                <p className="font-['Roboto_Mono'] text-[10px] text-muted-foreground">
-                  {clientName(e.client_id)} · created {formatDate(e.created_at)}
-                </p>
-              </div>
-              <span className={`px-[8px] py-[2px] rounded-full text-[9px] font-['Roboto_Mono'] border shrink-0 ${statusColor(e.status)}`}>
-                {statusLabel(e.status)}
-              </span>
-            </button>
-          ))}
-        </div>
+        <EstimateListView estimates={filtered} clientName={clientName} onOpen={onOpen} />
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>

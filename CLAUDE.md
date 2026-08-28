@@ -55,6 +55,16 @@
   status control and resize affordances; destructive colour appears only on
   Delete interaction. This is a client-only UI change with no migration, Edge
   Function, polling or additional Supabase read pattern.
+- The Estimating pipeline list now follows that same table standard through a
+  dedicated `EstimateListView`. Estimate, Customer and Site address hold the
+  primary flexible space; Progress, Status, Updated and the far-right Actions
+  rail remain compact and aligned. Progress is derived locally from the seven
+  existing estimate gates and shown as a restrained olive bar, so this adds no
+  query. The entire row opens the estimate by mouse or keyboard, with an
+  explicit Open action retained for clarity. Resize handles exchange width
+  between neighbouring columns without producing trailing dead space. This is
+  a presentation/navigation change only and requires no migration or Edge
+  Function deployment.
 - CRM is now the benchmark for a broader human-navigation standard. Lead list
   rows open from the complete row by mouse or keyboard rather than requiring a
   tiny `View` target. Desktop uses one stable seven-column grid (selection,
