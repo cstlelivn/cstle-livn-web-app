@@ -11,7 +11,11 @@
   with an email address becomes `express`; unchecked submissions retain the
   existing `requested_estimate` service-response basis and six-month limit.
   SMS remains unauthorized. Repository verification is complete; migration
-  `20240059` has not yet been confirmed live at the time of this entry.
+  `20240059` has not yet been confirmed live at the time of this entry. Website
+  commit `7bc36bb` was pushed and production was verified serving its matching
+  `index-Cn0P83lA.js` bundle. The linked CLI migration ledger only records
+  `20240001`–`20240011`, because later migrations were historically applied
+  through the SQL Editor; do not use a broad `db push` to activate `20240059`.
 - Module 1 customer follow-up is deliberately CASL-aware. Migration
   `20240058_lead_communications.sql` adds a per-lead channel/contact-basis and
   opt-out record plus an auditable message ledger. Public Project Fit/general
