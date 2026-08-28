@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, Phone, Mail, Calendar, Bell, UserCheck, Clock, Edit, MapPin, DollarSign, Tag, ExternalLink, Save, Building2, User } from "lucide-react";
+import { X, Phone, Mail, Calendar, Bell, UserCheck, Clock, Edit, MapPin, DollarSign, Tag, ExternalLink, Save, Building2, User, ScrollText } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "./ui/dialog";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -63,15 +63,17 @@ interface LeadDetailsDialogProps {
   onClose: () => void;
   onConvertToClient?: (leadId: number) => void;
   onUpdateLead?: (leadId: number, updates: Partial<Lead>) => void;
+  onOpenEstimate?: (lead: Lead) => Promise<void>;
 }
 
-export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToClient, onUpdateLead }: LeadDetailsDialogProps) {
+export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToClient, onUpdateLead, onOpenEstimate }: LeadDetailsDialogProps) {
   const { addReminder } = useApp();
   const [isReminderDialogOpen, setIsReminderDialogOpen] = useState(false);
   const [reminderType, setReminderType] = useState<"call" | "email" | "visit" | "follow-up">("follow-up");
   const [reminderDate, setReminderDate] = useState("");
   const [reminderTime, setReminderTime] = useState("");
   const [reminderNotes, setReminderNotes] = useState("");
+  const [openingEstimate, setOpeningEstimate] = useState(false);
   
   // Edit mode state
   const [isEditMode, setIsEditMode] = useState(false);
@@ -143,6 +145,13 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
   };
 
   const displayLead = isEditMode && editedLead ? editedLead : lead;
+
+  const handleOpenEstimate = async () => {
+    if (!onOpenEstimate) return;
+    setOpeningEstimate(true);
+    try { await onOpenEstimate(displayLead); }
+    finally { setOpeningEstimate(false); }
+  };
 
   // Format consultation date as "DD - MTH - YYYY" (date only — time stored separately in consultation_time)
   const formatConsultationDate = (dateString: string | undefined) => {
@@ -884,6 +893,7 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
                   </Button>
                 </div>
 
+                {onOpenEstimate && <Button onClick={handleOpenEstimate} disabled={openingEstimate || !displayLead.email} className="w-full sm:w-auto"><ScrollText className="w-4 h-4 mr-2" />{openingEstimate ? 'Opening estimate…' : displayLead.status === 'Estimate' ? 'Open Estimate' : 'Create Estimate'}</Button>}
                 {/* Convert to Client */}
                 <Button
                   className="w-full h-11 bg-accent hover:bg-accent/90"

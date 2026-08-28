@@ -25,9 +25,10 @@ import { Checkbox } from "./ui/checkbox";
 import { formatDateTime, formatDate, formatForInput } from "../src/lib/dateFormatter";
 import { SERVICE_TYPES } from "../src/constants/serviceTypes";
 import { RevenueOverview } from "./revenue/RevenueOverview";
+import { addLeadActivity, openOrCreateEstimateFromLead } from "../src/features/revenue/api";
 
-export default function CRMModule() {
-  const { hasPermission } = useAuth();
+export default function CRMModule({ onOpenEstimate }: { onOpenEstimate?: (estimateId: string) => void }) {
+  const { hasPermission, currentUser } = useAuth();
   const { 
     leads, 
     clients, 
@@ -60,6 +61,17 @@ export default function CRMModule() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("list");
   const [selectedLead, setSelectedLead] = useState<any | null>(null);
   const [selectedClient, setSelectedClient] = useState<any | null>(null);
+  const handleOpenLeadEstimate = async (lead: any) => {
+    try {
+      const estimateId = await openOrCreateEstimateFromLead(lead, currentUser?.id ? String(currentUser.id) : undefined);
+      if (lead.status !== 'Estimate') {
+        await handleUpdateLead(lead.id, { pipeline_stage: 'Estimate', status: 'Proposal' });
+        await addLeadActivity(String(lead.id), 'Estimate created and linked to this lead', currentUser?.id ? String(currentUser.id) : undefined);
+      }
+      setSelectedLead(null);
+      onOpenEstimate?.(estimateId);
+    } catch (error: any) { toast.error(error?.message || 'Could not open estimate'); }
+  };
   
   // Delete confirmation state
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -1082,6 +1094,7 @@ export default function CRMModule() {
         onClose={() => setSelectedLead(null)}
         onConvertToClient={handleConvertToClient}
         onUpdateLead={handleUpdateLead}
+        onOpenEstimate={handleOpenLeadEstimate}
       />
 
       {/* Client Details Dialog */}

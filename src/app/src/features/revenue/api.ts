@@ -1,6 +1,8 @@
 import { createClient } from '../../../utils/supabase/client.tsx';
 import { failIf } from '../../lib/errors';
 import { projectId } from '../../../utils/supabase/info';
+import { createClient, listClients } from '../clients/api';
+import { createEstimate } from '../estimating/api';
 
 const supabase = createClient();
 export interface LeadActivity { id: string; activity_type: string; summary: string; occurred_at: string; actor_user_id: string | null; }
@@ -43,6 +45,19 @@ export async function getRevenueOperationalMetrics(): Promise<RevenueOperational
     adSpendCentsMtd: (spend.data || []).reduce((sum, row: any) => sum + Number(row.spend_cents || 0), 0),
     adSpend: (spend.data || []) as RevenueAdSpend[],
   };
+}
+
+export async function openOrCreateEstimateFromLead(lead: any, createdBy?: string): Promise<string> {
+  const existing = await supabase.from('estimates').select('id').eq('lead_id', String(lead.id)).order('created_at', { ascending: false }).limit(1).maybeSingle();
+  failIf(existing.error, 'Failed to check lead estimate');
+  if (existing.data?.id) return String(existing.data.id);
+  if (!lead.email?.trim()) throw new Error('Add the customer email before creating an estimate.');
+
+  const clients = await listClients();
+  let client = clients.find((item: any) => item.email?.toLowerCase() === lead.email.trim().toLowerCase());
+  if (!client) client = await createClient({ name: lead.name || 'Website lead', email: lead.email.trim(), phone: lead.phone || undefined, source: lead.source || 'CRM lead', notes: lead.project_details || lead.message || lead.notes || undefined });
+  const estimate = await createEstimate({ client_id: String(client.id), lead_id: String(lead.id), name: lead.service_type || lead.project_type || `${lead.name} project`, site_address: lead.project_address || lead.address || undefined, created_by: createdBy });
+  return estimate.id;
 }
 
 export async function listLeadOperations(leadId: string) {

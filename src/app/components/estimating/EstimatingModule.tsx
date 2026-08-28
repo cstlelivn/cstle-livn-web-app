@@ -1,14 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "../AuthContext";
 import LeadsListScreen from "./LeadsListScreen";
 import EstimateWorkspace from "./EstimateWorkspace";
 import ConfigScreen from "./ConfigScreen";
 
-export default function EstimatingModule() {
+export default function EstimatingModule({ initialEstimateId, onInitialEstimateOpened }: { initialEstimateId?: string | null; onInitialEstimateOpened?: () => void }) {
   const { hasPermission } = useAuth();
   const canManageConfig = hasPermission("canManageEstimatingConfig");
   const [tab, setTab] = useState<"pipeline" | "config">("pipeline");
-  const [activeEstimateId, setActiveEstimateId] = useState<string | null>(null);
+  const [activeEstimateId, setActiveEstimateId] = useState<string | null>(initialEstimateId || null);
+  useEffect(() => { if (initialEstimateId) onInitialEstimateOpened?.(); }, [initialEstimateId, onInitialEstimateOpened]);
 
   return (
     <div className="space-y-[16px]">

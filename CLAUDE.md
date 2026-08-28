@@ -187,6 +187,16 @@
 
 ## Revenue OS sales operations + UUID fallback fix — August 27, 2026
 
+- Module 1 estimate handoff now starts from the CRM lead dialog. `Create
+  Estimate` reopens an existing linked estimate when one exists; otherwise it
+  reuses a client with the same email or creates the required client record,
+  creates the estimate with the lead, job name and site address already linked,
+  advances the lead to Estimate, records the handoff activity, and opens the
+  existing Estimating workspace. No duplicate estimator or project conversion
+  path was introduced; the existing `convert_estimate_to_project` RPC remains
+  authoritative after customer approval. Leads without email are safely
+  blocked because the existing client model requires one.
+
 - The recurring `invalid input syntax for type uuid: "1"` project-phase error
   came from `RecentTasksWidget.tsx`, which passed a fake numeric project ID of
   `1` into `TaskDialog` when neither a selected task nor a real project was

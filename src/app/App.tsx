@@ -96,6 +96,7 @@ function AppContent() {
     if (isWorkPortal) document.title = "Cstle Livn — My Tasks";
   }, [isWorkPortal]);
   const [currentView, setCurrentView] = useState<ViewType>("dashboard");
+  const [estimateToOpen, setEstimateToOpen] = useState<string | null>(null);
   const [projectsSubView, setProjectsSubView] = useState<SubViewType["projects"]>("projects");
   const [teamsSubView, setTeamsSubView] = useState<SubViewType["teams"]>("team");
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
@@ -425,13 +426,13 @@ function AppContent() {
       case "teams":
         return <TeamsGroup initialTab={teamsSubView} />;
       case "crm":
-        return <CRMModule />;
+        return <CRMModule onOpenEstimate={(estimateId) => { setEstimateToOpen(estimateId); setCurrentView('estimating'); }} />;
       case "inventory":
         return <InventoryModule />;
       case "finance":
         return <FinanceModule />;
       case "estimating":
-        return <EstimatingModule />;
+        return <EstimatingModule initialEstimateId={estimateToOpen} onInitialEstimateOpened={() => setEstimateToOpen(null)} />;
       case "analytics":
         return <AnalyticsModule />;
       case "users":
