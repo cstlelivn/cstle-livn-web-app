@@ -29,6 +29,15 @@
   confirming the new code is deployed and the machine-to-machine guard is
   active. The worker is **not scheduled yet** and no real queue event was
   processed during verification.
+- Free-plan automation decision: do not poll the worker on a fixed schedule.
+  `automation_outbox` INSERTs invoke it through Supabase Database Webhooks, so
+  idle usage is zero and normal use is approximately one Edge invocation per
+  captured lead. The worker accepts either its dedicated
+  `x-automation-secret` or Supabase's own service-role bearer credential; the
+  latter is used by the Database Webhook's built-in `Add auth header with
+  service key` option, avoiding another secret copied into dashboard fields.
+  Failed events remain durable for an explicit admin retry/attention workflow;
+  no background retry Cron is enabled while the project remains on Free.
 - Full-page hierarchy correction: a stale page-level CSS rule was still forcing
   steps 2–4 form prompts to 32px on desktop, despite the refined step-1 utility
   classes. All four prompts now share the intended 21/22/24px, weight-650,

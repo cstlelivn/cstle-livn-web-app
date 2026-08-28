@@ -2160,8 +2160,11 @@ async function deliverLeadCapturedAutomation(event: AutomationOutboxRow) {
 app.post("/make-server-bcab437c/automations/process", async (c) => {
   const configuredSecret = Deno.env.get("AUTOMATION_WORKER_SECRET");
   const suppliedSecret = c.req.header("x-automation-secret");
-  if (!configuredSecret) return c.json({ error: "Automation worker is not configured" }, 503);
-  if (!suppliedSecret || suppliedSecret !== configuredSecret) return c.json({ error: "Unauthorized" }, 401);
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const bearerToken = c.req.header("Authorization")?.replace(/^Bearer\s+/i, "");
+  const secretAuthorized = Boolean(configuredSecret && suppliedSecret === configuredSecret);
+  const serviceAuthorized = Boolean(serviceRoleKey && bearerToken === serviceRoleKey);
+  if (!secretAuthorized && !serviceAuthorized) return c.json({ error: "Unauthorized" }, 401);
 
   const requestedLimit = Number(c.req.query("limit") || 10);
   const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(25, Math.floor(requestedLimit))) : 10;
