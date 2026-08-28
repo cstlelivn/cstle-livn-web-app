@@ -2,6 +2,13 @@
 
 ## Public Project Fit intake — August 27, 2026
 
+- Form hierarchy refinement: the first Project Fit question, `What should this
+  basement do for you?`, is a secondary 21–24px prompt at weight 650 and 90%
+  ink—not another display headline. Its subdued 9px numbered context label
+  (`01 — Start with the outcome`) establishes sequence without competing for
+  attention. Desktop uses a no-wrap treatment so the prompt remains one
+  composed line; phone layouts may wrap naturally for readability and must not
+  introduce horizontal overflow.
 - Hero cadence correction: the approved headline is intentionally rendered as
   two fixed lines (`Plan the basement` / `that works for you.`) so `that` can
   never hang at the end of the first line. Supporting copy was shortened to
