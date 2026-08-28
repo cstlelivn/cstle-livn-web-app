@@ -38,6 +38,15 @@
   service key` option, avoiding another secret copied into dashboard fields.
   Failed events remain durable for an explicit admin retry/attention workflow;
   no background retry Cron is enabled while the project remains on Free.
+- Live webhook verification found that Supabase's Edge gateway accepted the
+  Database Webhook service JWT, but the worker's exact environment-key string
+  comparison still returned 401. The worker now relies on the already-verified
+  JWT's `role=service_role` claim (anonymous JWTs remain rejected). CRM editors
+  also have a protected automation status endpoint and a compact Revenue
+  Overview warning with an explicit `Retry now` action. Status is fetched only
+  when CRM loads or its lead count changes; there is no timer, Cron, or idle
+  polling. This keeps failures visible and recoverable while preserving the
+  Free-plan event-driven design.
 - Full-page hierarchy correction: a stale page-level CSS rule was still forcing
   steps 2–4 form prompts to 32px on desktop, despite the refined step-1 utility
   classes. All four prompts now share the intended 21/22/24px, weight-650,

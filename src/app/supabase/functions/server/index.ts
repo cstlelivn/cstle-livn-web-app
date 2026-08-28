@@ -2157,17 +2157,23 @@ async function deliverLeadCapturedAutomation(event: AutomationOutboxRow) {
 
 // Intended for Supabase Cron, Make, or a trusted scheduler. The worker secret
 // is separate from user auth because this is machine-to-machine automation.
-app.post("/make-server-bcab437c/automations/process", async (c) => {
-  const configuredSecret = Deno.env.get("AUTOMATION_WORKER_SECRET");
-  const suppliedSecret = c.req.header("x-automation-secret");
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  const bearerToken = c.req.header("Authorization")?.replace(/^Bearer\s+/i, "");
-  const secretAuthorized = Boolean(configuredSecret && suppliedSecret === configuredSecret);
-  const serviceAuthorized = Boolean(serviceRoleKey && bearerToken === serviceRoleKey);
-  if (!secretAuthorized && !serviceAuthorized) return c.json({ error: "Unauthorized" }, 401);
+function hasServiceRoleClaim(token?: string) {
+  if (!token) return false;
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return false;
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const decoded = JSON.parse(atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=")));
+    // Supabase's Edge gateway verifies the bearer signature before the request
+    // reaches this function. The claim distinguishes its service-key webhook
+    // from calls made with the public anonymous key.
+    return decoded?.role === "service_role";
+  } catch {
+    return false;
+  }
+}
 
-  const requestedLimit = Number(c.req.query("limit") || 10);
-  const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(25, Math.floor(requestedLimit))) : 10;
+async function processAutomationQueue(limit: number) {
   const { data: candidates, error: candidateError } = await supabase
     .from("automation_outbox")
     .select("id,event_type,aggregate_id,payload,attempt_count")
@@ -2175,7 +2181,7 @@ app.post("/make-server-bcab437c/automations/process", async (c) => {
     .lte("available_at", new Date().toISOString())
     .order("created_at", { ascending: true })
     .limit(limit);
-  if (candidateError) return c.json({ error: candidateError.message }, 500);
+  if (candidateError) throw candidateError;
 
   const results: Array<{ id: string; status: string; destinations?: string[] }> = [];
   for (const candidate of (candidates || []) as AutomationOutboxRow[]) {
@@ -2203,7 +2209,56 @@ app.post("/make-server-bcab437c/automations/process", async (c) => {
     }
   }
 
-  return c.json({ processed: results.length, results });
+  return { processed: results.length, results };
+}
+
+app.post("/make-server-bcab437c/automations/process", async (c) => {
+  const configuredSecret = Deno.env.get("AUTOMATION_WORKER_SECRET");
+  const suppliedSecret = c.req.header("x-automation-secret");
+  const bearerToken = c.req.header("Authorization")?.replace(/^Bearer\s+/i, "");
+  const secretAuthorized = Boolean(configuredSecret && suppliedSecret === configuredSecret);
+  const serviceAuthorized = hasServiceRoleClaim(bearerToken);
+  if (!secretAuthorized && !serviceAuthorized) return c.json({ error: "Unauthorized" }, 401);
+
+  const requestedLimit = Number(c.req.query("limit") || 10);
+  const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(25, Math.floor(requestedLimit))) : 10;
+  try {
+    return c.json(await processAutomationQueue(limit));
+  } catch (error: any) {
+    return c.json({ error: error?.message || "Automation processing failed" }, 500);
+  }
+});
+
+app.get("/make-server-bcab437c/automations/status", authMiddleware, async (c) => {
+  if (!hasPermission(c.get("userRole"), "canEditCRM")) return c.json({ error: "Insufficient permissions" }, 403);
+  const { data, error } = await supabase
+    .from("automation_outbox")
+    .select("id,status,last_error,created_at,available_at")
+    .in("status", ["pending", "failed"])
+    .order("created_at", { ascending: true })
+    .limit(25);
+  if (error) return c.json({ error: error.message }, 500);
+  const events = data || [];
+  return c.json({
+    attentionCount: events.length,
+    failedCount: events.filter((event: any) => event.status === "failed").length,
+    oldestCreatedAt: events[0]?.created_at || null,
+    lastError: events.find((event: any) => event.last_error)?.last_error || null,
+  });
+});
+
+app.post("/make-server-bcab437c/automations/retry", authMiddleware, async (c) => {
+  if (!hasPermission(c.get("userRole"), "canEditCRM")) return c.json({ error: "Insufficient permissions" }, 403);
+  const { error } = await supabase
+    .from("automation_outbox")
+    .update({ status: "pending", available_at: new Date().toISOString(), last_error: null })
+    .in("status", ["pending", "failed"]);
+  if (error) return c.json({ error: error.message }, 500);
+  try {
+    return c.json(await processAutomationQueue(25));
+  } catch (processError: any) {
+    return c.json({ error: processError?.message || "Automation retry failed" }, 500);
+  }
 });
 
 // Send email notification for new lead

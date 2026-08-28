@@ -1,10 +1,27 @@
 import { createClient } from '../../../utils/supabase/client.tsx';
 import { failIf } from '../../lib/errors';
+import { projectId } from '../../../utils/supabase/info';
 
 const supabase = createClient();
 export interface LeadActivity { id: string; activity_type: string; summary: string; occurred_at: string; actor_user_id: string | null; }
 export interface LeadTask { id: string; title: string; task_type: string; assigned_to: string | null; due_at: string | null; completed_at: string | null; }
 export interface LeadAppointment { id: string; appointment_type: string; status: string; starts_at: string; location: string | null; assigned_to: string | null; }
+export interface AutomationStatus { attentionCount: number; failedCount: number; oldestCreatedAt: string | null; lastError: string | null; }
+
+async function automationRequest(path: string, init?: RequestInit) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) throw new Error('Please sign in again.');
+  const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-bcab437c/automations/${path}`, {
+    ...init,
+    headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json', ...(init?.headers || {}) },
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || 'Automation request failed');
+  return body;
+}
+
+export async function getAutomationStatus(): Promise<AutomationStatus> { return automationRequest('status'); }
+export async function retryLeadAutomations() { return automationRequest('retry', { method: 'POST' }); }
 
 export async function listLeadOperations(leadId: string) {
   const [activityResult, taskResult, appointmentResult] = await Promise.all([
