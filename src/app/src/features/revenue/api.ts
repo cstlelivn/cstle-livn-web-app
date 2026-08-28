@@ -1,10 +1,10 @@
-import { createClient } from '../../../utils/supabase/client.tsx';
+import { createClient as createSupabaseClient } from '../../../utils/supabase/client.tsx';
 import { failIf } from '../../lib/errors';
 import { projectId } from '../../../utils/supabase/info';
-import { createClient, listClients } from '../clients/api';
+import { createClient as createClientRecord, listClients } from '../clients/api';
 import { createEstimate } from '../estimating/api';
 
-const supabase = createClient();
+const supabase = createSupabaseClient();
 export interface LeadActivity { id: string; activity_type: string; summary: string; occurred_at: string; actor_user_id: string | null; }
 export interface LeadTask { id: string; title: string; task_type: string; assigned_to: string | null; due_at: string | null; completed_at: string | null; }
 export interface LeadAppointment { id: string; appointment_type: string; status: string; starts_at: string; location: string | null; assigned_to: string | null; }
@@ -55,7 +55,7 @@ export async function openOrCreateEstimateFromLead(lead: any, createdBy?: string
 
   const clients = await listClients();
   let client = clients.find((item: any) => item.email?.toLowerCase() === lead.email.trim().toLowerCase());
-  if (!client) client = await createClient({ name: lead.name || 'Website lead', email: lead.email.trim(), phone: lead.phone || undefined, source: lead.source || 'CRM lead', notes: lead.project_details || lead.message || lead.notes || undefined });
+  if (!client) client = await createClientRecord({ name: lead.name || 'Website lead', email: lead.email.trim(), phone: lead.phone || undefined, source: lead.source || 'CRM lead', notes: lead.project_details || lead.message || lead.notes || undefined });
   const estimate = await createEstimate({ client_id: String(client.id), lead_id: String(lead.id), name: lead.service_type || lead.project_type || `${lead.name} project`, site_address: lead.project_address || lead.address || undefined, created_by: createdBy });
   return estimate.id;
 }

@@ -196,6 +196,9 @@
   path was introduced; the existing `convert_estimate_to_project` RPC remains
   authoritative after customer approval. Leads without email are safely
   blocked because the existing client model requires one.
+  Initial live QA caught an import-name collision between the Supabase client
+  factory and the CRM client-record creator (`createClient`) before either
+  record was written. Both are now explicitly aliased; keep those distinct.
 
 - The recurring `invalid input syntax for type uuid: "1"` project-phase error
   came from `RecentTasksWidget.tsx`, which passed a fake numeric project ID of
