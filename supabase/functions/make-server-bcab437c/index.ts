@@ -2124,6 +2124,28 @@ async function deliverLeadCapturedAutomation(event: AutomationOutboxRow) {
     });
     if (!response.ok) throw new Error(`Resend delivery failed (${response.status})`);
     delivered.push("internal-email");
+
+    const isSystemTest = /^SYSTEM TEST/i.test(lead.name || "") || /\.invalid(?:\.|$)/i.test(lead.email || "");
+    const postalAddress = Deno.env.get("CSTLE_POSTAL_ADDRESS");
+    if (lead.email && !isSystemTest && postalAddress && ["regina-basement-project-fit", "booking"].includes(lead.source_form)) {
+      const firstName = String(lead.name || "there").trim().split(/\s+/)[0];
+      const service = lead.service_type || lead.project_type || "your project";
+      const customerResponse = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${resendApiKey}`, "Content-Type": "application/json", "Idempotency-Key": `cstle-${event.id}-customer-ack` },
+        body: JSON.stringify({
+          from: fromEmail,
+          to: [lead.email],
+          subject: "We received your Cstle project request",
+          html: `<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto;color:#191919"><p style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#666">Cstle Livn</p><h1 style="font-size:26px;line-height:1.15">Thanks, ${escapeAutomationHtml(firstName)}. We have your project details.</h1><p>We received your request about ${escapeAutomationHtml(service)}. Our team will review the fit and contact you with the most useful next step.</p><p><strong>What happens next</strong><br>We review the scope, timing and location.<br>If it looks like a fit, we arrange a focused consultation.<br>After that, we confirm whether a site visit or estimate is the right next step.</p><p>You can reply to this email if there is anything important we should know.</p><hr style="border:0;border-top:1px solid #ddd;margin:28px 0"><p style="font-size:11px;color:#666">Cstle Livn · ${escapeAutomationHtml(postalAddress)} · <a href="https://www.cstle.ca">cstle.ca</a><br>This message responds to the estimate request you submitted. Reply “unsubscribe” if you do not want further email.</p></div>`,
+          text: `Thanks, ${firstName}. We received your request about ${service}. Our team will review the fit and contact you with the most useful next step. You can reply if there is anything important we should know.\n\nCstle Livn · ${postalAddress} · https://www.cstle.ca\nThis message responds to the estimate request you submitted. Reply “unsubscribe” if you do not want further email.`,
+        }),
+      });
+      const customerResult = await customerResponse.json().catch(() => ({}));
+      if (!customerResponse.ok) throw new Error(`Customer acknowledgement failed (${customerResponse.status})`);
+      await supabase.from("lead_messages").insert({ lead_id: lead.id, channel: "email", purpose: "service", template_key: "estimate-request-received-v1", recipient: lead.email, status: "delivered", provider_message_id: customerResult?.id || null, sent_at: new Date().toISOString(), metadata: { outbox_id: event.id, contact_basis: "requested_estimate" } });
+      delivered.push("customer-email");
+    }
   }
 
   const webhookUrl = Deno.env.get("AUTOMATION_WEBHOOK_URL");

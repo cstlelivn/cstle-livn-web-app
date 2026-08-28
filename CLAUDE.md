@@ -2,6 +2,19 @@
 
 ## Public Project Fit intake — August 27, 2026
 
+- Module 1 customer follow-up is deliberately CASL-aware. Migration
+  `20240058_lead_communications.sql` adds a per-lead channel/contact-basis and
+  opt-out record plus an auditable message ledger. Public Project Fit/general
+  estimate requests receive `requested_estimate` email basis for six months;
+  SMS and marketing remain `none` until separately proven. The event worker can
+  send one immediate service acknowledgement through Resend and records the
+  provider result. It skips system-test/`.invalid` addresses and refuses to
+  send customer email unless `CSTLE_POSTAL_ADDRESS` is configured, because the
+  sender identity must be real rather than fabricated. The message identifies
+  Cstle, states why it was sent, and supports unsubscribe by reply. No timed
+  nurture, SMS send, polling or Cron is enabled; broader marketing remains
+  blocked pending express consent capture and a compliant unsubscribe handler.
+
 - Migration `20240057_public_lead_intake_automation.sql` was confirmed by the
   user as successfully run on August 27, 2026. New public Project Fit and
   general booking submissions now create their offer assignment, activity,
