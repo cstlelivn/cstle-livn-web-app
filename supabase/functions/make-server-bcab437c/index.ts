@@ -2077,6 +2077,132 @@ app.post("/make-server-bcab437c/admin/wipe-data", authMiddleware, async (c) => {
 
 // ============= NOTIFICATION ROUTES =============
 
+type AutomationOutboxRow = {
+  id: string;
+  event_type: string;
+  aggregate_id: string;
+  payload: Record<string, unknown> | null;
+  attempt_count: number;
+};
+
+const escapeAutomationHtml = (value: unknown) => String(value ?? "")
+  .replace(/&/g, "&amp;")
+  .replace(/</g, "&lt;")
+  .replace(/>/g, "&gt;")
+  .replace(/"/g, "&quot;");
+
+async function deliverLeadCapturedAutomation(event: AutomationOutboxRow) {
+  const { data: lead, error: leadError } = await supabase
+    .from("leads")
+    .select("id,name,email,phone,service_type,project_type,project_address,city,province,source_form,qualification_band,qualification_score,qualification_reasons,qualification_answers,created_at")
+    .eq("id", event.aggregate_id)
+    .single();
+  if (leadError || !lead) throw new Error(leadError?.message || "Lead not found");
+
+  const delivered: string[] = [];
+  const resendApiKey = Deno.env.get("RESEND_API_KEY");
+  const notificationEmail = Deno.env.get("LEAD_NOTIFICATION_EMAIL") || "info@cstlelivn.ca";
+  const fromEmail = Deno.env.get("AUTOMATION_FROM_EMAIL") || "Cstle Livn Admin <info@cstlelivn.ca>";
+
+  if (resendApiKey) {
+    const service = lead.service_type || lead.project_type || "Project inquiry";
+    const reasons = Array.isArray(lead.qualification_reasons) ? lead.qualification_reasons.join(", ") : "";
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${resendApiKey}`,
+        "Content-Type": "application/json",
+        "Idempotency-Key": `cstle-${event.id}-internal-email`,
+      },
+      body: JSON.stringify({
+        from: fromEmail,
+        to: [notificationEmail],
+        subject: `${lead.qualification_band || "New"} lead: ${lead.name || "Website inquiry"} — ${service}`,
+        html: `<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto;color:#191919"><p style="font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#666">Cstle Revenue OS</p><h1 style="font-size:24px">New ${escapeAutomationHtml(lead.qualification_band || "unscored")} lead</h1><p><strong>${escapeAutomationHtml(lead.name || "Website inquiry")}</strong><br>${escapeAutomationHtml(service)}</p><table style="border-collapse:collapse;font-size:14px"><tr><td style="padding:5px 18px 5px 0;color:#666">Email</td><td>${escapeAutomationHtml(lead.email || "—")}</td></tr><tr><td style="padding:5px 18px 5px 0;color:#666">Phone</td><td>${escapeAutomationHtml(lead.phone || "—")}</td></tr><tr><td style="padding:5px 18px 5px 0;color:#666">Location</td><td>${escapeAutomationHtml([lead.project_address, lead.city, lead.province].filter(Boolean).join(", ") || "—")}</td></tr><tr><td style="padding:5px 18px 5px 0;color:#666">Score</td><td>${escapeAutomationHtml(lead.qualification_score ?? "—")}</td></tr><tr><td style="padding:5px 18px 5px 0;color:#666">Why</td><td>${escapeAutomationHtml(reasons || "—")}</td></tr></table><p style="margin-top:24px;font-size:12px;color:#666">Open Cstle Admin to review, assign and complete the next action.</p></div>`,
+        text: [`CSTLE REVENUE OS — NEW ${lead.qualification_band || "UNSCORED"} LEAD`, `Name: ${lead.name || "Website inquiry"}`, `Service: ${service}`, `Email: ${lead.email || "—"}`, `Phone: ${lead.phone || "—"}`, `Location: ${[lead.project_address, lead.city, lead.province].filter(Boolean).join(", ") || "—"}`, `Score: ${lead.qualification_score ?? "—"}`, `Why: ${reasons || "—"}`, "", "Open Cstle Admin to review, assign and complete the next action."].join("\n"),
+      }),
+    });
+    if (!response.ok) throw new Error(`Resend delivery failed (${response.status})`);
+    delivered.push("internal-email");
+  }
+
+  const webhookUrl = Deno.env.get("AUTOMATION_WEBHOOK_URL");
+  if (webhookUrl) {
+    const webhookSecret = Deno.env.get("AUTOMATION_WEBHOOK_SECRET");
+    const response = await fetch(webhookUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(webhookSecret ? { Authorization: `Bearer ${webhookSecret}` } : {}),
+        "Idempotency-Key": `cstle-${event.id}-webhook`,
+      },
+      body: JSON.stringify({
+        id: event.id,
+        type: event.event_type,
+        occurred_at: new Date().toISOString(),
+        lead,
+        channels: { email: Boolean(lead.email), sms: Boolean(lead.phone) },
+        payload: event.payload || {},
+      }),
+    });
+    if (!response.ok) throw new Error(`Automation webhook failed (${response.status})`);
+    delivered.push("webhook");
+  }
+
+  if (delivered.length === 0) {
+    throw new Error("No automation destination configured");
+  }
+  return delivered;
+}
+
+// Intended for Supabase Cron, Make, or a trusted scheduler. The worker secret
+// is separate from user auth because this is machine-to-machine automation.
+app.post("/make-server-bcab437c/automations/process", async (c) => {
+  const configuredSecret = Deno.env.get("AUTOMATION_WORKER_SECRET");
+  const suppliedSecret = c.req.header("x-automation-secret");
+  if (!configuredSecret) return c.json({ error: "Automation worker is not configured" }, 503);
+  if (!suppliedSecret || suppliedSecret !== configuredSecret) return c.json({ error: "Unauthorized" }, 401);
+
+  const requestedLimit = Number(c.req.query("limit") || 10);
+  const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(25, Math.floor(requestedLimit))) : 10;
+  const { data: candidates, error: candidateError } = await supabase
+    .from("automation_outbox")
+    .select("id,event_type,aggregate_id,payload,attempt_count")
+    .in("status", ["pending", "failed"])
+    .lte("available_at", new Date().toISOString())
+    .order("created_at", { ascending: true })
+    .limit(limit);
+  if (candidateError) return c.json({ error: candidateError.message }, 500);
+
+  const results: Array<{ id: string; status: string; destinations?: string[] }> = [];
+  for (const candidate of (candidates || []) as AutomationOutboxRow[]) {
+    const { data: claimed } = await supabase
+      .from("automation_outbox")
+      .update({ status: "processing", attempt_count: candidate.attempt_count + 1, last_error: null })
+      .eq("id", candidate.id)
+      .in("status", ["pending", "failed"])
+      .select("id")
+      .maybeSingle();
+    if (!claimed) continue;
+
+    try {
+      if (candidate.event_type !== "lead.captured") throw new Error(`Unsupported event type: ${candidate.event_type}`);
+      const destinations = await deliverLeadCapturedAutomation(candidate);
+      await supabase.from("automation_outbox").update({ status: "delivered", destination: destinations.join(","), delivered_at: new Date().toISOString(), last_error: null }).eq("id", candidate.id);
+      await supabase.from("lead_activities").insert({ lead_id: candidate.aggregate_id, activity_type: "automation_delivered", summary: `Lead automation delivered via ${destinations.join(" and ")}`, metadata: { outbox_id: candidate.id, destinations } });
+      results.push({ id: candidate.id, status: "delivered", destinations });
+    } catch (error: any) {
+      const attempt = candidate.attempt_count + 1;
+      const retryMinutes = Math.min(60, 2 ** Math.min(attempt, 6));
+      const availableAt = new Date(Date.now() + retryMinutes * 60_000).toISOString();
+      await supabase.from("automation_outbox").update({ status: "failed", available_at: availableAt, last_error: String(error?.message || error).slice(0, 500) }).eq("id", candidate.id);
+      results.push({ id: candidate.id, status: "failed" });
+    }
+  }
+
+  return c.json({ processed: results.length, results });
+});
+
 // Send email notification for new lead
 app.post("/make-server-bcab437c/notifications/new-lead", async (c) => {
   try {

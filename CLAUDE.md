@@ -2,6 +2,24 @@
 
 ## Public Project Fit intake — August 27, 2026
 
+- Migration `20240057_public_lead_intake_automation.sql` was confirmed by the
+  user as successfully run on August 27, 2026. New public Project Fit and
+  general booking submissions now create their offer assignment, activity,
+  attribution touchpoint, urgency-based follow-up task and `lead.captured`
+  outbox event server-side.
+- The canonical Edge Function now includes a secret-protected
+  `POST /make-server-bcab437c/automations/process` queue worker. It claims due
+  `lead.captured` events, sends an idempotent internal Resend notification when
+  `RESEND_API_KEY` is configured, optionally forwards the full event to a
+  trusted Make/direct endpoint via `AUTOMATION_WEBHOOK_URL`, records delivery
+  in lead activity, and retries failures with bounded exponential backoff.
+  Required scheduler secret: `AUTOMATION_WORKER_SECRET`; optional settings:
+  `LEAD_NOTIFICATION_EMAIL`, `AUTOMATION_FROM_EMAIL`,
+  `AUTOMATION_WEBHOOK_URL`, `AUTOMATION_WEBHOOK_SECRET`. The webhook payload
+  advertises available email/SMS channels, but customer email/SMS delivery is
+  intentionally delegated to the configured adapter so providers remain
+  replaceable. This Edge Function change is repository-only until manually
+  deployed and scheduled; a git push does not deploy it.
 - Full-page hierarchy correction: a stale page-level CSS rule was still forcing
   steps 2–4 form prompts to 32px on desktop, despite the refined step-1 utility
   classes. All four prompts now share the intended 21/22/24px, weight-650,
