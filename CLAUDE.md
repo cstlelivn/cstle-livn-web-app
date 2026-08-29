@@ -34,6 +34,9 @@
   repeated Project Fit calls to action. Desktop and 390px mobile layouts were
   checked with no horizontal overflow; the mobile experience includes a
   persistent Project Fit action.
+- The approved outcome-section label is `Built around your reason, not just
+  square footage.` Preserve that customer-purpose contrast in later funnel
+  revisions.
 - Every acquisition CTA records `basement_funnel_cta` with the offer and page
   location, then routes into the existing Project Fit form and Module 1 CRM.
   The page adds a specific browser title and search description. The homepage
