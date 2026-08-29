@@ -44,7 +44,7 @@
   `Concept visualization` from its stored stage or filename/title. Never put a
   temporary workflow phrase such as `Finishing in Progress` in a durable
   project title. Current fallback titles are outcome-led (`A Brighter Lower
-  Level`, `A Daycare-Ready Lower Level`, `A Connected Lower-Level Suite`,
+  Level`, `Daycare-Ready Lower Level`, `Connected Lower-Level Suite`,
   `Clean Lines, Room to Grow`, and `From Unfinished to Refined`). Reusable
   fallback metadata now lives in `src/app/content/project-proof.ts`, not inside
   the gallery component. The public loader also reads existing album
