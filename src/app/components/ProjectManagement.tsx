@@ -31,6 +31,7 @@ import { getPhaseTemplates, type PhaseTemplate } from "./PhaseTemplateManager";
 import CreateProjectDialog from "./CreateProjectDialog";
 import { formatDate } from "../src/lib/dates";
 import { toast } from "sonner";
+import ProjectListView from "./ProjectListView";
 
 // Default phases for Cstle Livn
 const DEFAULT_PHASES = [
@@ -55,7 +56,7 @@ interface ProjectManagementProps {
 }
 
 export default function ProjectManagement({ onViewProject, openCreateDialog = false, onDialogOpenChange }: ProjectManagementProps) {
-  const { projects: allProjects, tasks, clients, teamMembers, addProject, deleteProject, getTeamMember, addClient } = useApp();
+  const { projects: allProjects, tasks, clients, teamMembers, addProject, updateProject, deleteProject, getTeamMember, addClient } = useApp();
   const { hasPermission, currentUser } = useAuth();
   const canViewFinance = hasPermission("canViewFinance");
   const canDeleteProjects = hasPermission("canEditProjects");
@@ -301,18 +302,7 @@ export default function ProjectManagement({ onViewProject, openCreateDialog = fa
 
       {/* Projects Display */}
       {view === "list" && (
-        <div className="space-y-[12px]">
-          {paginatedProjects.map((project) => (
-            <ProjectListItem
-              key={project.id}
-              project={project}
-              onViewProject={onViewProject}
-              onDeleteClick={handleDeleteProject}
-              canViewFinance={canViewFinance}
-              canDeleteProjects={canDeleteProjects}
-            />
-          ))}
-        </div>
+        <ProjectListView projects={paginatedProjects} canViewFinance={canViewFinance} canEditProjects={canDeleteProjects} onOpen={onViewProject} onDelete={handleDeleteProject} onStatusChange={async (project, status) => { try { await updateProject(project.id, { status }); toast.success(`Project moved to ${status}`); } catch (error: any) { toast.error(error?.message || "Failed to update project status"); } }} />
       )}
 
       {view === "grid" && (

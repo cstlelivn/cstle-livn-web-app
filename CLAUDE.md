@@ -70,6 +70,16 @@
   between neighbouring columns without producing trailing dead space. This is
   a presentation/navigation change only and requires no migration or Edge
   Function deployment.
+- The Projects list now uses a dedicated `ProjectListView` with the same
+  compact/resizable hierarchy. Project, Customer and Location receive the
+  flexible width; finance-authorized users see a compact spent-versus-budget
+  column; Progress, Status, Due and Actions remain aligned and concise. The
+  whole row opens Project Details by mouse or keyboard. Staff with project-edit
+  permission can change Status directly in the row through the existing
+  optimistic `updateProject` path, while Open and Delete remain isolated in the
+  trailing action rail. Progress is rendered from already-loaded project data,
+  so this adds no query, realtime channel or background request. This is a UI
+  and navigation change only with no migration or Edge deployment.
 - CRM is now the benchmark for a broader human-navigation standard. Lead list
   rows open from the complete row by mouse or keyboard rather than requiring a
   tiny `View` target. Desktop uses one stable seven-column grid (selection,
