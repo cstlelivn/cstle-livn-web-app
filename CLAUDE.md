@@ -2,6 +2,31 @@
 
 ## Public Project Fit intake — August 27, 2026
 
+### Module 2 — Basement acquisition funnel started August 28, 2026
+
+- The roadmap definition is authoritative: Module 2 is the Regina Basement
+  Development acquisition funnel, not estimating stabilization. Estimating and
+  project conversion belong primarily to Module 4. The initial Module 2 build
+  adds a dedicated public route at `/basement-development-regina` before the
+  existing `/book/basement-development-regina` Project Fit intake.
+- The acquisition page uses the existing Cstle typography and restrained olive
+  accent system. Its conversion sequence is: Regina-specific context, concise
+  outcome-led headline, aspirational finished-space visual, outcome cards,
+  practical risk reduction, three-step process, objection-handling FAQ and
+  repeated Project Fit calls to action. Desktop and 390px mobile layouts were
+  checked with no horizontal overflow; the mobile experience includes a
+  persistent Project Fit action.
+- Every acquisition CTA records `basement_funnel_cta` with the offer and page
+  location, then routes into the existing Project Fit form and Module 1 CRM.
+  The page adds a specific browser title and search description. The homepage
+  Basement Finishing & Development card now exposes the new funnel so it is
+  discoverable without an advertising link. No lead schema, Edge Function,
+  scheduler, polling path or Supabase read was added.
+- Website production build and diff checks pass. Browser QA confirmed the hero
+  hierarchy, mobile fit, CTA navigation into the existing form, the form's
+  approved headline and zero console errors. The large existing Vite bundle
+  warning remains unchanged and is not a functional failure.
+
 ### Module 1 finish-up checkpoint — August 28, 2026
 
 - Module 1 is now ready for finish-up review. The full Regina Basement
