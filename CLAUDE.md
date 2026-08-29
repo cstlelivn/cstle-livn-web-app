@@ -332,6 +332,12 @@
   Spend is matched from existing `ad_spend_daily` rows; absent spend remains an
   honest dash rather than a fabricated zero. This reuses the same three bounded
   CRM-open reads above and adds no migration, polling, or background usage.
+- The Module 1 Acquisition performance table now follows the same compact,
+  resizable standard as the record lists. Source/Campaign holds the flexible
+  descriptive width; Leads, Qualified, Wins, Revenue, CPL and CAC are compact,
+  right-aligned tabular values. Adjacent drag resizing preserves total width.
+  This remains a local presentation of the already-computed acquisition rows
+  and adds no KPI query or external-service call.
 
 - The Saskatchewan Revenue OS is being added around the existing CRM,
   estimating, and estimate-to-project conversion flows rather than creating a
