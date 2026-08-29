@@ -7,10 +7,14 @@
 - **Public website heading ceiling (explicit user direction, August 29):**
   `Install. Perfect. Finish.` on the homepage is the authoritative maximum
   display-heading style. Funnel headings must use the same Anybody treatment
-  (`wdth` 137, weight 700, line-height 1.031 and approximately `-0.04em`
+  (`wdth` 137, weight 700 and approximately `-0.04em`
   tracking) and must not exceed its desktop size of `39.075px`. Supporting
   headings should step down from that ceiling to preserve information
   hierarchy. Do not reintroduce oversized campaign typography.
+- Stacked Anybody display headings use the shared line-height token `1.10`.
+  The former `1.031` setting let ascenders/descenders visually collide between
+  lines. Keep enough air for letters such as B, G and Y without loosening the
+  display rhythm beyond this token.
 - **Rebrandable typography architecture (explicit user direction, August 29):**
   semantic HTML levels and visual type scales are separate. Public website
   headings use global `.brand-heading` plus a scale modifier (`--hero`,
@@ -34,9 +38,11 @@
   repeated Project Fit calls to action. Desktop and 390px mobile layouts were
   checked with no horizontal overflow; the mobile experience includes a
   persistent Project Fit action.
-- The approved outcome-section label is `Built around your reason, not just
-  square footage.` Preserve that customer-purpose contrast in later funnel
-  revisions.
+- The approved prominent image statement is `Built around your reason, not
+  just square footage.` The following outcome-section label is `Choose the
+  outcome`, avoiding repetition while preserving the customer-purpose
+  contrast. Do not restore the superseded `Not just more square footage. More
+  useful life at home.` copy.
 - Every acquisition CTA records `basement_funnel_cta` with the offer and page
   location, then routes into the existing Project Fit form and Module 1 CRM.
   The page adds a specific browser title and search description. The homepage
