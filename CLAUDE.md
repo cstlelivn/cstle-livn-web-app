@@ -52,6 +52,14 @@
   so future CMS-managed values can replace fallbacks without a presentation
   rewrite or another public query. This correction adds no database write or
   background usage.
+- **Gallery image-first hierarchy (explicit user direction, August 29):**
+  gallery cards prioritize visual proof over reading. Cover images receive
+  300–330px of vertical space; durable project names are compact 13px Anybody
+  labels rather than display headings, and summaries step down to 10px. Small
+  mono metadata/service tags remain tertiary. The service-filter controls and
+  view toggle are centred as one balanced gallery navigation system instead of
+  pulling toward opposite edges. Do not restore `.brand-heading--card` sizing
+  to project-card titles.
 - **Public website heading ceiling (explicit user direction, August 29):**
   `Install. Perfect. Finish.` on the homepage is the authoritative maximum
   display-heading style. Funnel headings must use the same Anybody treatment
