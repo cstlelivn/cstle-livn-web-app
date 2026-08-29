@@ -37,6 +37,21 @@
   search and answer engines can identify the documented project topics. It is
   client-side presentation over the gallery's existing bounded reads—no new
   Supabase query, migration, sync, polling, cron or storage traffic was added.
+- **Gallery status/content correction (explicit user direction, August 29):**
+  all currently published projects are completed. Project status and image
+  stage are separate concepts: cards/modals say `Completed project`, while an
+  individual image may be labelled `Before`, `Progress`, `Completed` or
+  `Concept visualization` from its stored stage or filename/title. Never put a
+  temporary workflow phrase such as `Finishing in Progress` in a durable
+  project title. Current fallback titles are outcome-led (`A Brighter Lower
+  Level`, `A Daycare-Ready Lower Level`, `A Connected Lower-Level Suite`,
+  `Clean Lines, Room to Grow`, and `From Unfinished to Refined`). Reusable
+  fallback metadata now lives in `src/app/content/project-proof.ts`, not inside
+  the gallery component. The public loader also reads existing album
+  description/status/service metadata through its existing `select *` request,
+  so future CMS-managed values can replace fallbacks without a presentation
+  rewrite or another public query. This correction adds no database write or
+  background usage.
 - **Public website heading ceiling (explicit user direction, August 29):**
   `Install. Perfect. Finish.` on the homepage is the authoritative maximum
   display-heading style. Funnel headings must use the same Anybody treatment
