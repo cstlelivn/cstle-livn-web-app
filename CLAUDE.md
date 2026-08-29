@@ -2,6 +2,45 @@
 
 ## Public Project Fit intake — August 27, 2026
 
+### Module 1 finish-up checkpoint — August 28, 2026
+
+- Module 1 is now ready for finish-up review. The full Regina Basement
+  Development revenue path exists in Cstle as the source of truth: public lead
+  capture and first-touch attribution; deterministic Project Fit scoring;
+  Hot/Warm/Nurture/Reject bands; the eight-stage pipeline; ownership and next
+  actions; consultation/site-visit/estimate-review scheduling; notes/activity;
+  CASL-aware communication status and delivery recovery; lead-to-customer/
+  estimate/project handoff; acquisition reporting; and the requested KPI set.
+  Google/Meta click IDs, daily ad spend, direct/Make webhook delivery and the
+  estimator's AI analysis remain replaceable adapters around Cstle records.
+- The necessary Module 1 record/reporting tables now share the benchmark
+  hierarchy: Leads, Customers, Estimates, Projects, global Finance,
+  project-level Transactions/Purchases and Acquisition performance. They use
+  compact aligned rows, appropriate flexible versus concise columns, quiet
+  adjacent-column resizing, full-row navigation where a real detail destination
+  exists, direct safe actions, and isolated trailing destructive actions.
+  Payroll, inventory history, vendors and user administration are separate
+  operating modules and were deliberately not pulled into the Revenue OS
+  completion scope merely for visual churn.
+- Final verification passed: 13 automated tests, synchronized TypeScript,
+  production build and diff checks; the public website build also passed with
+  no new changes. `admin.cstle.ca` serves `index-B7iSmEGJ.js`. Signed-in live
+  QA confirmed the KPI/pipeline/acquisition/work-queue render, customer table,
+  natural Regina timestamps, complete-row lead opening, related-record bridge,
+  Project Fit and Sales Operations panels, and direct opening of the linked
+  existing estimate at Site Capture.
+- Edge Function `make-server-bcab437c` is ACTIVE at version 76. The pre-existing
+  failed `lead.stage_changed` system-test event was retried after deployment,
+  acknowledged as `cstle-activity`, and the live warning cleared. No
+  `AUTOMATION_WEBHOOK_URL` is configured, and the stage-event handler does not
+  send internal or customer email. This verification therefore produced no
+  third-party/customer communication and introduced no scheduled usage.
+- Intentional boundaries for the next module: SMS remains blocked without a
+  separately proven contact basis/provider; timed nurture remains off; ad
+  spend appears only when real data is imported; and deeper estimator repair
+  remains its own stabilization pass. These are honest guardrails, not missing
+  lead-capture paths in Module 1.
+
 - **Application-wide table standard (explicit user direction, August 28):**
   dense business tables must read as one continuous table across the available
   width, even when rows have a subtle card-like hover/surface. Use compact row
