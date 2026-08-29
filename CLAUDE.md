@@ -20,6 +20,23 @@
   rather than creating page-local canonical logic. These are static/client-side
   website signals only: no Supabase read, Edge Function, polling, cron, paid API
   or advertising spend was introduced.
+- **Module 2 project-proof layer (August 29):** the public gallery now leads
+  with a compact, wrapping brand-scale hero and real project cards rather than
+  generic image albums. Curated local project records supply careful public
+  profiles for P001–P005 and future P009: status, a concise visible-scope
+  summary and service tags. Copy says `Selected Cstle work` and describes only
+  documented finishing/progress details; it does not claim that Cstle sourced,
+  designed or managed an entire upstream project. Unknown legacy albums remain
+  visible without invented metadata. Service filters cover basement finishing,
+  flooring, painting, trim/doors, bathrooms and kitchens; empty filters explain
+  the absence and offer a reset. Cards align from a shared top edge, use the
+  olive accent only for status/tags, keep titles and scope visible without
+  hover, and expose the same proof inside the project modal. Explicit compound
+  titles use non-breaking hyphens to prevent orphaned word fragments. This is
+  mirrored in an honest gallery `CollectionPage`/`ItemList` JSON-LD graph so
+  search and answer engines can identify the documented project topics. It is
+  client-side presentation over the gallery's existing bounded reads—no new
+  Supabase query, migration, sync, polling, cron or storage traffic was added.
 - **Public website heading ceiling (explicit user direction, August 29):**
   `Install. Perfect. Finish.` on the homepage is the authoritative maximum
   display-heading style. Funnel headings must use the same Anybody treatment
