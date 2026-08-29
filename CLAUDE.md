@@ -4,6 +4,36 @@
 
 ### Module 2 — Basement acquisition funnel started August 28, 2026
 
+- **Reusable Gallery Manager (August 29):** Gallery content is now managed in
+  the Cstle admin app instead of requiring a developer whenever a Drive folder
+  needs public context. Authorized Super Admin, Admin and Manager roles can
+  open `Gallery`, run the existing Google Drive sync manually, review new
+  folders as private drafts, and set a public title, concise story, safe
+  location label, status, cover, order, project type, service tags and image
+  descriptions before publishing. Project types and service tags deliberately
+  cover basement development, whole-home renovations, kitchens, bathrooms,
+  commercial renovations/interiors, tenant improvements, new construction,
+  exteriors, finishing-contract work and custom future offers. Do not hard-code
+  the gallery back to basement-only assumptions.
+- **Gallery publishing contract:** migration
+  `20240060_gallery_manager.sql` makes Cstle the source of truth for public
+  gallery metadata. Anonymous website reads can see only active, published
+  albums and images; staff reads/writes go through the authenticated, role-
+  gated `/gallery/manage`, `/gallery/albums/:id` and
+  `/gallery/albums/:id/images` Edge routes. Publishing requires a meaningful
+  summary, at least one service, a cover and useful alternative text for every
+  visible image. Existing live albums were preserved and seeded as completed;
+  future Drive folders remain hidden until reviewed. Re-syncing updates source
+  files/URLs/order while omitting human-owned publishing metadata on existing
+  images, so editorial changes survive later syncs.
+- **Gallery operations and usage guardrail:** Drive remains the simple upload
+  surface: create a clearly named project folder, add ordered images, then use
+  `Sync Google Drive` and `Refresh projects` in Gallery Manager. There is no
+  polling, realtime subscription or cron job. The public site continues to use
+  the same bounded gallery reads, but filters and search-engine structured data
+  now derive from stored service/project metadata, so commercial, whole-home
+  and new-build work appears correctly without a code release.
+
 - **Search and AI discovery foundation (August 29):** the public website now
   presents one coherent search entity: `Cstle Construction` is the public
   search name, `Cstle Livn` is an alternate brand name and `Cstle Livn Inc.`

@@ -46,6 +46,7 @@ import TemplateBuilder from "./components/TemplateBuilder";
 import TeamProductivityReport from "./components/TeamProductivityReport";
 import MobileTaskWorkspace from "./components/MobileTaskWorkspace";
 import ErrorBoundary from "./components/ErrorBoundary";
+import GalleryManager from "./components/GalleryManager";
 import { isWorkPortalHost } from "./src/lib/workPortal";
 import { startOfflineSync } from "./src/features/workSessions/offlineQueue";
 import svgPaths from "./imports/svg-ydinhr03gq";
@@ -64,6 +65,7 @@ type ViewType =
   | "profile"
   | "productivity"
   | "estimating"
+  | "gallery"
   | "task-details";
 
 type SubViewType = {
@@ -341,6 +343,12 @@ function AppContent() {
       show: hasPermission("canViewAnalytics"),
     },
     {
+      id: "gallery",
+      label: "Gallery",
+      icon: ImageIcon,
+      show: hasPermission("canManageGallery"),
+    },
+    {
       id: "users",
       label: "Users",
       icon: Users,
@@ -386,6 +394,7 @@ function AppContent() {
     settings: "canViewSettings",
     templates: "canManageTemplates",
     productivity: "canViewTeamPerformance",
+    gallery: "canManageGallery",
   };
 
   const renderView = () => {
@@ -435,6 +444,8 @@ function AppContent() {
         return <EstimatingModule initialEstimateId={estimateToOpen} onInitialEstimateOpened={() => setEstimateToOpen(null)} />;
       case "analytics":
         return <AnalyticsModule />;
+      case "gallery":
+        return <GalleryManager />;
       case "users":
         return <UserManagement onEditUser={handleEditUser} />;
       case "user-edit":

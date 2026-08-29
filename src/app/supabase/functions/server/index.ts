@@ -3605,6 +3605,162 @@ ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS dependency_task_id uuid REFERE
   }
 });
 
+const GALLERY_MANAGER_ROLES = ["Super Admin", "Admin", "Manager"];
+
+function canManageGallery(c: any) {
+  return GALLERY_MANAGER_ROLES.includes(String(c.get("userRole") ?? ""));
+}
+
+function publicGallerySlug(value: unknown) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 100);
+}
+
+app.get("/make-server-bcab437c/gallery/manage", authMiddleware, async (c) => {
+  if (!canManageGallery(c)) return c.json({ error: "Gallery Manager access required" }, 403);
+
+  const { data: albums, error: albumError } = await supabase
+    .from("gallery_albums")
+    .select("*")
+    .order("display_position", { ascending: true })
+    .order("created_at", { ascending: false })
+    .limit(200);
+  if (albumError) return c.json({ error: albumError.message }, 500);
+
+  const albumIds = (albums ?? []).map((album: any) => album.id);
+  const { data: images, error: imageError } = albumIds.length
+    ? await supabase.from("gallery_images").select("*").in("album_id", albumIds).order("display_position", { ascending: true }).limit(2000)
+    : { data: [], error: null };
+  if (imageError) return c.json({ error: imageError.message }, 500);
+
+  const imagesByAlbum = new Map<string, any[]>();
+  for (const image of images ?? []) {
+    const list = imagesByAlbum.get(String(image.album_id)) ?? [];
+    list.push(image);
+    imagesByAlbum.set(String(image.album_id), list);
+  }
+
+  return c.json({
+    albums: (albums ?? []).map((album: any) => ({
+      ...album,
+      images: imagesByAlbum.get(String(album.id)) ?? [],
+    })),
+  });
+});
+
+app.put("/make-server-bcab437c/gallery/albums/:id", authMiddleware, async (c) => {
+  if (!canManageGallery(c)) return c.json({ error: "Gallery Manager access required" }, 403);
+  const albumId = c.req.param("id");
+  const body = await c.req.json();
+  const title = String(body.public_title ?? "").trim().slice(0, 120);
+  const description = String(body.description ?? "").trim().slice(0, 800);
+  const slug = publicGallerySlug(body.public_slug || title);
+  const projectType = String(body.project_type ?? "Other").trim().slice(0, 80) || "Other";
+  const locationLabel = String(body.location_label ?? "").trim().slice(0, 100) || null;
+  const services = Array.isArray(body.services)
+    ? [...new Set(body.services.map((item: unknown) => String(item).trim().slice(0, 60)).filter(Boolean))].slice(0, 16)
+    : [];
+  const status = ["draft", "in_progress", "completed"].includes(body.status) ? body.status : "draft";
+  const published = body.published === true;
+  const coverImageId = body.cover_image_id ? String(body.cover_image_id) : null;
+
+  if (!title) return c.json({ error: "Add a public project title" }, 400);
+  if (!slug) return c.json({ error: "Add a valid project URL slug" }, 400);
+
+  if (published) {
+    if (description.length < 20) return c.json({ error: "Add a useful project summary before publishing" }, 400);
+    if (services.length === 0) return c.json({ error: "Choose at least one service before publishing" }, 400);
+    if (!coverImageId) return c.json({ error: "Choose a cover image before publishing" }, 400);
+    const { data: publishImages, error: publishImageError } = await supabase
+      .from("gallery_images")
+      .select("id, alt_text, published, is_active")
+      .eq("album_id", albumId)
+      .eq("published", true)
+      .eq("is_active", true);
+    if (publishImageError) return c.json({ error: publishImageError.message }, 500);
+    if (!publishImages?.length) return c.json({ error: "Publish at least one project image" }, 400);
+    if (publishImages.some((image: any) => !String(image.alt_text ?? "").trim())) {
+      return c.json({ error: "Every published image needs useful alternative text" }, 400);
+    }
+  }
+
+  let coverUrl: string | null = null;
+  if (coverImageId) {
+    const { data: cover, error: coverError } = await supabase
+      .from("gallery_images")
+      .select("id, url, thumbnail_url")
+      .eq("id", coverImageId)
+      .eq("album_id", albumId)
+      .maybeSingle();
+    if (coverError) return c.json({ error: coverError.message }, 500);
+    if (!cover) return c.json({ error: "The selected cover does not belong to this project" }, 400);
+    coverUrl = cover.thumbnail_url || cover.url || null;
+  }
+
+  const { data, error } = await supabase
+    .from("gallery_albums")
+    .update({
+      public_title: title,
+      public_slug: slug,
+      description,
+      project_type: projectType,
+      services,
+      location_label: locationLabel,
+      status,
+      cover_image_id: coverImageId,
+      cover_url: coverUrl,
+      display_position: Number.isFinite(Number(body.display_position)) ? Number(body.display_position) : 0,
+      published,
+      published_at: published ? new Date().toISOString() : null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", albumId)
+    .select("*")
+    .single();
+  if (error) return c.json({ error: error.code === "23505" ? "That public project URL is already in use" : error.message }, 400);
+  return c.json({ album: data });
+});
+
+app.put("/make-server-bcab437c/gallery/albums/:id/images", authMiddleware, async (c) => {
+  if (!canManageGallery(c)) return c.json({ error: "Gallery Manager access required" }, 403);
+  const albumId = c.req.param("id");
+  const body = await c.req.json();
+  const images = Array.isArray(body.images) ? body.images.slice(0, 250) : [];
+  const allowedStages = ["before", "progress", "completed", "concept"];
+
+  for (let index = 0; index < images.length; index += 1) {
+    const image = images[index];
+    const imageId = String(image.id ?? "");
+    if (!imageId) continue;
+    const stage = allowedStages.includes(image.stage) ? image.stage : "completed";
+    const altText = String(image.alt_text ?? "").trim().slice(0, 220);
+    const isPublished = image.published !== false;
+    if (isPublished && !altText) return c.json({ error: "Every visible image needs useful alternative text" }, 400);
+
+    const { error } = await supabase
+      .from("gallery_images")
+      .update({
+        display_title: String(image.display_title ?? "").trim().slice(0, 140),
+        caption: String(image.caption ?? "").trim().slice(0, 500) || null,
+        alt_text: altText,
+        stage,
+        display_position: index,
+        published: isPublished,
+        is_active: image.is_active !== false,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", imageId)
+      .eq("album_id", albumId);
+    if (error) return c.json({ error: error.message }, 400);
+  }
+
+  return c.json({ ok: true, updated: images.length });
+});
+
 // Trigger GitHub Actions workflow to sync website gallery from Google Drive
 app.post("/make-server-bcab437c/gallery/sync", authMiddleware, async (c) => {
   try {
@@ -3612,8 +3768,8 @@ app.post("/make-server-bcab437c/gallery/sync", authMiddleware, async (c) => {
     // (see its comment above -- role must never be re-derived from a
     // user-writable table) and stored it on the context.
     const userRole = c.get("userRole");
-    if (userRole !== "Super Admin") {
-      return c.json({ error: "Only Super Admins can trigger gallery sync" }, 403);
+    if (!GALLERY_MANAGER_ROLES.includes(userRole)) {
+      return c.json({ error: "Gallery Manager access required" }, 403);
     }
 
     // Call GitHub API to dispatch workflow

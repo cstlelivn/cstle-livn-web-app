@@ -90,6 +90,7 @@ export default function UserEdit({ userId, onBack }: UserEditProps) {
     { key: "canEditProposals", label: "Edit Proposals" },
     { key: "canViewSettings", label: "View Settings" },
     { key: "canEditSettings", label: "Edit Settings" },
+    { key: "canManageGallery", label: "Manage Website Gallery" },
     { key: "canApproveTaskQC", label: "Approve Task QC" },
   ];
 

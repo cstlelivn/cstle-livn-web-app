@@ -36,7 +36,7 @@ export default function Dashboard({ onNavigate, onNewProject }: DashboardProps) 
   // Check permissions
   const canViewFinance = hasPermission("canViewFinance");
   const canViewTeam = hasPermission("canViewTeam");
-  const isSuperAdmin = hasPermission("canForceCompleteProjects");
+  const canManageGallery = hasPermission("canManageGallery");
 
   // Without canViewAllProjects, only count/list projects the current person
   // actually has a task in -- otherwise the dashboard showed the whole
@@ -53,8 +53,8 @@ export default function Dashboard({ onNavigate, onNewProject }: DashboardProps) 
 
   // Handle gallery sync
   const handleSyncGallery = async () => {
-    if (!isSuperAdmin) {
-      toast.error("Only Super Admins can sync the gallery");
+    if (!canManageGallery) {
+      toast.error("You don't have Gallery Manager access");
       return;
     }
 
@@ -262,7 +262,7 @@ export default function Dashboard({ onNavigate, onNewProject }: DashboardProps) 
               New Project
             </p>
           </button>
-          {isSuperAdmin && (
+          {canManageGallery && (
             <button
               onClick={handleSyncGallery}
               disabled={syncingGallery}

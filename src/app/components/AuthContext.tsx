@@ -37,6 +37,7 @@ export type Permission =
   | "canEditPhases"
   | "canForceCompleteProjects"
   | "canManageTemplates"
+  | "canManageGallery"
   | "canApproveTaskQC"
   | "canViewTeamPerformance"
   | "canViewEstimating"
@@ -100,6 +101,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "canEditPhases",
     "canForceCompleteProjects",
     "canManageTemplates",
+    "canManageGallery",
     "canApproveTaskQC",
     "canViewTeamPerformance",
     "canViewEstimating",
@@ -133,6 +135,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "canViewAllProjects",
     "canEditPhases",
     "canManageTemplates",
+    "canManageGallery",
     "canApproveTaskQC",
     "canViewTeamPerformance",
     "canViewEstimating",
@@ -165,6 +168,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "canViewAllProjects",
     "canEditPhases",
     "canManageTemplates",
+    "canManageGallery",
     "canApproveTaskQC",
     "canViewTeamPerformance",
     "canViewEstimating",
@@ -261,6 +265,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       "canEditPhases",
       "canForceCompleteProjects",
       "canManageTemplates",
+      "canManageGallery",
       "canApproveTaskQC",
       "canViewTeamPerformance",
       "canViewEstimating",
