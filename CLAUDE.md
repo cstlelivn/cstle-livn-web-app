@@ -49,6 +49,9 @@
   body-sized caption text, not a second display headline. Never place two
   headline-sized propositions in the same hero or make them compete for first
   attention.
+- The approved outcome-section heading is `The right basement begins with what
+  you need it to do.` This replaces the less direct `what it needs to change
+  for you` wording.
 - Every acquisition CTA records `basement_funnel_cta` with the offer and page
   location, then routes into the existing Project Fit form and Module 1 CRM.
   The page adds a specific browser title and search description. The homepage
