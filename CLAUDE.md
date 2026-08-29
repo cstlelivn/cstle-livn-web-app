@@ -80,6 +80,18 @@
   trailing action rail. Progress is rendered from already-loaded project data,
   so this adds no query, realtime channel or background request. This is a UI
   and navigation change only with no migration or Edge deployment.
+- The active Finance transaction table (the `FinanceModule.tsx` imported by
+  `App.tsx`, not the legacy `FinanceModuleNew.tsx`) now uses the shared compact,
+  resizable table standard through `FinanceTransactionList`. Description and
+  Project receive the primary flexible space; Date, Category, Type, Amount,
+  Status and the far-right Actions rail stay aligned. Amounts use tabular
+  numerals and income receives restrained olive emphasis; expense is neutral
+  until a genuinely destructive Delete interaction. The whole row opens a
+  transaction detail dialog, while View and Delete stop row propagation. The
+  detail dialog exposes the linked project and routes directly into Project
+  Details through `App.tsx`, avoiding manual cross-module navigation. It reuses
+  the already-loaded transaction row and adds no database request, migration,
+  realtime channel or Edge deployment.
 - CRM is now the benchmark for a broader human-navigation standard. Lead list
   rows open from the complete row by mouse or keyboard rather than requiring a
   tiny `View` target. Desktop uses one stable seven-column grid (selection,

@@ -430,7 +430,7 @@ function AppContent() {
       case "inventory":
         return <InventoryModule />;
       case "finance":
-        return <FinanceModule />;
+        return <FinanceModule onOpenProject={(projectId) => { setSelectedProjectId(projectId); setCurrentView('projects'); }} />;
       case "estimating":
         return <EstimatingModule initialEstimateId={estimateToOpen} onInitialEstimateOpened={() => setEstimateToOpen(null)} />;
       case "analytics":

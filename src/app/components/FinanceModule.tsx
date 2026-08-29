@@ -5,14 +5,15 @@ import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
-import { RefreshCw, Plus, TrendingUp, TrendingDown, DollarSign, Receipt, Search, Trash2 } from 'lucide-react';
+import { RefreshCw, Plus, TrendingUp, TrendingDown, DollarSign, Receipt, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import AddTransactionDialog from './AddTransactionDialog';
 import { useAuth } from './AuthContext';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
+import FinanceTransactionList from './FinanceTransactionList';
 
 // Use singleton Supabase client
 const supabase = createClient();
@@ -77,7 +78,7 @@ function formatDate(dateString: string): string {
   });
 }
 
-export default function FinanceModule() {
+export default function FinanceModule({ onOpenProject }: { onOpenProject?: (projectId: number) => void }) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -188,7 +189,8 @@ export default function FinanceModule() {
   };
 
   // Delete transaction
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string, event?: React.MouseEvent) => {
+    event?.stopPropagation();
     if (!confirm('Are you sure you want to delete this transaction?')) return;
 
     try {
@@ -554,88 +556,7 @@ export default function FinanceModule() {
           </Card>
 
           {/* Transactions Table */}
-          <Card className="border-border">
-            <CardContent className="pt-6">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-border">
-                      <TableHead>Date</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead>Project</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredTransactions.map((transaction) => (
-                      <TableRow key={transaction.id} className="border-border">
-                        <TableCell className="text-muted-foreground">
-                          {formatDate(transaction.date)}
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <p className="text-foreground">{transaction.description}</p>
-                            {transaction.recipient_or_vendor && (
-                              <p className="text-muted-foreground" style={{ fontSize: 'var(--text-label)' }}>
-                                {transaction.recipient_or_vendor}
-                              </p>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="border-border">
-                            {CATEGORY_LABELS[transaction.category] || transaction.category}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {transaction.project?.title || '-'}
-                        </TableCell>
-                        <TableCell>
-                          {transaction.type === 'income' ? (
-                            <Badge className="bg-success/10 text-success border-success/20">Income</Badge>
-                          ) : (
-                            <Badge className="bg-destructive/10 text-destructive border-destructive/20">Expense</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className={transaction.type === 'income' ? 'text-success' : 'text-destructive'}>
-                          {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
-                        </TableCell>
-                        <TableCell>
-                          <Badge 
-                            variant={transaction.status === 'Completed' ? 'default' : 'outline'}
-                            className="border-border"
-                          >
-                            {transaction.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDelete(transaction.id)}
-                            >
-                              <Trash2 className="size-4 text-destructive" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-
-                {filteredTransactions.length === 0 && (
-                  <div className="text-center py-12 text-muted-foreground">
-                    No transactions found
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          {filteredTransactions.length > 0 ? <FinanceTransactionList transactions={filteredTransactions} categoryLabel={(category) => CATEGORY_LABELS[category] || category} formatCurrency={formatCurrency} onOpen={setSelectedTransaction} onDelete={handleDelete} /> : <Card className="border-border"><CardContent className="py-12 text-center text-muted-foreground">No transactions found</CardContent></Card>}
         </TabsContent>
 
         {/* ANALYTICS TAB */}
@@ -772,6 +693,19 @@ export default function FinanceModule() {
         clients={clients}
         vendors={vendors}
       />
+      <Dialog open={Boolean(selectedTransaction)} onOpenChange={(open) => { if (!open) setSelectedTransaction(null); }}>
+        <DialogContent className="max-w-[560px]">
+          <DialogHeader><DialogTitle>{selectedTransaction?.description || 'Transaction'}</DialogTitle><DialogDescription>Recorded financial activity and its related Cstle record.</DialogDescription></DialogHeader>
+          {selectedTransaction && <div className="grid grid-cols-2 gap-x-6 gap-y-4 py-2">
+            <div><p className="font-['Roboto_Mono'] text-[9px] uppercase text-muted-foreground">Amount</p><p className="mt-1 text-[18px] font-semibold tabular-nums">{selectedTransaction.type === 'income' ? '+' : '−'}{formatCurrency(selectedTransaction.amount)}</p></div>
+            <div><p className="font-['Roboto_Mono'] text-[9px] uppercase text-muted-foreground">Status</p><p className="mt-1 text-[12px]">{selectedTransaction.status}</p></div>
+            <div><p className="font-['Roboto_Mono'] text-[9px] uppercase text-muted-foreground">Category</p><p className="mt-1 text-[12px]">{CATEGORY_LABELS[selectedTransaction.category] || selectedTransaction.category}</p></div>
+            <div><p className="font-['Roboto_Mono'] text-[9px] uppercase text-muted-foreground">Date</p><p className="mt-1 text-[12px]">{formatDate(selectedTransaction.date)}</p></div>
+            <div className="col-span-2"><p className="font-['Roboto_Mono'] text-[9px] uppercase text-muted-foreground">Project</p><div className="mt-1 flex items-center justify-between gap-3"><p className="truncate text-[12px]">{selectedTransaction.project?.title || 'General—no project linked'}</p>{selectedTransaction.project_id && onOpenProject && <Button variant="outline" size="sm" onClick={() => { setSelectedTransaction(null); onOpenProject(Number(selectedTransaction.project_id)); }} className="shrink-0 text-[10px]">Open project</Button>}</div></div>
+            {(selectedTransaction.recipient_or_vendor || selectedTransaction.notes) && <div className="col-span-2 rounded-[10px] bg-secondary/40 p-3"><p className="text-[11px] text-muted-foreground">{selectedTransaction.recipient_or_vendor || selectedTransaction.notes}</p></div>}
+          </div>}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
