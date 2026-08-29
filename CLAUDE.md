@@ -11,6 +11,17 @@
   tracking) and must not exceed its desktop size of `39.075px`. Supporting
   headings should step down from that ceiling to preserve information
   hierarchy. Do not reintroduce oversized campaign typography.
+- **Rebrandable typography architecture (explicit user direction, August 29):**
+  semantic HTML levels and visual type scales are separate. Public website
+  headings use global `.brand-heading` plus a scale modifier (`--hero`,
+  `--section`, `--feature`, `--card` or `--question`). Their font family,
+  variable width, weight, tracking, line height and responsive size values live
+  as `--brand-*` properties in `src/styles/globals.css`. The homepage H1 and
+  Module 2 funnel now use this system. Future pages must use these shared
+  classes rather than page-scoped font declarations so a new brand can change
+  typography centrally without rewriting every section. The Google Fonts
+  request must retain Anybody's real `wdth` range of 50–150 so token value 137
+  is actually available.
 - The roadmap definition is authoritative: Module 2 is the Regina Basement
   Development acquisition funnel, not estimating stabilization. Estimating and
   project conversion belong primarily to Module 4. The initial Module 2 build
