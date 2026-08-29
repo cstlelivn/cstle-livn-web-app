@@ -43,9 +43,10 @@
   individual image may be labelled `Before`, `Progress`, `Completed` or
   `Concept visualization` from its stored stage or filename/title. Never put a
   temporary workflow phrase such as `Finishing in Progress` in a durable
-  project title. Current fallback titles are outcome-led (`A Brighter Lower
-  Level`, `Daycare-Ready Lower Level`, `Connected Lower-Level Suite`,
-  `Clean Lines, Room to Grow`, and `From Unfinished to Refined`). Reusable
+  project title. Current fallback titles are outcome-led and avoid repeating
+  obvious room types: `A Brighter Way to Live`, `Ready for Busy Little Days`,
+  `Connected From Room to Room`, `Clean Lines, Room to Grow`, and `From
+  Unfinished to Refined`. Reusable
   fallback metadata now lives in `src/app/content/project-proof.ts`, not inside
   the gallery component. The public loader also reads existing album
   description/status/service metadata through its existing `select *` request,
