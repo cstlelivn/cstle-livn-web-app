@@ -43,6 +43,20 @@
   Basement Finishing & Development card now exposes the new funnel so it is
   discoverable without an advertising link. No lead schema, Edge Function,
   scheduler, polling path or Supabase read was added.
+- Module 2 attribution continuity now records the first useful acquisition
+  touch in session storage before route changes. The landing page forwards only
+  recognized UTM/Google/Meta click parameters into Project Fit, while the form
+  submission reads the preserved original landing page and referrer. A later
+  untagged internal route cannot silently turn a paid lead into Direct. If a
+  session began untagged and later receives a tagged acquisition visit, that
+  first useful tagged touch replaces the empty one. This is browser-local,
+  creates no database request and expires with the browser session.
+- The public website's leftover `noindex, nofollow` development directive was
+  removed; it now permits normal indexing and link discovery. The Regina
+  basement funnel sets its canonical URL to
+  `https://www.cstle.ca/basement-development-regina`, preventing tagged ad URLs
+  from becoming duplicate search entries. This enables discoverability but
+  does not start or spend on any advertising campaign.
 - Website production build and diff checks pass. Browser QA confirmed the hero
   hierarchy, mobile fit, CTA navigation into the existing form, the form's
   approved headline and zero console errors. The large existing Vite bundle
