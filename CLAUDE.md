@@ -4,6 +4,13 @@
 
 ### Module 2 — Basement acquisition funnel started August 28, 2026
 
+- **Public website heading ceiling (explicit user direction, August 29):**
+  `Install. Perfect. Finish.` on the homepage is the authoritative maximum
+  display-heading style. Funnel headings must use the same Anybody treatment
+  (`wdth` 137, weight 700, line-height 1.031 and approximately `-0.04em`
+  tracking) and must not exceed its desktop size of `39.075px`. Supporting
+  headings should step down from that ceiling to preserve information
+  hierarchy. Do not reintroduce oversized campaign typography.
 - The roadmap definition is authoritative: Module 2 is the Regina Basement
   Development acquisition funnel, not estimating stabilization. Estimating and
   project conversion belong primarily to Module 4. The initial Module 2 build
