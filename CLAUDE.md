@@ -92,6 +92,15 @@
   Details through `App.tsx`, avoiding manual cross-module navigation. It reuses
   the already-loaded transaction row and adds no database request, migration,
   realtime channel or Edge deployment.
+- Project-detail Transactions and Purchases tables now use a shared
+  `useAdjacentColumnResize` hook. Both preserve their existing full-row edit
+  workflow, add keyboard row activation, share compact 48px rows and 9px mono
+  headers, and keep Edit/Delete in a fixed trailing Actions allocation.
+  Identity/description/notes receive the useful width while quantities and
+  currency stay narrow and aligned. Purchase dates now use the calendar-safe
+  formatter instead of the viewer device locale, preventing Saskatchewan date
+  rollback. These changes reuse each screen's existing loaded collection and
+  add no reads, subscriptions, migrations or Edge deployment.
 - CRM is now the benchmark for a broader human-navigation standard. Lead list
   rows open from the complete row by mouse or keyboard rather than requiring a
   tiny `View` target. Desktop uses one stable seven-column grid (selection,

@@ -17,6 +17,7 @@ import {
   type TransactionType 
 } from "../src/features/transactions/projectTransactionsApi";
 import { formatDateTime } from "../src/lib/dateFormatter";
+import { useAdjacentColumnResize } from "../hooks/useAdjacentColumnResize";
 
 interface ProjectTransactionsViewProps {
   projectId: string;
@@ -37,6 +38,7 @@ export default function ProjectTransactionsView({ projectId, projectPhases, onTr
   const [selectedTransaction, setSelectedTransaction] = useState<ProjectTransaction | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [transactionToEdit, setTransactionToEdit] = useState<ProjectTransaction | null>(null);
+  const transactionColumns = useAdjacentColumnResize([105, 145, 190, 230, 140, 72, 110, 120, 190, 84]);
 
   // Load transactions
   const loadTransactions = async () => {
@@ -397,24 +399,14 @@ export default function ProjectTransactionsView({ projectId, projectPhases, onTr
             No transactions found
           </div>
         ) : (
-          <Table>
+          <Table className="table-fixed" style={{ minWidth: transactionColumns.totalWidth }}>
+            <colgroup>{transactionColumns.widths.map((width, index) => <col key={index} style={{ width }} />)}</colgroup>
             <TableHeader>
-              <TableRow>
-                <TableHead style={{ fontSize: "var(--text-label)" }}>Type</TableHead>
-                <TableHead style={{ fontSize: "var(--text-label)" }}>Date</TableHead>
-                <TableHead style={{ fontSize: "var(--text-label)" }}>Vendor/Recipient</TableHead>
-                <TableHead style={{ fontSize: "var(--text-label)" }}>Item/Description</TableHead>
-                <TableHead style={{ fontSize: "var(--text-label)" }}>Phase</TableHead>
-                <TableHead style={{ fontSize: "var(--text-label)" }}>Qty</TableHead>
-                <TableHead style={{ fontSize: "var(--text-label)" }}>Unit Cost</TableHead>
-                <TableHead style={{ fontSize: "var(--text-label)" }}>Total Cost</TableHead>
-                <TableHead style={{ fontSize: "var(--text-label)" }}>Notes</TableHead>
-                <TableHead style={{ fontSize: "var(--text-label)" }}></TableHead>
-              </TableRow>
+              <TableRow className="bg-[#f4f5ef]">{["Type", "Date", "Vendor / recipient", "Item / description", "Phase", "Qty", "Unit cost", "Total cost", "Notes", "Actions"].map((label, index) => <TableHead key={label} className={`relative h-9 truncate px-3 font-['Roboto_Mono'] text-[9px] font-bold uppercase tracking-[0.06em] text-muted-foreground ${label === "Actions" ? "text-right" : ""}`}>{label}{index < 9 && <button type="button" onPointerDown={(event) => transactionColumns.startResize(index, event)} className="absolute -right-1.5 top-1/2 z-10 h-7 w-3 -translate-y-1/2 cursor-col-resize touch-none rounded-full bg-[#65733d]/10 opacity-30 hover:opacity-100" aria-label={`Resize ${label} column`} />}</TableHead>)}</TableRow>
             </TableHeader>
             <TableBody>
               {filteredTransactions.map((transaction) => (
-                <TableRow key={transaction.id} className="cursor-pointer hover:bg-secondary/50" onClick={() => handleEditClick(transaction)}>
+                <TableRow key={transaction.id} tabIndex={0} className="h-12 cursor-pointer hover:bg-[#f7f8f2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#65733d]" onClick={() => handleEditClick(transaction)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") handleEditClick(transaction); }}>
                   <TableCell>
                     <Badge
                       variant={transaction.transactionType === "purchase" ? "default" : "secondary"}

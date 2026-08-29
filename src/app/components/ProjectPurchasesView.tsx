@@ -15,6 +15,8 @@ import {
   deleteProjectPurchase, 
   type ProjectPurchase 
 } from "../src/features/purchases/projectPurchasesApi";
+import { useAdjacentColumnResize } from "../hooks/useAdjacentColumnResize";
+import { formatDate } from "../src/lib/dates";
 
 interface ProjectPurchasesViewProps {
   projectId: string;
@@ -34,6 +36,7 @@ export default function ProjectPurchasesView({ projectId, projectPhases, onPurch
   const [selectedPurchase, setSelectedPurchase] = useState<ProjectPurchase | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [purchaseToEdit, setPurchaseToEdit] = useState<ProjectPurchase | null>(null);
+  const purchaseColumns = useAdjacentColumnResize([135, 260, 160, 90, 120, 130, 250, 84]);
 
   // Load purchases
   const loadPurchases = async () => {
@@ -300,29 +303,21 @@ export default function ProjectPurchasesView({ projectId, projectPhases, onPurch
             No purchases found
           </div>
         ) : (
-          <Table>
+          <Table className="table-fixed" style={{ minWidth: purchaseColumns.totalWidth }}>
+            <colgroup>{purchaseColumns.widths.map((width, index) => <col key={index} style={{ width }} />)}</colgroup>
             <TableHeader>
-              <TableRow>
-                <TableHead style={{ fontSize: "var(--text-label)" }}>Date</TableHead>
-                <TableHead style={{ fontSize: "var(--text-label)" }}>Item</TableHead>
-                <TableHead style={{ fontSize: "var(--text-label)" }}>Phase</TableHead>
-                <TableHead style={{ fontSize: "var(--text-label)" }}>Quantity</TableHead>
-                <TableHead style={{ fontSize: "var(--text-label)" }}>Unit Cost</TableHead>
-                <TableHead style={{ fontSize: "var(--text-label)" }}>Total Cost</TableHead>
-                <TableHead style={{ fontSize: "var(--text-label)" }}>Notes</TableHead>
-                <TableHead style={{ fontSize: "var(--text-label)" }}></TableHead>
-              </TableRow>
+              <TableRow className="bg-[#f4f5ef]">{["Date", "Item / vendor", "Phase", "Qty", "Unit cost", "Total cost", "Notes", "Actions"].map((label, index) => <TableHead key={label} className={`relative h-9 truncate px-3 font-['Roboto_Mono'] text-[9px] font-bold uppercase tracking-[0.06em] text-muted-foreground ${label === "Actions" ? "text-right" : ""}`}>{label}{index < 7 && <button type="button" onPointerDown={(event) => purchaseColumns.startResize(index, event)} className="absolute -right-1.5 top-1/2 z-10 h-7 w-3 -translate-y-1/2 cursor-col-resize touch-none rounded-full bg-[#65733d]/10 opacity-30 hover:opacity-100" aria-label={`Resize ${label} column`} />}</TableHead>)}</TableRow>
             </TableHeader>
             <TableBody>
               {filteredPurchases.map((purchase) => (
-                <TableRow key={purchase.id} className="cursor-pointer hover:bg-secondary/50" onClick={() => handleEditClick(purchase)}>
+                <TableRow key={purchase.id} tabIndex={0} className="h-12 cursor-pointer hover:bg-[#f7f8f2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#65733d]" onClick={() => handleEditClick(purchase)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") handleEditClick(purchase); }}>
                   <TableCell
                     style={{
                       fontFamily: "var(--font-family-body)",
                       fontSize: "var(--text-small)",
                     }}
                   >
-                    {new Date(purchase.purchaseDate).toLocaleDateString()}
+                    {formatDate(purchase.purchaseDate)}
                   </TableCell>
                   <TableCell>
                     <div>
