@@ -43,6 +43,12 @@
   outcome`, avoiding repetition while preserving the customer-purpose
   contrast. Do not restore the superseded `Not just more square footage. More
   useful life at home.` copy.
+- **Hero copy hierarchy (explicit user direction, August 29):** the only
+  dominant Module 2 hero promise is `More room for the life you want.` The
+  image copy `Built around your reason, not just square footage.` is supporting
+  body-sized caption text, not a second display headline. Never place two
+  headline-sized propositions in the same hero or make them compete for first
+  attention.
 - Every acquisition CTA records `basement_funnel_cta` with the offer and page
   location, then routes into the existing Project Fit form and Module 1 CRM.
   The page adds a specific browser title and search description. The homepage
