@@ -4,6 +4,22 @@
 
 ### Module 2 — Basement acquisition funnel started August 28, 2026
 
+- **Search and AI discovery foundation (August 29):** the public website now
+  presents one coherent search entity: `Cstle Construction` is the public
+  search name, `Cstle Livn` is an alternate brand name and `Cstle Livn Inc.`
+  remains the legal name already used by the site's terms. Root HTML includes
+  honest `LocalBusiness`/`GeneralContractor` JSON-LD with the verified Regina
+  address, phone, email, service area, Instagram and Google Maps entity; it
+  deliberately contains no invented ratings, reviews, pricing, coordinates or
+  hours. The basement page adds a linked `Service` entity. `robots.txt`
+  explicitly permits public crawling, including OpenAI's `OAI-SearchBot`, while
+  disallowing website utility/admin paths, and advertises the new root XML
+  sitemap. All public routes now share one route-level metadata map for unique
+  titles, descriptions, canonical URLs and Open Graph values; utility/admin
+  paths are `noindex`. Future service offers should extend this map and sitemap
+  rather than creating page-local canonical logic. These are static/client-side
+  website signals only: no Supabase read, Edge Function, polling, cron, paid API
+  or advertising spend was introduced.
 - **Public website heading ceiling (explicit user direction, August 29):**
   `Install. Perfect. Finish.` on the homepage is the authoritative maximum
   display-heading style. Funnel headings must use the same Anybody treatment
