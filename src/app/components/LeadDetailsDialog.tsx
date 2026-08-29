@@ -55,7 +55,24 @@ interface Lead {
   qualification_answers?: Record<string, unknown>;
   city?: string;
   owner_user_id?: string;
+  first_responded_at?: string;
+  utm_source?: string;
+  utm_medium?: string;
+  utm_campaign?: string;
+  utm_content?: string;
+  utm_term?: string;
+  gclid?: string;
+  fbclid?: string;
+  landing_page?: string;
+  referrer?: string;
   created_at?: string;
+}
+
+function leadFormLabel(sourceForm?: string) {
+  if (sourceForm === 'regina-basement-project-fit') return 'Project Fit Form';
+  if (sourceForm === 'booking') return 'Estimate Request';
+  if (sourceForm === 'contact') return 'Contact Form';
+  return sourceForm ? sourceForm.replace(/[-_]/g, ' ') : '';
 }
 
 interface LeadDetailsDialogProps {
@@ -432,7 +449,7 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
                       }`}
                       style={{ fontFamily: 'var(--font-family-body)', fontSize: 'var(--text-label)' }}
                     >
-                      {displayLead.source_form === "booking" ? "Book Service Form" : "Contact Form"}
+                      {leadFormLabel(displayLead.source_form)}
                     </Badge>
                   )}
                   <span 
@@ -800,7 +817,7 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
                         <User className="w-4 h-4 text-muted-foreground shrink-0" />
                         <span className="text-muted-foreground" style={{ fontSize: 'var(--text-label)' }}>Form:</span>
                         <span style={{ fontSize: 'var(--text-base)' }}>
-                          {displayLead.source_form === "booking" ? "Booking Request" : "Contact Form"}
+                          {leadFormLabel(displayLead.source_form)}
                         </span>
                       </div>
                     )}
@@ -809,6 +826,13 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
                         <ExternalLink className="w-4 h-4 text-muted-foreground shrink-0" />
                         <span className="text-muted-foreground" style={{ fontSize: 'var(--text-label)' }}>Page:</span>
                         <span style={{ fontSize: 'var(--text-base)' }}>{displayLead.source_page}</span>
+                      </div>
+                    )}
+                    {(displayLead.utm_source || displayLead.utm_campaign) && (
+                      <div className="flex items-start gap-2">
+                        <Tag className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
+                        <span className="text-muted-foreground" style={{ fontSize: 'var(--text-label)' }}>Acquisition:</span>
+                        <span style={{ fontSize: 'var(--text-base)' }}>{[displayLead.utm_source, displayLead.utm_medium, displayLead.utm_campaign].filter(Boolean).join(' · ')}</span>
                       </div>
                     )}
                     <div className="flex items-center gap-2">

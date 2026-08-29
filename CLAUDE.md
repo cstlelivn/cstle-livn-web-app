@@ -4,6 +4,21 @@
 
 ### Module 2 — Basement acquisition funnel started August 28, 2026
 
+- **Pre-launch end-to-end audit (August 29):** a protected
+  `SYSTEM TEST` visitor completed the live tagged Google-CPC journey through
+  the Regina landing page and Project Fit form. The lead arrived immediately
+  as Hot/Qualified with first-touch campaign attribution, an urgent follow-up
+  task, internal-only automation delivery and no marketing consent, customer
+  email or SMS. The admin audit corrected three human-workflow issues before
+  estimating: Project Fit submissions now identify themselves as `Project Fit
+  Form` instead of the generic `Contact Form`; their UTM source/medium/campaign
+  are visible inside the lead; and a dedicated `Mark contacted` action records
+  first response without moving an automatically Qualified lead backward in
+  the pipeline. Consultation and next-action date controls now occupy a full
+  row inside their narrow operation cards so native date/time controls remain
+  usable. These corrections add no polling, cron, realtime subscription or
+  recurring Supabase use.
+
 - **Reusable Gallery Manager (August 29):** Gallery content is now managed in
   the Cstle admin app instead of requiring a developer whenever a Drive folder
   needs public context. Authorized Super Admin, Admin and Manager roles can
