@@ -2177,6 +2177,37 @@ async function deliverLeadCapturedAutomation(event: AutomationOutboxRow) {
   return delivered;
 }
 
+async function deliverLeadStageChangedAutomation(event: AutomationOutboxRow) {
+  const delivered: string[] = [];
+  const webhookUrl = Deno.env.get("AUTOMATION_WEBHOOK_URL");
+  if (webhookUrl) {
+    const webhookSecret = Deno.env.get("AUTOMATION_WEBHOOK_SECRET");
+    const response = await fetch(webhookUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(webhookSecret ? { Authorization: `Bearer ${webhookSecret}` } : {}),
+        "Idempotency-Key": `cstle-${event.id}-webhook`,
+      },
+      body: JSON.stringify({
+        id: event.id,
+        type: event.event_type,
+        occurred_at: new Date().toISOString(),
+        lead_id: event.aggregate_id,
+        payload: event.payload || {},
+      }),
+    });
+    if (!response.ok) throw new Error(`Automation webhook failed (${response.status})`);
+    delivered.push("webhook");
+  }
+
+  // The database trigger already records the transition in lead_activities.
+  // Acknowledge it locally when no adapter exists; never send duplicate email.
+  if (delivered.length === 0) delivered.push("cstle-activity");
+  return delivered;
+}
+
+
 // Intended for Supabase Cron, Make, or a trusted scheduler. The worker secret
 // is separate from user auth because this is machine-to-machine automation.
 function hasServiceRoleClaim(token?: string) {
@@ -2219,10 +2250,13 @@ async function processAutomationQueue(limit: number, aggregateId?: string) {
     if (!claimed) continue;
 
     try {
-      if (candidate.event_type !== "lead.captured") throw new Error(`Unsupported event type: ${candidate.event_type}`);
-      const destinations = await deliverLeadCapturedAutomation(candidate);
+      const destinations = candidate.event_type === "lead.captured"
+        ? await deliverLeadCapturedAutomation(candidate)
+        : candidate.event_type === "lead.stage_changed"
+          ? await deliverLeadStageChangedAutomation(candidate)
+          : (() => { throw new Error(`Unsupported event type: ${candidate.event_type}`); })();
       await supabase.from("automation_outbox").update({ status: "delivered", destination: destinations.join(","), delivered_at: new Date().toISOString(), last_error: null }).eq("id", candidate.id);
-      await supabase.from("lead_activities").insert({ lead_id: candidate.aggregate_id, activity_type: "automation_delivered", summary: `Lead automation delivered via ${destinations.join(" and ")}`, metadata: { outbox_id: candidate.id, destinations } });
+      if (candidate.event_type === "lead.captured") await supabase.from("lead_activities").insert({ lead_id: candidate.aggregate_id, activity_type: "automation_delivered", summary: `Lead automation delivered via ${destinations.join(" and ")}`, metadata: { outbox_id: candidate.id, destinations } });
       results.push({ id: candidate.id, status: "delivered", destinations });
     } catch (error: any) {
       const attempt = candidate.attempt_count + 1;

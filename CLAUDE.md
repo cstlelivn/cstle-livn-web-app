@@ -151,6 +151,14 @@
   diff checks. Commit `da830e2` is live: `admin.cstle.ca` serves its matching
   `index-Cjo1I5d4.js` bundle and Supabase reports `make-server-bcab437c`
   ACTIVE at version 74.
+- Module 1 production QA found ordinary `lead.stage_changed` outbox events
+  failing as “unsupported,” which created a permanent false follow-up warning
+  after a successful estimate handoff. The worker now treats stage changes as
+  first-class adapter hooks: it forwards the idempotent event to the configured
+  direct/Make webhook when present, or acknowledges the already-recorded
+  `lead_activities` transition locally when no adapter is configured. It never
+  sends another staff notification or customer acknowledgement for routine
+  stage movement, and it does not add a schedule, poll or recurring request.
 - Public Project Fit and general estimate forms now include one optional,
   unchecked email-marketing choice using versioned wording. Submission never
   requires marketing consent. The website stores the boolean, exact wording,
