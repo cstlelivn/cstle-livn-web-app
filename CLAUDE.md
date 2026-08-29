@@ -2700,3 +2700,21 @@ for the push itself.
   respond to `.click()` or a full synthetic pointer-event sequence, only
   to `.focus()` followed by a dispatched `Enter` keydown. Worth trying the
   focus+Enter approach first next time a Radix tab won't switch via click.
+
+## Revenue OS prelaunch journey correction — August 29, 2026
+
+- Ran the live Regina basement journey from tagged acquisition URL through
+  Project Fit, CRM qualification, ownership, response tracking, customer
+  creation, and linked estimate creation using the clearly labelled
+  `SYSTEM TEST E2E 20260829` record.
+- Lead details now identify the Project Fit form correctly, show captured
+  Google/UTM acquisition context, and provide a dedicated **Mark contacted**
+  action that records first response without moving a qualified lead backwards.
+- Appointment scheduling uses separate full-width date and time controls for
+  reliable, human-readable entry in the narrow operations panel.
+- Scheduling is pipeline-monotonic: it may advance an early lead to
+  Consultation Booked or Site Visit, but it never regresses a lead that has
+  already reached Estimate, Won, or Lost.
+- The system-test guard prevented any customer-facing email/SMS while the
+  internal follow-up task and activity history were still verified. No polling,
+  cron, or realtime usage was introduced.
