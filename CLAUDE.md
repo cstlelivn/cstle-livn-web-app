@@ -1,5 +1,79 @@
 # Cstle Livn Web App — Project Handoff
 
+## Basement template realistic rebuild + scheduler end-date bug fix — August 29, 2026
+
+- **User's report**: a real basement project converted from an estimate, then
+  built out with the "Basement Finishing & Development" template, showed a
+  15-task "Project Setup and Planning" phase that was almost entirely
+  redundant admin/gate busywork, and the project's actual tasks stretched out
+  to April even though its stated timeline was September 1 - December 18.
+- **Two independent root causes found and fixed**:
+  1. **The template itself was bloated, and duplicated.** Two separate seed
+     migrations (`20240003_project_templates_seed.sql` and
+     `20240006_original_templates_seed.sql`) each inserted their own
+     "Basement Finishing & Development" `project_templates` row -- both
+     `active = true`, both `project_type = 'Basement'`, both with a
+     near-identical 15-phase/~85-task structure full of redundant
+     administrative gates (`Confirm exclusions`, `Confirm hazardous-material
+     assessment req.`, `Determine inspection requirements`, `Hold
+     pre-construction meeting`, `Obtain signed contract`, `Approve project
+     start`, standalone `Photograph existing conditions`/`Photograph
+     concealed work` tasks, etc.) that either duplicated something already
+     settled during estimating/proposal approval, or duplicated the
+     before/after evidence photo every task already requires.
+  2. **The scheduler and the pre-computed project end date used two
+     different, disagreeing formulas.** `CreateProjectDialog.tsx` estimated
+     the new project's `end_date` as `startDate + sum(phase.default_duration_days)`
+     using plain calendar-day arithmetic (no Sunday skip). But
+     `applyTemplateToProject()` (`src/app/src/features/projectTemplates/api.ts`)
+     actually schedules work-days-only (Sundays skipped) and, for each
+     phase, takes the LONGER of the phase's declared duration or the real
+     sum of its tasks' `default_duration_days` -- and every task template in
+     the old seed left that column at its schema default of 1 day. A phase
+     "declared" 7 days that actually had 15 one-day tasks really took 15
+     workdays, and that drift compounded across all 15 phases into months,
+     while the project's displayed end date never moved to reflect it.
+- **Fix, migration `20240061_basement_template_realistic_rebuild.sql`**:
+  archives (never deletes -- `project_phases.phase_template_id` and
+  `tasks.task_template_id` are `ON DELETE SET NULL`, so archiving is safe
+  either way, but matches this repo's existing `archiveProjectTemplate()`
+  soft-delete-only convention) every existing `Basement`-type
+  `project_templates` row, then inserts one new canonical template: 14
+  phases (Permits merged into Setup -- selections/procurement run in the
+  same window as permit review rather than gating behind it), every
+  phase's `default_duration_days` set to the **exact sum** of its own
+  tasks' `default_duration_days` (closing the drift bug at the source for
+  this template), totaling **63 workdays (~2.4 months)** -- comfortably
+  under the user's stated 3-4 month ceiling, with Drywall as the
+  deliberately-longest single phase (10 workdays, "mud/tape/sand takes
+  about two weeks") and Flooring at 3 workdays ("done in two to three
+  days"). Redundant admin/photo tasks are gone; the eight phases that had
+  **zero** seeded tasks in the old template (Plumbing/HVAC/Electrical
+  Rough-In, Insulation, Priming & Painting, Flooring, Doors/Trim/Millwork,
+  Fixtures & Final Trade Completion) now each have a minimal
+  install-plus-QC-review task pair so the template is usable end-to-end
+  without manual backfill.
+- **Fix, code**: `applyTemplateToProject()` now returns
+  `{ phases, scheduledEndDate }` -- the real work-days-computed finish date
+  -- instead of just the phase array. `CreateProjectDialog.tsx` corrects the
+  project's `end_date` to that real value immediately after applying a
+  template, rather than trusting its own pre-application calendar-day
+  estimate. This fixes the underlying mismatch for every future project
+  created from ANY template, not just Basement.
+- **Not fixed here, deliberately**: the specific already-converted live
+  basement project this bug report came from still has its original
+  bloated tasks and wrong schedule -- this migration only changes the
+  template for future use. Fixing that one project's actual `project_phases`/
+  `tasks` rows needs its name/id, which the user has not yet provided.
+- `npx tsc --noEmit -p tsconfig.sync.json`, `npm run build`, and `npm test`
+  (13/13) all pass. **Not verified live** -- this is a template/scheduling
+  change exercised by creating a new project from a template, which needs a
+  signed-in session this agent doesn't have. The user should create one new
+  test project from the "Basement Finishing & Development" template and
+  confirm: only one Basement template appears in the picker, "Project Setup,
+  Permits & Selections" has 7 tasks (not 15), and the project's shown end
+  date matches its last real task's due date.
+
 ## Public Project Fit intake — August 27, 2026
 
 ### Module 2 — Basement acquisition funnel started August 28, 2026

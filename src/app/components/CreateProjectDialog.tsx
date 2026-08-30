@@ -13,7 +13,7 @@ import svgPaths from "../imports/svg-irwlcgai14";
 import { DndProvider, useDrag, useDrop } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
 import { listProjectTemplates, applyTemplateToProject } from "../src/features/projectTemplates/api";
-import { createProject } from "../src/features/projects/api";
+import { createProject, updateProject } from "../src/features/projects/api";
 
 interface CreateProjectDialogProps {
   isOpen: boolean;
@@ -436,11 +436,19 @@ export default function CreateProjectDialog({
         const created = await createProject(projectPayload);
         if (!created) throw new Error("Project creation returned no data");
 
-        await applyTemplateToProject(String(created.id), selectedProjectTemplateId, {
+        const { scheduledEndDate } = await applyTemplateToProject(String(created.id), selectedProjectTemplateId, {
           enabledPhaseTemplateIds: Array.from(enabledPhaseIds),
           startDate: formData.startDate,
           defaultAssigneeId: currentMember ? String(currentMember.id) : undefined,
         });
+
+        // The end date estimated above (from phase.default_duration_days
+        // alone) can disagree with the real work-days schedule the
+        // template just built -- correct it to the actual computed finish
+        // now that we know it, instead of leaving a misleading timeline.
+        if (scheduledEndDate && scheduledEndDate !== endDate) {
+          await updateProject(String(created.id), { end_date: scheduledEndDate } as any);
+        }
 
         toast.success(`Project created with ${enabledPhases.length} phases from "${selectedProjectTemplate?.name}"`);
         onCreateProject(created); // notify parent (realtime will refresh state)

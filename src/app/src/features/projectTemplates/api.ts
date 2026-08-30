@@ -316,5 +316,12 @@ export async function applyTemplateToProject(
     created_at: now(),
   });
 
-  return createdPhases;
+  // `cursor` is where the last phase's work-days-only schedule actually
+  // landed -- this is the real finish date. Callers must NOT separately
+  // re-estimate an end date from `phase.default_duration_days` (that sum
+  // is calendar-day arithmetic with no Sunday skip and ignores any task
+  // whose combined duration ran longer than its phase's nominal length,
+  // which is exactly how a project's shown end date used to disagree with
+  // its actual last task's due date by months).
+  return { phases: createdPhases, scheduledEndDate: cursor.toISOString().split('T')[0] };
 }
