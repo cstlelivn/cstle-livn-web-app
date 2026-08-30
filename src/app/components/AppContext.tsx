@@ -274,6 +274,13 @@ interface AppContextType {
   addProject: (project: Omit<Project, "id">) => Promise<void>;
   updateProject: (id: number, updates: Partial<Project>) => Promise<void>;
   deleteProject: (id: number) => Promise<void>;
+  deleteProjectAndRelated: (id: number, options?: { deleteClient?: boolean; deleteEstimate?: boolean }) => Promise<{
+    deletedProjectTitle: string;
+    deletedEstimate: boolean;
+    deletedClient: boolean;
+    deletedClientName: string | null;
+    alsoDeletedOriginatingLead: boolean;
+  }>;
   getProject: (id: number) => Project | undefined;
 
   // Task methods
@@ -523,6 +530,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       removeProject(id);
       await projectsAPI.deleteProject(id);
+    } catch (error) {
+      if (previous) mergeProject(previous);
+      throw error;
+    }
+  };
+
+  const deleteProjectAndRelated = async (id: number, options: { deleteClient?: boolean; deleteEstimate?: boolean } = {}) => {
+    const previous = realtimeProjects.find((project: any) => String(project.id) === String(id));
+    try {
+      const result = await projectsAPI.deleteProjectAndRelated(String(id), options);
+      removeProject(id);
+      return result;
     } catch (error) {
       if (previous) mergeProject(previous);
       throw error;
@@ -944,6 +963,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     addProject,
     updateProject,
     deleteProject,
+    deleteProjectAndRelated,
     getProject,
     addTask,
     updateTask,

@@ -14,6 +14,7 @@ import {
   Tag,
   Save,
   X,
+  Loader2,
 } from "lucide-react";
 import { useApp, type Project } from "./AppContext";
 import { useAuth } from "./AuthContext";
@@ -22,6 +23,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "./ui/label";
 import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
+import { Checkbox } from "./ui/checkbox";
+import { Button } from "./ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import TableFilter, { type FilterConfig, type Filters } from "./TableFilter";
 import ProjectDetailsReal from "./ProjectDetailsReal";
@@ -56,10 +59,11 @@ interface ProjectManagementProps {
 }
 
 export default function ProjectManagement({ onViewProject, openCreateDialog = false, onDialogOpenChange }: ProjectManagementProps) {
-  const { projects: allProjects, tasks, clients, teamMembers, addProject, updateProject, deleteProject, getTeamMember, addClient } = useApp();
+  const { projects: allProjects, tasks, clients, teamMembers, addProject, updateProject, deleteProject, deleteProjectAndRelated, getTeamMember, addClient } = useApp();
   const { hasPermission, currentUser } = useAuth();
   const canViewFinance = hasPermission("canViewFinance");
   const canDeleteProjects = hasPermission("canEditProjects");
+  const isSuperAdmin = currentUser?.role === "Super Admin";
 
   // Without canViewAllProjects (e.g. Associates), only show projects where
   // the current person actually has a task assigned -- otherwise everyone
@@ -79,6 +83,14 @@ export default function ProjectManagement({ onViewProject, openCreateDialog = fa
   const [isNewClientDialogOpen, setIsNewClientDialogOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<number | null>(null);
+  // Shown when a plain delete is blocked by recorded history (tasks,
+  // sessions, Aura scores). Super-Admin only, no "reassign" step -- this
+  // permanently deletes the project and everything under it.
+  const [historyBlockedProjectId, setHistoryBlockedProjectId] = useState<number | null>(null);
+  const [forceDeleteClient, setForceDeleteClient] = useState(false);
+  const [forceDeleteEstimate, setForceDeleteEstimate] = useState(false);
+  const [forceDeleteConfirmName, setForceDeleteConfirmName] = useState("");
+  const [isForceDeleting, setIsForceDeleting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const projectsPerPage = 10;
   const [filters, setFilters] = useState<Filters>({
@@ -110,20 +122,55 @@ export default function ProjectManagement({ onViewProject, openCreateDialog = fa
       try {
         await deleteProject(projectToDelete);
         toast.success("Project deleted");
+        setProjectToDelete(null);
       } catch (error: any) {
         // Projects with any recorded history (tasks, phases, transactions,
         // permits, etc.) are protected by ON DELETE RESTRICT foreign keys --
-        // a raw FK violation means "this can't be deleted," not "try again."
+        // a raw FK violation means "this can't be deleted directly," not a
+        // generic failure worth retrying. Offer the Super-Admin force-delete
+        // flow instead of just reporting failure.
         const blocked = /foreign key|violates|restrict/i.test(error?.message || "");
-        toast.error(
-          blocked
-            ? "Can't delete -- this project has recorded history (tasks, phases, transactions, or permits). Ask an admin to clear its history first, or mark it Completed instead."
-            : (error?.message || "Failed to delete project")
-        );
+        if (blocked) {
+          setHistoryBlockedProjectId(projectToDelete);
+          setForceDeleteClient(false);
+          setForceDeleteEstimate(false);
+          setForceDeleteConfirmName("");
+        } else {
+          toast.error(error?.message || "Failed to delete project");
+        }
+        setProjectToDelete(null);
       }
-      setProjectToDelete(null);
     }
     setDeleteConfirmOpen(false);
+  };
+
+  const historyBlockedProject = allProjects.find((p: any) => p.id === historyBlockedProjectId);
+  const forceDeleteConfirmMatches = !!historyBlockedProject &&
+    forceDeleteConfirmName.trim().toLowerCase() === String(historyBlockedProject.title).trim().toLowerCase();
+
+  const handleConfirmForceDelete = async () => {
+    if (!historyBlockedProjectId || !forceDeleteConfirmMatches) return;
+    setIsForceDeleting(true);
+    try {
+      const result = await deleteProjectAndRelated(historyBlockedProjectId, {
+        deleteClient: forceDeleteClient,
+        deleteEstimate: forceDeleteEstimate,
+      });
+      toast.success("Project deleted", {
+        description: [
+          result.deletedEstimate && "original estimate removed",
+          result.deletedClient && `client "${result.deletedClientName}" removed`,
+          result.alsoDeletedOriginatingLead && "its originating lead was also removed",
+        ].filter(Boolean).join("; ") || undefined,
+        duration: 6000,
+      });
+      setHistoryBlockedProjectId(null);
+      setForceDeleteConfirmName("");
+    } catch (error: any) {
+      toast.error("Failed to delete project", { description: error.message || "Please try again or contact support." });
+    } finally {
+      setIsForceDeleting(false);
+    }
   };
 
   // Filter and sort projects
@@ -393,6 +440,94 @@ export default function ProjectManagement({ onViewProject, openCreateDialog = fa
             <AlertDialogAction onClick={confirmDelete} className="bg-destructive hover:bg-destructive/90">
               Delete
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Force Delete Dialog -- shown when a plain delete is blocked by
+          recorded history (tasks, sessions, Aura scores). Super Admin only:
+          unlike team member deletion there is no "reassign to someone else"
+          step -- this permanently deletes the project and everything under
+          it. Gated behind typing the exact project name so it can't happen
+          by mistake. */}
+      <AlertDialog open={historyBlockedProjectId !== null} onOpenChange={(open) => !open && setHistoryBlockedProjectId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Force Delete "{historyBlockedProject?.title}"</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                {!isSuperAdmin ? (
+                  <p>This project has recorded history (tasks, timer sessions, or Aura scores), so a plain delete is blocked. Only a Super Admin can force-delete a project with history.</p>
+                ) : (
+                  <>
+                    <p>
+                      <strong>{historyBlockedProject?.title}</strong> has recorded history (tasks, timer sessions, or Aura scores),
+                      so a plain delete is blocked. This will permanently delete the project, its phases, tasks, and all task
+                      history. This cannot be undone.
+                    </p>
+                  </>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          {isSuperAdmin && (
+            <div className="space-y-3 py-2">
+              <div className="flex items-center gap-2">
+                <Checkbox id="force-delete-client" checked={forceDeleteClient} onCheckedChange={(c) => setForceDeleteClient(c === true)} disabled={isForceDeleting} />
+                <Label htmlFor="force-delete-client" className="text-[13px] font-normal">
+                  Also delete the linked client{(historyBlockedProject as any)?.client ? ` ("${(historyBlockedProject as any).client}")` : ""}
+                </Label>
+              </div>
+              {forceDeleteClient && (
+                <p className="text-[11px] text-muted-foreground pl-6">
+                  If this client was converted from a lead, that original lead record will also be deleted.
+                </p>
+              )}
+              <div className="flex items-center gap-2">
+                <Checkbox id="force-delete-estimate" checked={forceDeleteEstimate} onCheckedChange={(c) => setForceDeleteEstimate(c === true)} disabled={isForceDeleting} />
+                <Label htmlFor="force-delete-estimate" className="text-[13px] font-normal">
+                  Also delete the estimate this project was converted from (if any)
+                </Label>
+              </div>
+
+              <div>
+                <Label className="text-[12px] font-bold">
+                  Type <strong>{historyBlockedProject?.title}</strong> to confirm *
+                </Label>
+                <Input
+                  value={forceDeleteConfirmName}
+                  onChange={(e) => setForceDeleteConfirmName(e.target.value)}
+                  placeholder={historyBlockedProject?.title || ""}
+                  disabled={isForceDeleting}
+                  className="mt-1"
+                />
+              </div>
+            </div>
+          )}
+
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isForceDeleting}>Cancel</AlertDialogCancel>
+            {isSuperAdmin && (
+              <Button
+                type="button"
+                disabled={isForceDeleting || !forceDeleteConfirmMatches}
+                onClick={handleConfirmForceDelete}
+                className="bg-destructive hover:bg-destructive/90 text-white"
+              >
+                {isForceDeleting ? (
+                  <>
+                    <Loader2 className="w-3 h-3 mr-2 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3 h-3 mr-2" />
+                    Force Delete
+                  </>
+                )}
+              </Button>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -1,5 +1,64 @@
 # Cstle Livn Web App — Project Handoff
 
+## Project force-delete (Super Admin) — August 29, 2026
+
+- **Prompted by**: the user wanting to fully undo an incomplete estimate ->
+  client conversion (an unfinished "2992"/Rajwinder basement project) and
+  redo it properly, and separately wanting sample/test projects to be
+  actually deletable. Plain project delete was blocked by the same class of
+  `ON DELETE RESTRICT` history-protection as team member deletion
+  ([[Team member delete-and-reassign]] above) -- task assignments, timer
+  sessions, Aura scores, and QC attribution all reference a project's tasks
+  with RESTRICT (see "Team member delete-and-reassign" above for the
+  original version of this problem).
+- **Different from the team-member version on purpose**: there is no
+  "reassign to someone else" step here. Deleting a project deletes
+  everything under it, permanently -- there's no equivalent of moving its
+  work to another project. Gated to **Super Admin only** (stricter than
+  team member deletion's Super Admin/Admin/Manager), behind typing the
+  project's exact name to confirm.
+- Migration `20240062_project_force_delete.sql` adds
+  `delete_project_and_related(p_project_id, p_delete_client, p_delete_estimate)`,
+  a `SECURITY DEFINER` RPC that clears the RESTRICT-holding history tables
+  for a project's tasks (`task_assignees`, `task_work_sessions` + its own
+  RESTRICT children `task_work_session_events`/`task_time_corrections`,
+  `task_aura_scores`, `task_completion_attributions`, `task_updates`, the
+  RESTRICT half of `task_dependencies`) before deleting the project itself
+  -- everything else (`project_phases`, `tasks`, `task_checklist_items`,
+  `task_tools`, `task_materials`, `task_media`,
+  `project_permits`/`project_permit_events`) is already `ON DELETE CASCADE`
+  from `projects.id` and needs no manual handling.
+- **Optional cascade-adjacent deletes, off by default**: `p_delete_client`
+  also deletes the project's linked client (`projects.client` is itself
+  `ON DELETE RESTRICT`, so this only works once the project row is gone) --
+  and since `leads.client_id` is `ON DELETE CASCADE`
+  (`20240053_leads_minimal_and_reminders.sql`), deleting the client also
+  deletes whatever lead it was originally converted from. `p_delete_estimate`
+  deletes the estimate this project was `convert_estimate_to_project()`'d
+  from; every `estimate_*` child table is already `ON DELETE CASCADE` from
+  `estimates.id` so this is a single clean delete. The RPC returns which of
+  these actually happened (including the lead side-effect) so the UI can
+  tell the caller exactly what was removed.
+- **Frontend**: `ProjectManagement.tsx`'s existing delete flow is unchanged
+  for a project with no history. When blocked, a Super-Admin-only "Force
+  Delete" dialog opens instead of an error toast -- checkboxes for "also
+  delete the linked client" (with an inline warning about the lead
+  side-effect) and "also delete the originating estimate," plus the typed-
+  name confirmation. A non-Super-Admin sees an explanatory message with no
+  delete button at all rather than a dead-end error. New
+  `deleteProjectAndRelated()` in `src/app/src/features/projects/api.ts`
+  (calls the RPC) and a matching `AppContext.tsx` wrapper.
+- `npx tsc --noEmit -p tsconfig.sync.json`, `npm run build`, and `npm test`
+  (13/13) all pass. **Not verified live** -- this is a Super-Admin-only,
+  permanently destructive action against real project/client/lead/estimate
+  records, not exercised against the real database from this session.
+  **Not yet run**: migration `20240062_project_force_delete.sql`. The user
+  should run it, then use the new Force Delete flow on the specific "2992"/
+  Rajwinder project (with both checkboxes on, since there's a duplicate
+  client involved) before relying on it more broadly for the sample
+  projects mentioned in "Test-data cleanup, test-account creation, mobile
+  bottom nav removal" above.
+
 ## Basement template realistic rebuild + scheduler end-date bug fix — August 29, 2026
 
 - **User's report**: a real basement project converted from an estimate, then

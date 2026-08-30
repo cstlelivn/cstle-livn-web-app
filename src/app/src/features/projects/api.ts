@@ -274,6 +274,34 @@ export async function deleteProject(id: string) {
   failIf(error, 'Failed to delete project');
 }
 
+/**
+ * Force-deletes a project with real recorded history (task assignments,
+ * timer sessions, Aura scores, QC records) -- Super Admin only. Unlike
+ * team member deletion there is no "reassign to someone else" step: this
+ * permanently deletes the project and everything under it. Optionally
+ * also deletes the linked client and/or the estimate it was converted
+ * from. See 20240062_project_force_delete.sql for the full server-side
+ * logic and exactly which tables are touched.
+ */
+export async function deleteProjectAndRelated(
+  id: string,
+  options: { deleteClient?: boolean; deleteEstimate?: boolean } = {}
+) {
+  const { data, error } = await supabase.rpc('delete_project_and_related', {
+    p_project_id: id,
+    p_delete_client: options.deleteClient ?? false,
+    p_delete_estimate: options.deleteEstimate ?? false,
+  });
+  failIf(error, 'Failed to delete project');
+  return data as {
+    deletedProjectTitle: string;
+    deletedEstimate: boolean;
+    deletedClient: boolean;
+    deletedClientName: string | null;
+    alsoDeletedOriginatingLead: boolean;
+  };
+}
+
 /** Check whether every phase in a project is complete (the normal gate for
  *  marking a project complete). Mirrors the database trigger in
  *  supabase/migrations/20240004_role_source_and_rls.sql, which is what
