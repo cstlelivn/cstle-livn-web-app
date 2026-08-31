@@ -2904,6 +2904,15 @@ for the push itself.
   any plan limit, at 3.5 GB egress, when projected usage would exceed a limit,
   or when a new costly code pattern appears. It never changes billing,
   enables paid services, deletes data, or runs load tests.
+- Monitoring notification rule clarified by the user: routine checks must be
+  silent and must cover both Supabase and Cloudflare R2, with each service's
+  usage and limits reported separately. The guard should inspect and safely
+  correct in-scope usage risks itself. It only alerts when a quota reaches 80%,
+  Supabase egress reaches 3.5 GB, projected usage will exceed a limit, a service
+  restricts requests, an automatic fix fails, or a decision requiring the
+  user's authority remains. Routine all-clear notifications are disabled
+  (`failed_runs_only`). R2 checks include stored bytes, Class A/Class B
+  operations, egress, compression, and orphaned-object deletion cleanup.
 - Code audit confirmed the old 30-second full-table polling has not returned.
   Realtime/broadcast remains the primary update path and a single shared
   recovery scheduler is the backstop. The offline timer's 30-second loop only
