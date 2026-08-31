@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { listActiveTaskAssignees } from './api';
 import { subscribeTableMulti } from '../../lib/realtime';
+import { registerSafetySync } from '../../lib/scopedBroadcast';
 
 function transformAssigneeRow(row: any) {
   return {
@@ -68,14 +69,12 @@ export function useTaskAssignees(enabled = true) {
     }
 
     let off = () => {};
+    let stopSafetySync = () => {};
     let subscribedOnce = false;
 
     const recover = () => {
       if (document.visibilityState !== 'visible' || !navigator.onLine) return;
       listActiveTaskAssignees().then(setRows).catch(() => {});
-    };
-    const onVisibility = () => {
-      if (document.visibilityState === 'visible') recover();
     };
 
     (async () => {
@@ -110,19 +109,16 @@ export function useTaskAssignees(enabled = true) {
           if (subscribedOnce) recover();
           subscribedOnce = true;
         });
+        stopSafetySync = registerSafetySync(recover);
       } catch (error) {
         setLoading(false);
       }
     })();
 
-    window.addEventListener('online', recover);
-    document.addEventListener('visibilitychange', onVisibility);
-
     return () => {
       off();
+      stopSafetySync();
       if (raf.current) cancelAnimationFrame(raf.current);
-      window.removeEventListener('online', recover);
-      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [flush, enabled]);
 

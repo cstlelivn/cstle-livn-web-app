@@ -2887,3 +2887,31 @@ for the push itself.
   the object from R2 as well as its metadata.
 - Verification: `npm run typecheck`, all 13 Vitest tests, and `npm run build`
   pass.
+
+## Supabase free-plan quota guard — August 31, 2026
+
+- Live usage checked for the current Aug 16–Sep 16 billing cycle: egress
+  `0.707 / 5 GB` (14%), database `43.07 MB / 0.5 GB` (9%), Supabase Storage
+  `0 / 1 GB`, Realtime messages `1,402 / 2,000,000`, peak Realtime
+  connections `5 / 200`, Edge Function invocations `274 / 500,000`, and MAU
+  `3 / 50,000`. At the observed cycle pace, egress projects to roughly
+  1.5 GB, below both the internal 3.5 GB warning and the 5 GB free allowance.
+  The dashboard's "grace period is over" banner refers to the prior-cycle
+  Fair Use warning; current-cycle metrics themselves are within quota.
+- Created the recurring Codex heartbeat **Supabase quota guard**, scheduled
+  daily at 9:00 AM Regina time. It checks Supabase egress, database, Storage,
+  Realtime, Edge Functions, MAU, and repository changes. It alerts at 80% of
+  any plan limit, at 3.5 GB egress, when projected usage would exceed a limit,
+  or when a new costly code pattern appears. It never changes billing,
+  enables paid services, deletes data, or runs load tests.
+- Code audit confirmed the old 30-second full-table polling has not returned.
+  Realtime/broadcast remains the primary update path and a single shared
+  recovery scheduler is the backstop. The offline timer's 30-second loop only
+  checks IndexedDB and reaches Supabase when unsent offline actions exist.
+- Fixed a remaining avoidable egress path: `useTeamMembers` and
+  `useTaskAssignees` each had their own unthrottled visibility listener, so
+  repeatedly switching back to the app could refetch both full lists every
+  time. Both now register with the shared recovery scheduler, and
+  `scopedBroadcast.ts` throttles visibility-triggered recovery to once per 15
+  minutes across the app. A genuine network reconnection still forces one
+  immediate recovery, preserving correctness without tab-focus traffic.

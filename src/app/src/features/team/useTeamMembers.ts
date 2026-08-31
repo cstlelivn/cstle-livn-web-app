@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { listTeamMembers } from './api';
 import { subscribeTableMulti } from '../../lib/realtime';
+import { registerSafetySync } from '../../lib/scopedBroadcast';
 
 // Transform database row to match TeamMember format (snake_case to camelCase)
 function transformTeamMemberRow(dbMember: any) {
@@ -83,6 +84,7 @@ export function useTeamMembers(enabled = true) {
     }
 
     let off = () => {};
+    let stopSafetySync = () => {};
     let subscribedOnce = false;
 
     // Unlike useTasks/useProjects/useTaskAssignees, this hook previously had
@@ -96,9 +98,6 @@ export function useTeamMembers(enabled = true) {
     const recover = () => {
       if (document.visibilityState !== 'visible' || !navigator.onLine) return;
       listTeamMembers().then((data) => setRows(data.map(transformTeamMemberRow))).catch(() => {});
-    };
-    const onVisibility = () => {
-      if (document.visibilityState === 'visible') recover();
     };
 
     (async () => {
@@ -142,19 +141,16 @@ export function useTeamMembers(enabled = true) {
             subscribedOnce = true;
           }
         );
+        stopSafetySync = registerSafetySync(recover);
       } catch (error) {
         setLoading(false);
       }
     })();
 
-    window.addEventListener('online', recover);
-    document.addEventListener('visibilitychange', onVisibility);
-
     return () => {
       off();
+      stopSafetySync();
       if (raf.current) cancelAnimationFrame(raf.current);
-      window.removeEventListener('online', recover);
-      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [flush, enabled]);
 

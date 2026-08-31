@@ -25,14 +25,23 @@ const channels = new Map<string, SharedChannel>();
 const broadRoles = new Set(['Super Admin', 'Admin', 'Manager', 'Accountant']);
 const safetySyncCallbacks = new Set<() => void>();
 let safetySyncTimer: number | null = null;
+let lastSafetySyncAt = 0;
+const SAFETY_SYNC_INTERVAL_MS = 15 * 60 * 1000;
 
-function runSafetySync() {
+function runSafetySync(force = false) {
   if (document.visibilityState !== 'visible' || !navigator.onLine) return;
+  const now = Date.now();
+  if (!force && now - lastSafetySyncAt < SAFETY_SYNC_INTERVAL_MS) return;
+  lastSafetySyncAt = now;
   for (const callback of safetySyncCallbacks) callback();
 }
 
 function onVisibilityChange() {
   if (document.visibilityState === 'visible') runSafetySync();
+}
+
+function onOnline() {
+  runSafetySync(true);
 }
 
 function topicFor(role: string, userId: string) {
@@ -86,8 +95,8 @@ export function subscribeScopedInvalidations(
 export function registerSafetySync(callback: () => void) {
   safetySyncCallbacks.add(callback);
   if (safetySyncCallbacks.size === 1) {
-    safetySyncTimer = window.setInterval(runSafetySync, 15 * 60 * 1000);
-    window.addEventListener('online', runSafetySync);
+    safetySyncTimer = window.setInterval(() => runSafetySync(true), SAFETY_SYNC_INTERVAL_MS);
+    window.addEventListener('online', onOnline);
     document.addEventListener('visibilitychange', onVisibilityChange);
   }
   return () => {
@@ -95,7 +104,7 @@ export function registerSafetySync(callback: () => void) {
     if (safetySyncCallbacks.size === 0) {
       if (safetySyncTimer !== null) window.clearInterval(safetySyncTimer);
       safetySyncTimer = null;
-      window.removeEventListener('online', runSafetySync);
+      window.removeEventListener('online', onOnline);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     }
   };
