@@ -42,6 +42,10 @@ export interface Estimate {
   pricing_delivery_cents: number;
   pricing_disposal_cents: number;
   pricing_crew_size: number | null;
+  agreed_price_cents: number | null;
+  estimate_terms: string | null;
+  estimate_valid_until: string | null;
+  estimate_sent_at: string | null;
   converted_project_id: string | null;
   created_at: string;
   updated_at: string;
@@ -145,6 +149,10 @@ export async function listEstimateMedia(estimateId: string): Promise<EstimateMed
 
 export async function uploadEstimateMedia(estimateId: string, file: File, caption?: string, mediaKind?: 'signature'): Promise<EstimateMedia> {
   const optimized = mediaKind === 'signature' ? file : await optimizeMediaFile(file);
+  const isDocument = optimized.type === 'application/pdf' || (!optimized.type.startsWith('image/') && !optimized.type.startsWith('video/') && !optimized.type.startsWith('audio/'));
+  if (isDocument && optimized.size > 2 * 1024 * 1024) {
+    throw new Error("Keep plans and PDFs under 2 MB. Compress this file, then try again.");
+  }
   const prepared = await apiCall('/estimate-media/upload-url', {
     method: 'POST',
     requiresAuth: true,

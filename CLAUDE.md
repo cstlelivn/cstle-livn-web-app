@@ -2964,6 +2964,16 @@ for the push itself.
   research is not free. If added later, it must be an explicit user action with
   dated visible sources, a usage ceiling and a clear cost warning. Default
   pricing continues to use Cstle's stored rate card/assemblies and history.
+- Oversized PDF compression now happens entirely in the browser before R2.
+  `pdfOptimizer.ts` first attempts lossless object-stream cleanup; if the file
+  still exceeds 2 MiB it renders at a document-safe resolution and rebuilds a
+  compact JPEG-backed PDF, with one lower-resolution fallback pass. The UI
+  shows page-by-page percentage progress. Files that remain above 2 MiB, exceed
+  40 pages, are unreadable/encrypted, or cannot be compressed without crossing
+  the enforced ceiling are rejected and must be split. `pdfjs-dist` and
+  `pdf-lib` are dynamically imported, so ordinary app use does not load the PDF
+  engine; Vite emits the worker and PDF code as separate lazy assets. This adds
+  no server processing, API call, background work or paid service.
 
 ## App-logo reload control — August 31, 2026
 
