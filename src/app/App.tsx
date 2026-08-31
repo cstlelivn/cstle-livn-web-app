@@ -73,13 +73,13 @@ type SubViewType = {
   teams: "team" | "vendors";
 };
 
-function CollapsedLogo() {
+function CollapsedLogo({ color = "white" }: { color?: string }) {
   return (
     <div className="h-[20.829px] relative shrink-0 w-[32px]">
       <svg className="block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 32 21">
         <g>
-          <path d={svgPaths.pa34ae40} fill="white" />
-          <path d={svgPaths.p4786000} fill="white" />
+          <path d={svgPaths.pa34ae40} fill={color} />
+          <path d={svgPaths.p4786000} fill={color} />
         </g>
       </svg>
     </div>
@@ -108,6 +108,12 @@ function AppContent() {
   const [hoverTimeout, setHoverTimeout] = useState<NodeJS.Timeout | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+
+  // Installed PWAs do not expose the browser's reload control. The brand
+  // mark is therefore the consistent, always-recognizable refresh action on
+  // mobile and desktop. A real document reload preserves the current URL and
+  // re-runs normal auth/data hydration exactly like Chrome's Reload button.
+  const reloadApp = () => window.location.reload();
 
   // Keep real browser history in sync with the state-driven app shell. This
   // gives installed iPhone/Android web apps a genuine previous entry, so the
@@ -565,7 +571,15 @@ function AppContent() {
           />
           <div className="absolute inset-y-0 left-0 w-[240px] bg-sidebar border-r border-sidebar-border flex flex-col">
             <div className="h-[60px] border-b border-sidebar-border flex items-center justify-between px-[16px] shrink-0">
-              <CollapsedLogo />
+              <button
+                type="button"
+                onClick={reloadApp}
+                className="rounded-[6px] p-[6px] -m-[6px] hover:bg-sidebar-accent/50 transition-colors"
+                aria-label="Reload app"
+                title="Reload app"
+              >
+                <CollapsedLogo />
+              </button>
               <button
                 onClick={() => setMobileMenuOpen(false)}
                 className="p-[4px] hover:bg-sidebar-accent/50 rounded-[4px] transition-colors"
@@ -622,10 +636,12 @@ function AppContent() {
         onMouseEnter={handleSidebarMouseEnter}
         onMouseLeave={handleSidebarMouseLeave}
       >
-        {/* Sidebar Header with Toggle */}
+        {/* The logo reloads the installed app, matching a browser refresh. */}
         <button 
-          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+          onClick={reloadApp}
           className="h-[60px] border-b border-sidebar-border hover:bg-sidebar-accent/50 transition-colors cursor-pointer"
+          aria-label="Reload app"
+          title="Reload app"
         >
           <div className="flex flex-col h-[70px] items-center justify-center h-full">
             <div className="flex items-center justify-center w-full">
@@ -693,6 +709,15 @@ function AppContent() {
               aria-label="Open menu"
             >
               <Menu className="w-[20px] h-[20px] text-foreground" />
+            </button>
+            <button
+              type="button"
+              onClick={reloadApp}
+              className="md:hidden rounded-[6px] p-[5px] text-primary hover:bg-accent/10 transition-colors shrink-0"
+              aria-label="Reload app"
+              title="Reload app"
+            >
+              <CollapsedLogo color="currentColor" />
             </button>
             <h2 className="font-['Anybody'] text-[14px] md:text-[15px] tracking-[-0.6px] text-foreground leading-[1.64] truncate" style={{ fontVariationSettings: "'wdth' 137", fontWeight: 800 }}>
               {selectedProjectId

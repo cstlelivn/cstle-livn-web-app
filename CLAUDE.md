@@ -2924,3 +2924,15 @@ for the push itself.
   `scopedBroadcast.ts` throttles visibility-triggered recovery to once per 15
   minutes across the app. A genuine network reconnection still forces one
   immediate recovery, preserving correctness without tab-focus traffic.
+
+## App-logo reload control — August 31, 2026
+
+- Installed home-screen PWAs do not expose Chrome/Safari's reload button, so
+  the app logo is now the consistent reload control. Clicking the castle logo
+  calls `window.location.reload()`, preserving the current URL while rerunning
+  normal authentication and data hydration just like a browser refresh.
+- The action is available on the mobile top bar, inside the mobile navigation
+  drawer, and on the desktop sidebar logo. It has `Reload app` accessible
+  labeling and a full touch target. The mobile top-bar mark uses the current
+  theme colour so it remains visible on the light header; sidebar marks remain
+  white. The loading-screen logo remains non-interactive.
