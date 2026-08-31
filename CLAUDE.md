@@ -3036,3 +3036,20 @@ for the push itself.
   (not a generic Add shortcut action), and launch the newly installed Cstle
   icon. In standalone mode the URL/X toolbar is absent; only the phone's normal
   system status area remains.
+
+## Force-delete originating-lead schema fix — August 31, 2026
+
+- A real Super Admin deletion attempt with project, client, and estimate all
+  selected reached the live `delete_project_and_related` RPC but rolled back
+  with `column "client_id" does not exist`. The UI and authorization were
+  working; the failure was inside the SQL function.
+- Root cause: `20240062` incorrectly assumed `public.leads.client_id` existed.
+  This schema records conversion lineage through
+  `estimates.lead_id`/`estimates.converted_project_id`; `leads` has no
+  `client_id` column. The whole RPC is transactional, so the failed attempt did
+  not partially remove the project, estimate, client, lead, or history.
+- Updated `20240062` for fresh installs and added corrective migration
+  `20240065_fix_project_force_delete_lead_link.sql` for the live database. The
+  function now captures the estimate's `lead_id` before project deletion and,
+  when linked-client deletion is explicitly selected, removes that exact
+  originating lead by primary key. It no longer queries a nonexistent column.
