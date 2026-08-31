@@ -526,14 +526,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const deleteProject = async (id: number) => {
-    const previous = realtimeProjects.find((project: any) => String(project.id) === String(id));
-    try {
-      removeProject(id);
-      await projectsAPI.deleteProject(id);
-    } catch (error) {
-      if (previous) mergeProject(previous);
-      throw error;
-    }
+    // A project with recorded history is expected to reject a plain delete.
+    // Keep it mounted until the database confirms success so Project Details
+    // can show the guarded Super Admin fallback instead of crashing while an
+    // optimistic removal is being rolled back.
+    await projectsAPI.deleteProject(id);
+    removeProject(id);
   };
 
   const deleteProjectAndRelated = async (id: number, options: { deleteClient?: boolean; deleteEstimate?: boolean } = {}) => {

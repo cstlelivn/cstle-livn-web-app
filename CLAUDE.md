@@ -2925,6 +2925,46 @@ for the push itself.
   minutes across the app. A genuine network reconnection still forces one
   immediate recovery, preserving correctness without tab-focus traffic.
 
+## Module 4 rapid mobile estimator — August 31, 2026
+
+- Replaced the former eight-screen estimator navigation with one mobile-first
+  workspace containing three human movements: **Capture**, **Review & price**,
+  and **Estimate**. Existing estimates, protected cost snapshots, RLS, rate
+  cards and project-conversion records are preserved underneath; this is a
+  workflow simplification, not a second estimating system.
+- Capture prioritizes photos, a real PDF/plan attachment, and rough typed or
+  live browser-dictated scope. Measurements remain available but are collapsed
+  as optional detail. The existing browser SpeechRecognition path stores only
+  the resulting text; it does not upload audio or call paid transcription.
+- Estimate photos continue through the shared HEIC-aware WebP optimizer,
+  targeting about 850 KiB and refusing an uncompressed photo fallback above
+  2 MiB. Estimate PDFs/documents are now real R2 uploads rather than filename-
+  only placeholders and are rejected above 2 MiB. Do not increase these limits
+  without reviewing the R2 free-tier budget.
+- AI refinement is explicit and on-demand: one call only when the estimator
+  chooses **Refine with AI**. A complete **Continue without AI · free** path
+  copies the estimator's own text into the editable scope and makes no model
+  call. Pricing arithmetic, editing and browser PDF/print generation require no
+  AI. No automatic web research, polling, cron or background AI was added.
+- Review keeps AI output editable and does not silently expand the scope. AI-
+  suggested takeoff lines become confirmed only when the estimator explicitly
+  asks Cstle to calculate the reviewed scope. The customer price is the visual
+  anchor; protected cost, gross profit and margin are smaller and hidden behind
+  a privacy control, and remain unavailable to roles without margin permission.
+- The estimate sheet follows a conventional customer document hierarchy with
+  estimate number/date, client/project, editable scope, customer total and
+  terms. PDF uses the browser print/save-PDF path (no generation API charge).
+  **Send estimate** currently opens the device email client and records the send
+  time; provider delivery tracking remains future work and must not be claimed.
+- Migration `20240064_rapid_estimate_fields.sql` is additive and **not yet
+  confirmed live**. It adds `agreed_price_cents`, `estimate_terms`,
+  `estimate_valid_until` and `estimate_sent_at` to `estimates`. The frontend
+  must not be pushed live until this migration has been run successfully.
+- Live market/supplier web research is deliberately not automatic: OpenAI web
+  research is not free. If added later, it must be an explicit user action with
+  dated visible sources, a usage ceiling and a clear cost warning. Default
+  pricing continues to use Cstle's stored rate card/assemblies and history.
+
 ## App-logo reload control — August 31, 2026
 
 - Installed home-screen PWAs do not expose Chrome/Safari's reload button, so
@@ -2936,3 +2976,24 @@ for the push itself.
   labeling and a full touch target. The mobile top-bar mark uses the current
   theme colour so it remains visible on the light header; sidebar marks remain
   white. The loading-screen logo remains non-interactive.
+
+## Project Details permanent-delete parity fix — August 31, 2026
+
+- The Super Admin force-delete work in `20240062` was only wired into the
+  Projects list screen. The trash button inside `ProjectDetailsReal.tsx` still
+  used the old plain `DELETE`, so projects with tasks/timers/QC correctly hit a
+  foreign-key guard but only showed "Can't delete" instead of offering the
+  authorized permanent-delete path. This was the exact failure captured by the
+  user in production.
+- Project Details now consumes the existing `deleteProjectAndRelated` context
+  action. When a plain delete is history-blocked for a Super Admin, it opens the
+  same guarded workflow: a full impact warning, optional linked-client and
+  originating-estimate deletion, and exact project-title confirmation before
+  the destructive action enables. No duplicate database or deletion logic was
+  introduced.
+- `AppContext.deleteProject` no longer optimistically removes a project before
+  Supabase accepts the delete. A history-protected rejection previously
+  unmounted Project Details during the request and could trip the page error
+  boundary (the "Something went wrong" screen) before rollback completed. The
+  local record is now removed only after confirmed database success, so a
+  rejected plain delete leaves the screen stable for the guarded fallback.

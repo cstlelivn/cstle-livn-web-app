@@ -4,6 +4,7 @@ import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
+import { Checkbox } from "./ui/checkbox";
 import { Textarea } from "./ui/textarea";
 import { Progress } from "./ui/progress";
 import { 
@@ -32,6 +33,7 @@ import {
   BarChart2
   ,FolderOpen
   ,ScrollText
+  ,Loader2
 } from "lucide-react";
 import { useApp } from "./AppContext";
 import { useAuth } from "./AuthContext";
@@ -131,6 +133,7 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
     updateTask,
     deleteTask,
     deleteProject,
+    deleteProjectAndRelated,
     updateProject,
     activities,
     projects,
@@ -166,6 +169,11 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
   const [selectedTask, setSelectedTask] = useState<AppTask | undefined>(undefined);
   const [taskDialogMode, setTaskDialogMode] = useState<"add" | "edit">("add");
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [historyDeleteOpen, setHistoryDeleteOpen] = useState(false);
+  const [forceDeleteConfirmation, setForceDeleteConfirmation] = useState("");
+  const [forceDeleteClient, setForceDeleteClient] = useState(false);
+  const [forceDeleteEstimate, setForceDeleteEstimate] = useState(false);
+  const [isForceDeleting, setIsForceDeleting] = useState(false);
   
   // Phase editing state
   const [isEditingPhase, setIsEditingPhase] = useState(false);
@@ -215,6 +223,9 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
   const phaseCardProgress = allPhasesComplete ? 100 : currentPhaseProgress;
   const canForceComplete = hasPermission("canForceCompleteProjects");
   const canCloseProject = hasPermission("canEditProjects");
+  const isSuperAdmin = currentUser?.role === "Super Admin";
+  const forceDeleteConfirmationMatches =
+    !!project?.title && forceDeleteConfirmation.trim().toLowerCase() === String(project.title).trim().toLowerCase();
 
   const handleMarkComplete = async () => {
     if (!currentUser) return;
@@ -325,12 +336,39 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
       // ProjectDetailsReal.tsx's own handleDeleteTask). A raw FK violation
       // message means "this can't be deleted," not "try again."
       const blocked = /foreign key|violates|restrict/i.test(error?.message || "");
-      toast.error(
-        blocked
-          ? "Can't delete -- this project has recorded history (tasks, phases, transactions, or permits). Ask an admin to clear its history first, or mark it Completed instead."
-          : (error?.message || "Failed to delete project")
-      );
       setDeleteConfirmOpen(false);
+      if (blocked && isSuperAdmin) {
+        setForceDeleteConfirmation("");
+        setForceDeleteClient(false);
+        setForceDeleteEstimate(false);
+        setHistoryDeleteOpen(true);
+      } else {
+        toast.error(
+          blocked
+            ? "This project has protected history. A Super Admin must use the permanent-delete confirmation."
+            : (error?.message || "Failed to delete project")
+        );
+      }
+    }
+  };
+
+  const confirmForceDeleteProject = async () => {
+    if (!isSuperAdmin || !forceDeleteConfirmationMatches) return;
+    setIsForceDeleting(true);
+    try {
+      await deleteProjectAndRelated(projectId, {
+        deleteClient: forceDeleteClient,
+        deleteEstimate: forceDeleteEstimate,
+      });
+      toast.success("Project and its recorded history were deleted");
+      setHistoryDeleteOpen(false);
+      onBack();
+    } catch (error: any) {
+      toast.error("Project could not be deleted", {
+        description: error?.message || "The protected deletion did not complete.",
+      });
+    } finally {
+      setIsForceDeleting(false);
     }
   };
 
@@ -1297,6 +1335,58 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
             <AlertDialogAction onClick={confirmDeleteProject} className="bg-destructive hover:bg-destructive/90">
               Delete Project
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={historyDeleteOpen} onOpenChange={(open) => !isForceDeleting && setHistoryDeleteOpen(open)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Permanently Delete “{project.title}”?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  This project has recorded tasks, phases, timer sessions, QC, Aura, permits, or financial history.
+                  Deleting it permanently removes the project and all of that project history. This cannot be undone.
+                </p>
+                <p className="font-medium text-destructive">This is different from marking a finished project Completed.</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-3 py-1">
+            <label className="flex items-start gap-2 text-[13px]">
+              <Checkbox checked={forceDeleteClient} onCheckedChange={(checked) => setForceDeleteClient(checked === true)} disabled={isForceDeleting} />
+              <span>Also delete the linked client. If that client came from a lead, the originating lead is deleted too.</span>
+            </label>
+            <label className="flex items-start gap-2 text-[13px]">
+              <Checkbox checked={forceDeleteEstimate} onCheckedChange={(checked) => setForceDeleteEstimate(checked === true)} disabled={isForceDeleting} />
+              <span>Also delete the estimate that created this project, if one exists.</span>
+            </label>
+            <div>
+              <Label htmlFor="project-history-delete-confirmation" className="text-[12px]">
+                Type <strong>{project.title}</strong> to confirm
+              </Label>
+              <Input
+                id="project-history-delete-confirmation"
+                value={forceDeleteConfirmation}
+                onChange={(event) => setForceDeleteConfirmation(event.target.value)}
+                disabled={isForceDeleting}
+                autoComplete="off"
+                className="mt-1"
+              />
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isForceDeleting}>Cancel</AlertDialogCancel>
+            <Button
+              type="button"
+              onClick={confirmForceDeleteProject}
+              disabled={!forceDeleteConfirmationMatches || isForceDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isForceDeleting && <Loader2 className="mr-2 size-4 animate-spin" />}
+              Permanently Delete Project
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
