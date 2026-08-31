@@ -5,7 +5,7 @@ import {
   type Estimate, updateEstimate,
   listEstimateMedia, uploadEstimateMedia, deleteEstimateMedia, type EstimateMedia,
   listMeasurements, addMeasurement, deleteMeasurement, type EstimateMeasurement,
-  listDocuments, addDocument, deleteDocument, type EstimateDocument,
+  addDocument,
 } from "../../../src/features/estimating/api";
 import { analyzeCapture } from "../../../src/features/estimating/aiApi";
 import { optimizeEstimatePdf } from "../../../src/features/estimating/pdfOptimizer";
@@ -18,8 +18,8 @@ interface ScreenProps {
 
 export default function CaptureScreen({ estimate, onRefresh, onAdvance }: ScreenProps) {
   const [photos, setPhotos] = useState<EstimateMedia[]>([]);
+  const [plans, setPlans] = useState<EstimateMedia[]>([]);
   const [measurements, setMeasurements] = useState<EstimateMeasurement[]>([]);
-  const [documents, setDocuments] = useState<EstimateDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [documentProgress, setDocumentProgress] = useState<{ value: number; label: string } | null>(null);
@@ -27,7 +27,6 @@ export default function CaptureScreen({ estimate, onRefresh, onAdvance }: Screen
   const [walkthrough, setWalkthrough] = useState(estimate.capture_walkthrough || "");
   const [listening, setListening] = useState(false);
   const [mForm, setMForm] = useState({ label: "", value: "", unit: "" });
-  const [docNote, setDocNote] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
@@ -35,12 +34,13 @@ export default function CaptureScreen({ estimate, onRefresh, onAdvance }: Screen
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [p, m, d] = await Promise.all([
+      const [p, m] = await Promise.all([
         listEstimateMedia(estimate.id).catch(() => []),
         listMeasurements(estimate.id),
-        listDocuments(estimate.id),
       ]);
-      setPhotos(p); setMeasurements(m); setDocuments(d);
+      setPhotos(p.filter((item) => item.media_kind === "photo" && item.caption !== "__plan__"));
+      setPlans(p.filter((item) => item.media_kind === "document" || item.caption === "__plan__"));
+      setMeasurements(m);
     } finally {
       setLoading(false);
     }
@@ -84,21 +84,22 @@ export default function CaptureScreen({ estimate, onRefresh, onAdvance }: Screen
     }
   };
 
-  const handleAddDocument = async () => {
-    const file = docInputRef.current?.files?.[0];
-    if (!file && !docNote.trim()) return;
+  const handlePlans = async (files: FileList | null) => {
+    if (!files?.length) return;
     setUploading(true);
     try {
-      let uploadFile = file;
-      if (file?.type === "application/pdf" || file?.name.toLowerCase().endsWith(".pdf")) {
-        uploadFile = await optimizeEstimatePdf(file, (value, label) => setDocumentProgress({ value, label }));
+      for (const file of Array.from(files)) {
+        let uploadFile = file;
+        const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+        if (isPdf) uploadFile = await optimizeEstimatePdf(file, (value, label) => setDocumentProgress({ value, label }));
+        const uploaded = await uploadEstimateMedia(estimate.id, uploadFile, "__plan__", undefined, !isPdf);
+        if (!isPdf && uploaded.byte_size > 2 * 1024 * 1024) throw new Error("This plan image could not be compressed below 2 MB.");
+        await addDocument(estimate.id, file.name);
       }
-      if (uploadFile) await uploadEstimateMedia(estimate.id, uploadFile, docNote.trim() || undefined);
-      const d = await addDocument(estimate.id, file ? file.name : "Site note", docNote.trim() || undefined);
-      setDocuments((prev) => [...prev, d]); setDocNote(""); if (docInputRef.current) docInputRef.current.value = "";
-      toast.success(file ? "Document uploaded" : "Site note added");
+      toast.success(`${files.length} plan${files.length === 1 ? "" : "s"} attached`);
+      await load();
     } catch (error: any) { toast.error(error?.message || "Failed to upload document"); }
-    finally { setUploading(false); setDocumentProgress(null); }
+    finally { setUploading(false); setDocumentProgress(null); if (docInputRef.current) docInputRef.current.value = ""; }
   };
 
   const saveText = async () => {
@@ -167,9 +168,10 @@ export default function CaptureScreen({ estimate, onRefresh, onAdvance }: Screen
           <div>
             <h3 className="flex items-center gap-2 text-[14px] font-semibold"><Camera className="size-4 text-[#65733d]" /> Photos</h3>
             <p className="mt-1 text-[10px] text-muted-foreground mb-[8px]">Take them now or choose from your phone.</p>
-            <input ref={fileInputRef} type="file" accept="image/*" multiple capture="environment"
+            <input ref={fileInputRef} type="file" accept="image/*" multiple
               onChange={(e) => handlePhotos(e.target.files)} disabled={uploading}
-              className="font-['Roboto_Mono'] text-[10px]" />
+              className="sr-only" />
+            <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-[#65733d]/20 bg-[#f2f5e9] px-4 text-[11px] font-semibold text-[#53602f] transition hover:border-[#65733d]/40 hover:bg-[#eaf0dc] disabled:opacity-50"><Camera className="size-4" />{uploading ? "Uploading…" : "Add photos"}</button>
             {photos.length > 0 && (
               <div className="grid grid-cols-3 gap-[6px] mt-[10px]">
                 {photos.map((p) => (
@@ -186,19 +188,16 @@ export default function CaptureScreen({ estimate, onRefresh, onAdvance }: Screen
 
           <div>
             <h3 className="flex items-center gap-2 text-[14px] font-semibold"><FileUp className="size-4 text-[#65733d]" /> Plans or PDFs</h3>
-            <p className="mt-1 text-[10px] text-muted-foreground mb-[8px]">Optional. The actual file stays attached · 2 MB maximum.</p>
-            <div className="flex flex-col gap-[6px] sm:flex-row">
-              <input ref={docInputRef} type="file" accept="application/pdf,image/*" className="font-['Roboto_Mono'] text-[10px] flex-1" />
-              <input value={docNote} onChange={(e) => setDocNote(e.target.value)} placeholder="What's in it?" className="flex-1 px-[8px] py-[5px] border border-border rounded-[6px] font-['Roboto_Mono'] text-[10px] bg-input-background" />
-            </div>
-            <button onClick={handleAddDocument} className="mt-[6px] px-[10px] py-[5px] bg-secondary rounded-[6px] font-['Roboto_Mono'] text-[10px] hover:bg-secondary/70">Add document</button>
+            <p className="mt-1 text-[10px] text-muted-foreground mb-[8px]">Drawings, plan images, or PDFs · compressed before upload.</p>
+            <input ref={docInputRef} type="file" accept="application/pdf,image/*,.heic,.heif" multiple onChange={(e) => handlePlans(e.target.files)} disabled={uploading} className="sr-only" />
+            <button type="button" onClick={() => docInputRef.current?.click()} disabled={uploading} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-black/10 bg-white px-4 text-[11px] font-semibold text-[#292b25] shadow-sm transition hover:border-[#65733d]/30 hover:bg-[#fafbf6] disabled:opacity-50"><FileUp className="size-4 text-[#65733d]" />{uploading ? "Compressing…" : "Add plans or PDFs"}</button>
             {documentProgress && <div className="mt-3 rounded-lg bg-[#eef1e4] p-2.5"><div className="flex items-center justify-between font-['Roboto_Mono'] text-[8px] font-bold uppercase tracking-[0.06em] text-[#5d683c]"><span>{documentProgress.label}</span><span>{documentProgress.value}%</span></div><div className="mt-2 h-1 overflow-hidden rounded-full bg-black/10"><div className="h-full rounded-full bg-[#65733d] transition-[width]" style={{ width: `${documentProgress.value}%` }} /></div></div>}
-            {documents.length > 0 && (
+            {plans.length > 0 && (
               <div className="mt-[8px] space-y-[4px]">
-                {documents.map((d) => (
-                  <div key={d.id} className="flex items-center justify-between text-[10px] font-['Roboto_Mono']">
-                    <span className="truncate">{d.name} {d.note ? `-- ${d.note}` : ""}</span>
-                    <button onClick={() => deleteDocument(d.id).then(() => setDocuments((prev) => prev.filter((x) => x.id !== d.id)))} className="text-muted-foreground hover:text-destructive shrink-0 ml-[8px]">remove</button>
+                {plans.map((plan) => (
+                  <div key={plan.id} className="flex items-center justify-between rounded-lg bg-black/[0.025] px-3 py-2 text-[10px] font-['Roboto_Mono']">
+                    <span className="truncate">{plan.original_filename}</span>
+                    <button onClick={() => deleteEstimateMedia(plan.id).then(() => setPlans((prev) => prev.filter((x) => x.id !== plan.id)))} className="text-muted-foreground hover:text-destructive shrink-0 ml-[8px]">remove</button>
                   </div>
                 ))}
               </div>

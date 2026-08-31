@@ -136,11 +136,24 @@ export async function optimizeMediaFile(file: File, marketing = false): Promise<
       if (!best || candidate.size < best.size) best = candidate;
       if (candidate.size <= targetBytes) break;
     }
+    // A few mobile WebViews can decode an image but cannot encode WebP.
+    // JPEG is a safe final fallback for plans/photos rather than rejecting
+    // a perfectly readable source as "couldn't compress".
+    if (!best) {
+      for (const quality of marketing ? [0.82, 0.74, 0.66] : [0.76, 0.68, 0.60]) {
+        const candidate = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+        if (!candidate) continue;
+        if (!best || candidate.size < best.size) best = candidate;
+        if (candidate.size <= targetBytes) break;
+      }
+    }
     if (!best || best.size >= file.size) {
       return file.size > hardCap ? failIfTooLarge() : file;
     }
-    return new File([best], webpName(file.name), {
-      type: 'image/webp',
+    const outputType = best.type === 'image/jpeg' ? 'image/jpeg' : 'image/webp';
+    const outputName = outputType === 'image/jpeg' ? `${file.name.replace(/\.[^/.]+$/, '') || 'photo'}.jpg` : webpName(file.name);
+    return new File([best], outputName, {
+      type: outputType,
       lastModified: file.lastModified,
     });
   } catch (error) {

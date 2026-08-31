@@ -3006,6 +3006,17 @@ for the push itself.
   large plan image through ImageBitmap. Transparent plan backgrounds are
   flattened to white before WebP encoding for readable drawings. Storage caps
   are unchanged.
+- Capture-file UI was then simplified from exposed native inputs plus a second
+  `Add document` confirmation into two intentional actions: **Add photos** and
+  **Add plans or PDFs**. The photo input no longer has `capture=environment`,
+  so phones present their normal camera/photo-library/files chooser rather than
+  forcing the camera; desktop still opens its native file picker. Selecting a
+  plan or PDF now immediately compresses, uploads and attaches it with visible
+  progress—there is no second button or filename-note form. Plan images use the
+  higher-detail 2400px/~1.2 MiB optimizer profile and an internal plan marker so
+  they remain in the Plans list rather than being mixed into ordinary photos.
+  Both controls are full-width, touch-sized buttons and storage caps remain
+  unchanged.
 - Production activation: commit `b058283` was pushed after migration 64 was
   confirmed. `https://admin.cstle.ca` serves the matching verified production
   bundle `index-egZTT9Zm.js` and its separately emitted PDF worker. TypeScript,
