@@ -766,6 +766,21 @@ app.delete("/make-server-bcab437c/users/:id", authMiddleware, async (c) => {
     return c.json({ error: "User not found" }, 404);
   }
 
+  // Never allow the company to delete its final Super Admin. A different
+  // Super Admin can remove a redundant Super Admin account, but the system
+  // must always retain at least one account capable of restoring access and
+  // permissions. This check is server-side so it cannot be bypassed by a
+  // crafted request or an older frontend.
+  if (existingUser.role === "Super Admin") {
+    const allUsers = await kv.getByPrefix("user:");
+    const otherSuperAdmins = allUsers.filter((candidate: any) =>
+      candidate?.id !== targetUserId && candidate?.role === "Super Admin"
+    );
+    if (otherSuperAdmins.length === 0) {
+      return c.json({ error: "The final Super Admin account cannot be deleted. Create or promote another Super Admin first." }, 409);
+    }
+  }
+
   const { error: deleteAuthError } = await supabase.auth.admin.deleteUser(targetUserId);
   if (deleteAuthError && deleteAuthError.message && !deleteAuthError.message.includes("not found")) {
     console.error("Failed to delete auth user:", deleteAuthError);

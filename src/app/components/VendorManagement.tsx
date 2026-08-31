@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Star, Phone, Mail, MapPin, FileText, TrendingUp, Search, Grid3x3, List } from "lucide-react";
+import { Plus, Star, Phone, Mail, MapPin, FileText, TrendingUp, Search, Grid3x3, List, Trash2, AlertTriangle, Loader2 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { Badge } from "./ui/badge";
@@ -11,14 +11,20 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
 import TableFilter, { FilterConfig, SortOption } from "./TableFilter";
 import { useApp } from "./AppContext";
+import { usePermissions } from "./PermissionContext";
 import { toast } from "sonner";
 
 export default function VendorManagement() {
-  const { vendors, addVendor } = useApp(); // Use real vendors from context
+  const { vendors, addVendor, deleteVendor } = useApp(); // Use real vendors from context
+  const { currentUser } = usePermissions();
+  const isSuperAdmin = currentUser?.role === "Super Admin";
   const [searchQuery, setSearchQuery] = useState("");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "list">("list");
   const [selectedVendor, setSelectedVendor] = useState<any | null>(null);
+  const [vendorToDelete, setVendorToDelete] = useState<any | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
   const [filters, setFilters] = useState<Record<string, any>>({
     search: "",
     dateFrom: undefined,
@@ -79,6 +85,32 @@ export default function VendorManagement() {
     return status === "Active"
       ? "bg-primary/10 text-primary"
       : "bg-muted text-muted-foreground";
+  };
+
+  const deleteConfirmationMatches = !!vendorToDelete &&
+    deleteConfirmation.trim().toLowerCase() === String(vendorToDelete.name).trim().toLowerCase();
+
+  const requestVendorDelete = (vendor: any) => {
+    setVendorToDelete(vendor);
+    setDeleteConfirmation("");
+  };
+
+  const confirmVendorDelete = async () => {
+    if (!isSuperAdmin || !vendorToDelete || !deleteConfirmationMatches) return;
+    setIsDeleting(true);
+    try {
+      await deleteVendor(vendorToDelete.id);
+      if (selectedVendor?.id === vendorToDelete.id) setSelectedVendor(null);
+      toast.success("Vendor deleted");
+      setVendorToDelete(null);
+      setDeleteConfirmation("");
+    } catch (error: any) {
+      toast.error("Vendor could not be deleted", {
+        description: error?.message || "Remove or reassign linked records first.",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   // Filter configuration
@@ -362,6 +394,17 @@ export default function VendorManagement() {
                 >
                   View Details
                 </Button>
+                {isSuperAdmin && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(event) => { event.stopPropagation(); requestVendorDelete(vendor); }}
+                    className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    aria-label={`Delete ${vendor.name}`}
+                  >
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                )}
               </div>
             </div>
           ))}
@@ -533,15 +576,58 @@ export default function VendorManagement() {
 
               {/* Actions */}
               <div className="pt-2">
-                <Button variant="outline" className="w-full text-[10px]">
-                  <FileText className="w-4 h-4 mr-2" />
-                  View Contract Documents
-                </Button>
+                {isSuperAdmin && (
+                  <Button
+                    variant="outline"
+                    className="w-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    onClick={() => requestVendorDelete(selectedVendor)}
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete Vendor
+                  </Button>
+                )}
               </div>
             </div>
           </DialogContent>
         </Dialog>
       )}
+
+      <Dialog open={!!vendorToDelete} onOpenChange={(open) => !open && !isDeleting && setVendorToDelete(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 font-['Anybody'] font-bold" style={{ fontVariationSettings: "'wdth' 137" }}>
+              <AlertTriangle className="size-5 text-destructive" />
+              Delete Vendor
+            </DialogTitle>
+            <DialogDescription>
+              This permanently deletes <strong>{vendorToDelete?.name}</strong>. If the vendor is linked to protected purchasing or financial history, deletion will be stopped until those links are resolved.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="vendor-delete-confirmation" className="text-[12px]">
+              Type <strong>{vendorToDelete?.name}</strong> to confirm
+            </Label>
+            <Input
+              id="vendor-delete-confirmation"
+              value={deleteConfirmation}
+              onChange={(event) => setDeleteConfirmation(event.target.value)}
+              disabled={isDeleting}
+              autoComplete="off"
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setVendorToDelete(null)} disabled={isDeleting}>Cancel</Button>
+            <Button
+              onClick={confirmVendorDelete}
+              disabled={!deleteConfirmationMatches || isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting && <Loader2 className="mr-2 size-4 animate-spin" />}
+              Delete Vendor
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

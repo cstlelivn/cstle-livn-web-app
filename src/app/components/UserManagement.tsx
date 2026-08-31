@@ -32,6 +32,11 @@ export default function UserManagement({ onEditUser }: UserManagementProps) {
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+
+  const deletingUser = users.find((candidate: any) => candidate.id === deletingUserId);
+  const deleteConfirmationMatches = !!deletingUser &&
+    deleteConfirmation.trim().toLowerCase() === String(deletingUser.email).trim().toLowerCase();
 
   const filteredUsers = users
     .filter((user: any) => {
@@ -67,12 +72,13 @@ export default function UserManagement({ onEditUser }: UserManagementProps) {
   };
 
   const handleDeleteUser = async () => {
-    if (!deletingUserId) return;
+    if (!deletingUserId || !deleteConfirmationMatches) return;
     setDeleteLoading(true);
     setDeleteError("");
     try {
       await deleteUser(deletingUserId);
       setDeletingUserId(null);
+      setDeleteConfirmation("");
     } catch (err: any) {
       setDeleteError(err?.message || "Failed to delete user.");
     } finally {
@@ -270,7 +276,7 @@ export default function UserManagement({ onEditUser }: UserManagementProps) {
                 </Button>
                 {user.id !== currentUser?.id && (
                   <Button
-                    onClick={() => { setDeleteError(""); setDeletingUserId(user.id); }}
+                    onClick={() => { setDeleteError(""); setDeleteConfirmation(""); setDeletingUserId(user.id); }}
                     variant="outline"
                     className="border-red-300 text-red-500 hover:bg-red-50 font-['Roboto_Mono'] font-medium text-[14px] rounded-[6px] h-[36px] px-[12px]"
                   >
@@ -304,16 +310,28 @@ export default function UserManagement({ onEditUser }: UserManagementProps) {
               </h2>
             </div>
             <p className="font-['Roboto_Mono'] text-[13px] text-[#555555]">
-              Are you sure you want to delete <strong>{users.find((u: any) => u.id === deletingUserId)?.name}</strong>? This will permanently remove their account and cannot be undone.
+              This permanently removes <strong>{deletingUser?.name}</strong>'s login account. The final Super Admin account is protected and cannot be deleted.
             </p>
+            <div className="space-y-[6px]">
+              <label htmlFor="user-delete-confirmation" className="font-['Roboto_Mono'] text-[12px] text-[#555555]">
+                Type <strong>{deletingUser?.email}</strong> to confirm
+              </label>
+              <Input
+                id="user-delete-confirmation"
+                value={deleteConfirmation}
+                onChange={(event) => setDeleteConfirmation(event.target.value)}
+                disabled={deleteLoading}
+                autoComplete="off"
+              />
+            </div>
             {deleteError && (
               <p className="font-['Roboto_Mono'] text-[12px] text-red-500">{deleteError}</p>
             )}
             <div className="flex gap-[12px] justify-end">
               <Button
                 variant="outline"
-                onClick={() => setDeletingUserId(null)}
-                disabled={deleteLoading}
+                onClick={() => { setDeletingUserId(null); setDeleteConfirmation(""); }}
+                disabled={deleteLoading || !deleteConfirmationMatches}
                 className="border-[#CECECE] font-['Roboto_Mono'] text-[14px] rounded-[8px] h-[40px] px-[20px]"
               >
                 Cancel

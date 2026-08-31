@@ -2851,3 +2851,39 @@ for the push itself.
 - The system-test guard prevented any customer-facing email/SMS while the
   internal follow-up task and activity history were still verified. No polling,
   cron, or realtime usage was introduced.
+
+## Super Admin guarded deletion authority — August 30, 2026
+
+- Audited the app's existing delete paths against both the UI and Supabase
+  policies. The intended rule is now explicit: a Super Admin can delete every
+  operational record the app treats as deletable, while database foreign keys
+  still stop orphaning or unsafe deletes. Immutable accountability records
+  (timer sessions/events, time corrections, Aura/QC results, and activity logs)
+  are not exposed for direct row deletion; they are only handled as part of an
+  intentional parent-record cleanup through the existing guarded project/team
+  workflows.
+- Added migration `20240063_super_admin_delete_overrides.sql`. It gives Super
+  Admin an explicit RLS DELETE policy on the operational tables that already
+  have deletion features (projects/phases/tasks, CRM, vendors, inventory,
+  finance/procurement, permits, templates, estimating child records, task
+  checklist/dependency/tool/material/media records). It does not disable or
+  bypass foreign keys.
+- Closed a real UI gap in `VendorManagement.tsx`: `deleteVendor()` already
+  existed and RLS already permitted it, but no screen exposed the action.
+  Super Admin now has Delete Vendor from both the vendor list and detail view.
+  The dialog explains linked-record protection and requires typing the exact
+  vendor name before the destructive button enables. The non-functional
+  placeholder "View Contract Documents" button was removed.
+- Hardened login-account deletion. `UserManagement.tsx` now requires typing
+  the target user's exact email. The Edge Function already prevented deleting
+  one's own login; it now also rejects deletion of the final remaining Super
+  Admin account server-side. To remove a redundant Super Admin, another Super
+  Admin must exist first.
+- Existing heavy-delete guardrails remain the authoritative path: projects
+  with task/timer/Aura history use the typed-name `delete_project_and_related`
+  flow (`20240062`), and team members with work history require explicit task
+  reassignment while preserving historical attribution (`20240055`). R2 media
+  deletion continues through the Edge Function so deleting in the app removes
+  the object from R2 as well as its metadata.
+- Verification: `npm run typecheck`, all 13 Vitest tests, and `npm run build`
+  pass.
