@@ -1,5 +1,28 @@
 # Cstle Livn Web App — Project Handoff
 
+## Complete Super-Admin project deletion — August 31, 2026
+
+- The live deletion failure was traced to two separate schema mismatches. The
+  first (`leads.client_id`) was corrected by migration `20240065`; a complete
+  live foreign-key audit then found additional `NO ACTION` references that the
+  original force-delete function did not cover: `aura_ledger`,
+  `payments_received`, `transactions`, `estimates.converted_project_id`, and
+  the legacy `tasks.dependency_task_id` link.
+- Migration `20240066_complete_project_force_delete.sql` now clears the
+  selected project's Aura/finance history, detaches converted estimates,
+  clears cross-project legacy dependency links, and then deletes the project
+  and its cascading task/phase/QC/media records in one database transaction.
+  The path remains Super-Admin-only and the UI still requires typing the exact
+  project name. Linked client, originating lead, and estimate deletion remain
+  explicit optional checkboxes, so deleting a sample project does not silently
+  delete a real client.
+- The corrected function was applied directly to the linked production
+  Supabase project after confirming the repository's older migration ledger is
+  intentionally incomplete. Do not run a blanket `db push --include-all` just
+  to deploy this change; that would also attempt the unrelated historical
+  backlog. Apply the targeted migration file or reconcile migration history
+  first.
+
 ## Project force-delete (Super Admin) — August 29, 2026
 
 - **Prompted by**: the user wanting to fully undo an incomplete estimate ->
