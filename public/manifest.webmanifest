@@ -1,10 +1,12 @@
 {
   "name": "Cstle Livn",
   "short_name": "Cstle",
+  "id": "/",
   "description": "Cstle Livn project operations and field work app",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone"],
   "background_color": "#f2f2f0",
   "theme_color": "#1d231a",
   "icons": [

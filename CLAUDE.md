@@ -2997,3 +2997,26 @@ for the push itself.
   boundary (the "Something went wrong" screen) before rollback completed. The
   local record is now removed only after confirmed database success, so a
   rejected plain delete leaves the screen stable for the guarded fallback.
+
+## Android standalone-install hardening — August 31, 2026
+
+- The extra strip showing `https://admin.cstle.ca`, an X, and Chrome controls
+  is browser chrome, not part of the Cstle UI. The screenshot proves the saved
+  home-screen item was created as a regular Chrome shortcut/custom tab rather
+  than installed as the standalone PWA; web content cannot hide or close that
+  toolbar from inside a normal browser tab.
+- The existing live manifest was valid (`display: standalone`, correct PNG
+  icons and scope), but the project had no service-worker registration and no
+  explicit manifest app identity. Added manifest `id: /` plus an explicit
+  standalone display override, registered `/sw.js` from `src/main.tsx`, and
+  added a minimal installability worker.
+- The worker deliberately does **not** cache application files or Supabase
+  data. It claims the client for Android installability while leaving every
+  request on the normal network path, avoiding stale deployments, stale auth,
+  unexpected storage growth, and extra background traffic.
+- Existing browser shortcuts cannot convert themselves into installed apps.
+  After this deployment, the user must remove the old home-screen shortcut
+  once, open `https://admin.cstle.ca` directly in Chrome, choose **Install app**
+  (not a generic Add shortcut action), and launch the newly installed Cstle
+  icon. In standalone mode the URL/X toolbar is absent; only the phone's normal
+  system status area remains.
