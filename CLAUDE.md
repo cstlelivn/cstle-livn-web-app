@@ -2956,10 +2956,10 @@ for the push itself.
   terms. PDF uses the browser print/save-PDF path (no generation API charge).
   **Send estimate** currently opens the device email client and records the send
   time; provider delivery tracking remains future work and must not be claimed.
-- Migration `20240064_rapid_estimate_fields.sql` is additive and **not yet
-  confirmed live**. It adds `agreed_price_cents`, `estimate_terms`,
-  `estimate_valid_until` and `estimate_sent_at` to `estimates`. The frontend
-  must not be pushed live until this migration has been run successfully.
+- Migration `20240064_rapid_estimate_fields.sql` was confirmed successfully
+  run by the user on August 31, 2026. It adds `agreed_price_cents`,
+  `estimate_terms`, `estimate_valid_until` and `estimate_sent_at` to
+  `estimates`.
 - Live market/supplier web research is deliberately not automatic: OpenAI web
   research is not free. If added later, it must be an explicit user action with
   dated visible sources, a usage ceiling and a clear cost warning. Default
@@ -2974,6 +2974,12 @@ for the push itself.
   `pdf-lib` are dynamically imported, so ordinary app use does not load the PDF
   engine; Vite emits the worker and PDF code as separate lazy assets. This adds
   no server processing, API call, background work or paid service.
+- Production activation: commit `b058283` was pushed after migration 64 was
+  confirmed. `https://admin.cstle.ca` serves the matching verified production
+  bundle `index-egZTT9Zm.js` and its separately emitted PDF worker. TypeScript,
+  all 13 tests, the production build and diff checks passed before deployment.
+  Authenticated physical-phone capture/upload/print QA remains the next live
+  operational check; the deployment itself is confirmed.
 
 ## App-logo reload control — August 31, 2026
 
