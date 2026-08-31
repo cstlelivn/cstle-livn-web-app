@@ -49,6 +49,10 @@ function isHeic(file: File): boolean {
   return !type && /\.hei[cf]$/i.test(file.name);
 }
 
+function isImageFile(file: File): boolean {
+  return file.type.startsWith('image/') || /\.(jpe?g|png|webp|gif|bmp|tiff?|avif|hei[cf])$/i.test(file.name);
+}
+
 // Hard ceiling on what we'll ever let through un-shrunk. WebP compression at
 // the qualities below always gets a real photo far under this, so hitting it
 // means compression genuinely failed (corrupt file, unsupported color
@@ -72,7 +76,7 @@ export async function optimizeMediaFile(file: File, marketing = false): Promise<
   if (file.type === 'image/gif' || file.type === 'image/svg+xml') {
     return file;
   }
-  if (!file.type.startsWith('image/') && !isHeic(file)) {
+  if (!isImageFile(file) && !isHeic(file)) {
     return file;
   }
 
@@ -92,18 +96,33 @@ export async function optimizeMediaFile(file: File, marketing = false): Promise<
     }
   }
 
-  let image: ImageBitmap | null = null;
+  let image: ImageBitmap | HTMLImageElement | null = null;
+  let objectUrl: string | null = null;
   try {
-    image = await createImageBitmap(source, { imageOrientation: 'from-image' });
+    try {
+      image = await createImageBitmap(source, { imageOrientation: 'from-image' });
+    } catch {
+      objectUrl = URL.createObjectURL(source);
+      image = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const element = new Image();
+        element.onload = () => resolve(element);
+        element.onerror = () => reject(new Error('Image decode failed'));
+        element.src = objectUrl!;
+      });
+    }
     const maxEdge = marketing ? 2400 : 1920;
-    const scale = Math.min(1, maxEdge / Math.max(image.width, image.height));
-    const width = Math.max(1, Math.round(image.width * scale));
-    const height = Math.max(1, Math.round(image.height * scale));
+    const sourceWidth = image instanceof ImageBitmap ? image.width : image.naturalWidth;
+    const sourceHeight = image instanceof ImageBitmap ? image.height : image.naturalHeight;
+    const scale = Math.min(1, maxEdge / Math.max(sourceWidth, sourceHeight));
+    const width = Math.max(1, Math.round(sourceWidth * scale));
+    const height = Math.max(1, Math.round(sourceHeight * scale));
     const canvas = document.createElement('canvas');
     canvas.width = width;
     canvas.height = height;
     const context = canvas.getContext('2d', { alpha: false });
     if (!context) return file.size > hardCap ? failIfTooLarge() : file;
+    context.fillStyle = '#fff';
+    context.fillRect(0, 0, width, height);
     context.drawImage(image, 0, 0, width, height);
 
     // Aim for a sub-megabyte upload while retaining a 1920px long edge. A
@@ -128,7 +147,8 @@ export async function optimizeMediaFile(file: File, marketing = false): Promise<
     if (error instanceof Error && error.message.startsWith("Couldn't compress")) throw error;
     return file.size > hardCap ? failIfTooLarge() : file;
   } finally {
-    image?.close();
+    if (image instanceof ImageBitmap) image.close();
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
   }
 }
 

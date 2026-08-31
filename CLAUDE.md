@@ -2974,6 +2974,15 @@ for the push itself.
   `pdf-lib` are dynamically imported, so ordinary app use does not load the PDF
   engine; Vite emits the worker and PDF code as separate lazy assets. This adds
   no server processing, API call, background work or paid service.
+- Live rapid-estimator QA found that a 5 MB plan image could be rejected before
+  compression when a phone/file picker supplied an empty or generic MIME type.
+  The shared optimizer now recognizes common image filename extensions as well
+  as MIME types, so `.jpg`, `.png`, `.webp`, `.avif`, `.heic`, etc. enter the
+  photo compression path. It also falls back from `createImageBitmap` to an
+  object-URL-backed browser `Image` decoder for devices that cannot decode a
+  large plan image through ImageBitmap. Transparent plan backgrounds are
+  flattened to white before WebP encoding for readable drawings. Storage caps
+  are unchanged.
 - Production activation: commit `b058283` was pushed after migration 64 was
   confirmed. `https://admin.cstle.ca` serves the matching verified production
   bundle `index-egZTT9Zm.js` and its separately emitted PDF worker. TypeScript,
