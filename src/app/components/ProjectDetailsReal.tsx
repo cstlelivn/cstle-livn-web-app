@@ -814,16 +814,20 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
   return (
     <div className="flex flex-col gap-[20px] md:gap-[29px] w-full p-[16px] md:p-[32px]">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-start justify-between gap-[16px]">
-        <div className="flex items-start gap-[12px] md:gap-[16px] min-w-0">
+      <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto] items-start gap-[16px] md:gap-[24px]">
+        <div className="flex items-start gap-[12px] md:gap-[16px] min-w-0 max-w-full">
           <button
             onClick={onBack}
             className="p-[8px] hover:bg-card rounded-[6px] transition-colors mt-1 shrink-0"
           >
             <ArrowLeft className="w-5 h-5 text-foreground" />
           </button>
-          <div className="min-w-0">
-            <h1 className="break-words" style={{ fontVariationSettings: "'wdth' 137", fontWeight: 700 }}>
+          <div className="min-w-0 flex-1 max-w-full">
+            <h1
+              className="max-w-full [overflow-wrap:anywhere]"
+              title={project.title}
+              style={{ fontVariationSettings: "'wdth' 137", fontWeight: 700 }}
+            >
               {project.title}
             </h1>
             <div className="flex items-center flex-wrap gap-x-[12px] gap-y-[2px]">
@@ -837,7 +841,7 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-[12px] flex-wrap">
+        <div className="flex items-center gap-[10px] flex-wrap md:justify-end md:max-w-[520px] shrink-0">
           <div
             className={`px-[16px] py-[8px] rounded-full text-[11px] font-['Roboto_Mono'] font-medium ${
               project.status === "In Progress"

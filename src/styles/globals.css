@@ -30,7 +30,9 @@
   --vermillion-100: #fbdfc7;
 
   /* Typography sizes (mobile -> desktop handled via clamp at component level) */
-  --text-h1: 44px;
+  /* H1s stay bold but no longer overpower working screens. The responsive
+     cap also prevents long project/client names from consuming the toolbar. */
+  --text-h1: clamp(28px, 3vw, 36px);
   --text-h2: 36px;
   --text-h3: 28px;
   --text-h4: 28px;

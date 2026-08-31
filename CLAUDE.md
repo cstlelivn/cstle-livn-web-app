@@ -1,5 +1,20 @@
 # Cstle Livn Web App — Project Handoff
 
+## Bounded project header and smaller H1 scale — August 31, 2026
+
+- Project Details no longer lets a long project name move or strand the
+  status, completion, and delete controls. The header is now a two-column
+  grid on desktop (`minmax(0, 1fr)` for identity and an independent bounded
+  action area) and a single-column stack on mobile. The title can wrap at any
+  character—including long underscore-heavy sample names—inside its own
+  section without widening the page; the full name remains available through
+  the title tooltip.
+- The global H1 token was reduced from a fixed 44px to a responsive
+  `clamp(28px, 3vw, 36px)`. Anybody headings continue to use the required
+  width axis of 137; only the scale changed. This applies consistently to
+  plain H1 headings throughout the admin app while component-specific text
+  size utilities continue to override the token where intentionally designed.
+
 ## Complete Super-Admin project deletion — August 31, 2026
 
 - The live deletion failure was traced to two separate schema mismatches. The
