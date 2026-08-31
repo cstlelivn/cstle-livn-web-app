@@ -3096,3 +3096,17 @@ for the push itself.
   function now captures the estimate's `lead_id` before project deletion and,
   when linked-client deletion is explicitly selected, removes that exact
   originating lead by primary key. It no longer queries a nonexistent column.
+
+## Estimate capture file controls — August 31, 2026
+
+- Replaced the raw browser file fields and separate `Add Document` action with
+  two direct controls: `Add photos` and `Add plans or PDFs`. Photo selection no
+  longer forces the rear camera on mobile, so the phone can offer its normal
+  camera, photo-library, and file-source choices; desktop retains its native
+  file picker. Plans and PDFs upload immediately after selection without an
+  extra form or confirmation button.
+- Plan images are stored as plan media rather than appearing in the site-photo
+  group, while their lightweight estimate-document metadata remains available
+  to the refinement workflow. Image/PDF optimization progress stays visible.
+  The 2 MiB plan ceiling is now checked after local compression but before the
+  signed upload URL is requested, so a rejected plan never consumes R2 storage.

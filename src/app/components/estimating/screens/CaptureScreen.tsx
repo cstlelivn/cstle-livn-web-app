@@ -92,8 +92,7 @@ export default function CaptureScreen({ estimate, onRefresh, onAdvance }: Screen
         let uploadFile = file;
         const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
         if (isPdf) uploadFile = await optimizeEstimatePdf(file, (value, label) => setDocumentProgress({ value, label }));
-        const uploaded = await uploadEstimateMedia(estimate.id, uploadFile, "__plan__", undefined, !isPdf);
-        if (!isPdf && uploaded.byte_size > 2 * 1024 * 1024) throw new Error("This plan image could not be compressed below 2 MB.");
+        await uploadEstimateMedia(estimate.id, uploadFile, "__plan__", undefined, !isPdf, 2 * 1024 * 1024);
         await addDocument(estimate.id, file.name);
       }
       toast.success(`${files.length} plan${files.length === 1 ? "" : "s"} attached`);

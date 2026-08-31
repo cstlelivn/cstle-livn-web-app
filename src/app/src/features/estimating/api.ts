@@ -147,8 +147,11 @@ export async function listEstimateMedia(estimateId: string): Promise<EstimateMed
   return (result.media ?? []) as EstimateMedia[];
 }
 
-export async function uploadEstimateMedia(estimateId: string, file: File, caption?: string, mediaKind?: 'signature', preservePlanDetail = false): Promise<EstimateMedia> {
+export async function uploadEstimateMedia(estimateId: string, file: File, caption?: string, mediaKind?: 'signature', preservePlanDetail = false, maxBytes?: number): Promise<EstimateMedia> {
   const optimized = mediaKind === 'signature' ? file : await optimizeMediaFile(file, preservePlanDetail);
+  if (maxBytes && optimized.size > maxBytes) {
+    throw new Error("This plan could not be compressed below 2 MB. Try exporting it at a smaller size, then attach it again.");
+  }
   const isDocument = optimized.type === 'application/pdf' || (!optimized.type.startsWith('image/') && !optimized.type.startsWith('video/') && !optimized.type.startsWith('audio/'));
   if (isDocument && optimized.size > 2 * 1024 * 1024) {
     throw new Error("Keep plans and PDFs under 2 MB. Compress this file, then try again.");
