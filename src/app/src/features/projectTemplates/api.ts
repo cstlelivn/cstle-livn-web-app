@@ -1,6 +1,7 @@
 import { createClient } from '../../../utils/supabase/client.tsx';
 import { failIf } from '../../lib/errors';
 import { now } from '../../lib/dates';
+import { addWorkDays } from '../../lib/workDays';
 
 const supabase = createClient();
 
@@ -203,19 +204,6 @@ export async function getProjectTemplate(id: string) {
     ...data,
     phase_templates: (data.phase_templates ?? []).sort((a: any, b: any) => a.position - b.position),
   };
-}
-
-/** Adds `days` work-days to a date, skipping Sundays (crews are typically off Sundays only). */
-function addWorkDays(date: Date, days: number): Date {
-  const result = new Date(date);
-  let remaining = days;
-  while (remaining > 0) {
-    result.setDate(result.getDate() + 1);
-    if (result.getDay() !== 0) {
-      remaining--;
-    }
-  }
-  return result;
 }
 
 /** Clone a full template into a project, creating project_phases and tasks */

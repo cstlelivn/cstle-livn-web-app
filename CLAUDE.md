@@ -1,5 +1,73 @@
 # Cstle Livn Web App — Project Handoff
 
+## Gantt chart rebuild, Stage 1 of 3 (touch-capable engine, phase Gantt) — August 31, 2026
+
+- **Planned in Plan Mode** (`/Users/demidhemian/.claude/plans/glittery-zooming-breeze.md`
+  has the full plan) after auditing the two existing Gantt views:
+  `TaskGanttChart.tsx` (task bars, native HTML5 drag-to-reschedule + raw
+  mouse-event resize -- **no touch support**, same failure mode `PhaseView.tsx`
+  hit with `react-dnd` before switching to `@dnd-kit`) and the portfolio-level
+  `ProjectGanttChart.tsx` (month-grain, one bar per project across all
+  projects, static/read-only, phase legend sourced from stale `localStorage`
+  -- **explicitly out of scope, left untouched**). Confirmed with the user:
+  finish-to-start-only dependencies (Stage 2), an atomic server-side cascade
+  RPC rather than sequential client updates (Stage 3), and staged delivery
+  so each piece can be tried before the next is built.
+- **New `src/app/components/GanttChart.tsx` replaces `TaskGanttChart.tsx`**
+  (deleted -- its only mount point was `ProjectDetailsReal.tsx`). Same
+  visual/interaction feature set as before (status/priority bar colors,
+  right-click status-change context menu, add-task-on-day-click, edit/delete
+  icons, today marker, empty state) but rebuilt on `@dnd-kit/core`'s
+  low-level `useDraggable` (not the `sortable` wrapper -- Gantt bars need
+  free pixel-position dragging, not list reordering) with the same
+  Pointer/Touch/Keyboard sensor combination already proven in `PhaseView.tsx`
+  -- drag-to-reschedule and edge-resize are now touch-capable for the first
+  time. A `groupBy: "phase-tasks" | "phases"` prop drives two view modes:
+  - `"phase-tasks"` (Tasks tab, same mount as before): task bars grouped
+    under phase headers -- now keyed on real `phase_id`/`project_phases.position`
+    via `buildPhasePositionMap` (`src/app/src/lib/taskOrder.ts`), not the
+    legacy free-text `task.phase` string the old component grouped by.
+  - `"phases"` (Phases tab -- **net new**, no phase-level Gantt existed
+    before): one draggable/resizable bar per `project_phases` row, wired
+    into a new list/gantt view toggle next to the existing "Manage Phases"
+    button.
+- **Fixed a real, confirmed inconsistency**: the old component's weekend
+  shading flagged both Saturday AND Sunday as non-working
+  (`d.getUTCDay() === 0 || d.getUTCDay() === 6`), contradicting the app's
+  actual Mon-Sat 6-day work week that `applyTemplateToProject`'s own
+  `addWorkDays` already assumed (Sunday-only skip) when scheduling a new
+  project from a template. New shared `src/app/src/lib/workDays.ts`
+  (`isWorkingDay`, `addWorkDays`, `workDaysBetween` -- Sunday is the only
+  non-working day) is now the single source of truth; both
+  `projectTemplates/api.ts`'s scheduler and the Gantt's calendar shading
+  point at it. Per the user's explicit direction, Sunday is shown on the
+  calendar (greyed, not hidden) rather than removed, in case Sunday work is
+  ever genuinely needed.
+- **New `canDragReschedule` helper** in
+  `src/app/src/features/tasks/permissions.ts`, mirroring `PhaseView.tsx`'s
+  inline `canAssignTasks` pattern (Manager/Admin, or the project's own
+  Supervisor via `project.supervisorId`) -- this is authority over the
+  *schedule*, deliberately separate from the existing assignee-based
+  `canEditTask` (which stays scoped to its existing uses, e.g. status
+  changes by whoever is actually doing the work). Both bar-move and
+  edge-resize dragging in the new Gantt are gated on this, not `canEditTask`.
+- Drag/resize still writes through the same single-record
+  `updateTask`/`updateProjectPhase` calls as before -- Stage 3 is what
+  replaces these with the atomic cascade RPCs described in the plan file.
+  No new migration in this stage; `task_dependencies` still has no lag/lead
+  column (that's Stage 2).
+- `npx tsc --noEmit -p tsconfig.sync.json`, `npm run build`, and `npm test`
+  (13/13) all pass. Verified the dev server loads cleanly with the new
+  bundle and no new console errors (Browser pane, login screen -- same
+  standing limitation as every other feature this session: the agent never
+  signs in, so the actual drag/resize/touch interaction and the new Phases-
+  tab Gantt toggle have **not** been exercised live). The user should open a
+  real project, drag a task bar and a phase bar (mouse and, if available,
+  touch), resize both edges, and confirm Saturday renders as a normal work
+  day while Sunday shows greyed-but-clickable, before relying on this.
+- **Next**: Stage 2 (dependency arrows + lead/lag) and Stage 3 (cascading
+  reschedule RPC) are still to come, per the plan file -- not started yet.
+
 ## Secondary Suite Development template — August 31, 2026
 
 - **New, distinct project template** (`project_type = 'Secondary Suite'`),

@@ -45,7 +45,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import TaskDialog from "./TaskDialog";
 import TaskKanban from "./TaskKanban";
 import TaskStatusControl from "./TaskStatusControl";
-import TaskGanttChart from "./TaskGanttChart";
+import GanttChart from "./GanttChart";
 import EditProjectPhasesDialog from "./EditProjectPhasesDialog";
 import EmailUpdateModal from "./EmailUpdateModal";
 import PhaseView from "./PhaseView";
@@ -160,6 +160,7 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
   );
   
   const [taskView, setTaskView] = useState<"list" | "grid" | "calendar" | "kanban" | "gantt">("list");
+  const [phaseView, setPhaseView] = useState<"list" | "gantt">("list");
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [currentTab, setCurrentTab] = useState<"tasks" | "phases" | "record" | "permits">("tasks");
@@ -1275,7 +1276,7 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
         )}
 
         {taskView === "gantt" && (
-          <TaskGanttChart projectId={projectId} />
+          <GanttChart projectId={projectId} groupBy="phase-tasks" />
         )}
 
         {sortedFilteredTasks.length === 0 && (taskView === "list" || taskView === "grid") && (
@@ -1288,7 +1289,27 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
         </TabsContent>
 
         <TabsContent value="phases" className="mt-0 space-y-[16px]">
-          <div className="flex items-center justify-end">
+          <div className="flex items-center justify-end gap-[8px]">
+            <div className="flex items-center gap-[8px] bg-card border border-border rounded-[6px] p-[4px]">
+              <button
+                onClick={() => setPhaseView("list")}
+                className={`p-[8px] rounded-[4px] transition-colors ${
+                  phaseView === "list" ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground"
+                }`}
+                title="List view"
+              >
+                <List className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setPhaseView("gantt")}
+                className={`p-[8px] rounded-[4px] transition-colors ${
+                  phaseView === "gantt" ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground"
+                }`}
+                title="Gantt view"
+              >
+                <BarChart2 className="w-4 h-4" />
+              </button>
+            </div>
             <button
               onClick={() => setIsManagePhasesOpen(true)}
               className="px-[12px] py-[6px] bg-accent text-accent-foreground rounded-[6px] hover:bg-accent/90 transition-colors font-['Roboto_Mono'] font-medium text-[11px] flex items-center gap-[6px]"
@@ -1297,7 +1318,11 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
               Manage Phases
             </button>
           </div>
-          <PhaseView projectId={projectId} />
+          {phaseView === "gantt" ? (
+            <GanttChart projectId={projectId} groupBy="phases" />
+          ) : (
+            <PhaseView projectId={projectId} />
+          )}
         </TabsContent>
         <TabsContent value="record" className="mt-0">
           <ProjectEvidenceHub projectId={String(projectId)} tasks={allProjectTasks} teamMembers={teamMembers} onOpenTask={(task) => handleEditTask(task as AppTask)} />

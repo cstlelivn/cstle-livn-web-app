@@ -32,3 +32,27 @@ export function canEditTask({ task, currentUserId, isManagerOrAdmin, teamMembers
   if (!task.assignee) return false;
   return String(task.assignee) === String(myMemberId);
 }
+
+// Who may drag-reschedule a task or phase bar in the Gantt chart. This is
+// authority over the SCHEDULE (Manager/Admin, or the project's own
+// Supervisor), not "am I the assignee" -- mirrors the canAssignTasks
+// pattern already established in PhaseView.tsx, not canEditTask above
+// (which stays scoped to its existing uses, e.g. status changes by
+// whoever is actually doing the work).
+export function canDragReschedule({
+  isManagerOrAdmin,
+  currentUserId,
+  teamMembers,
+  projectSupervisorId,
+}: {
+  isManagerOrAdmin: boolean;
+  currentUserId: string | null | undefined;
+  teamMembers: Array<{ id: string | number; authUserId?: string | null }>;
+  projectSupervisorId: string | number | null | undefined;
+}): boolean {
+  if (isManagerOrAdmin) return true;
+  if (!currentUserId || !projectSupervisorId) return false;
+  const myMemberId = teamMembers.find((m) => String(m.authUserId) === String(currentUserId))?.id;
+  if (myMemberId === undefined) return false;
+  return String(projectSupervisorId) === String(myMemberId);
+}
