@@ -9,8 +9,8 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
-  type DragMoveEvent,
 } from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
 import { useApp, type Task } from "./AppContext";
 import { useAuth } from "./AuthContext";
 import { canEditTask, canDragReschedule } from "../src/features/tasks/permissions";
@@ -57,13 +57,22 @@ function daysBetween(a: string, b: string): number {
 // tried there first and abandoned for lacking touch support -- the same
 // gap TaskGanttChart.tsx had with its native HTML5 drag/raw-mouse resize).
 //
-// Deliberately does NOT apply dnd-kit's own `transform` here -- the bar's
-// visual position during a drag is entirely driven by the parent's
-// `activeDrag`-derived `left`/`width` (see getBarPosition), recomputed on
-// every onDragMove. Also applying dnd-kit's raw pixel transform on top of
-// that percentage-based reposition double-moved the element (the original
-// bug: a "move" drag visibly resized the bar instead of translating it,
-// and the final landing day didn't match where the pointer actually was).
+// IMPORTANT: each bar's move-handle and its two resize-handles must be
+// SIBLINGS, never nested inside one another. An earlier version nested the
+// resize handles inside the move handle's own DraggableHandle -- a known
+// dnd-kit gotcha: a pointerdown on the (child) resize strip bubbles up to
+// the (parent) move handle's own pointerdown listener, so BOTH draggables'
+// sensors can try to claim the same gesture. Which one "won" was a race,
+// which is exactly why drags looked like they randomly resized instead of
+// moved, or reverted after drop. Rendering all three as absolutely-
+// positioned siblings inside one plain (non-draggable) wrapper removes the
+// ambiguity entirely -- a pointerdown only ever has one draggable ancestor.
+//
+// Visual feedback during a drag comes straight from dnd-kit's own
+// `transform` (the intended, well-tested way to use useDraggable) -- no
+// parallel percentage-based position state is computed here anymore. The
+// actual date math on drop always uses dnd-kit's own `event.delta`, which
+// is unaffected by whatever this renders during the drag.
 function DraggableHandle({ id, data, disabled, className, style, children, title }: {
   id: string;
   data: Record<string, any>;
@@ -73,7 +82,7 @@ function DraggableHandle({ id, data, disabled, className, style, children, title
   children?: React.ReactNode;
   title?: string;
 }) {
-  const { attributes, listeners, setNodeRef } = useDraggable({ id, data, disabled });
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id, data, disabled });
   return (
     <div
       ref={setNodeRef}
@@ -81,7 +90,12 @@ function DraggableHandle({ id, data, disabled, className, style, children, title
       {...(disabled ? {} : attributes)}
       className={className}
       title={title}
-      style={{ ...style, touchAction: "none" }}
+      style={{
+        ...style,
+        transform: transform ? CSS.Translate.toString(transform) : undefined,
+        zIndex: isDragging ? 20 : undefined,
+        touchAction: "none",
+      }}
     >
       {children}
     </div>
@@ -96,9 +110,6 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks" }: Gantt
   const [selectedTask, setSelectedTask] = useState<Task | undefined>(undefined);
   const [taskDialogMode, setTaskDialogMode] = useState<"add" | "edit">("add");
   const [newTaskDate, setNewTaskDate] = useState<string | null>(null);
-  // Live preview while a bar is being dragged/resized, before the change is
-  // committed to the DB on drag end.
-  const [activeDrag, setActiveDrag] = useState<{ kind: "move" | "resize-left" | "resize-right"; rowId: string; deltaPx: number } | null>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -247,25 +258,17 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks" }: Gantt
     return bands;
   }, [days]);
 
-  const getBarPosition = (rowId: string, start: string, due: string) => {
+  // Plain, data-driven position -- no live-drag adjustment here. Visual
+  // feedback during an active drag comes from dnd-kit's own `transform` on
+  // whichever handle is actually being dragged (see DraggableHandle), not
+  // from recomputing this. The real commit always reads `event.delta`
+  // fresh in handleDragEnd, so this function never needs to know about an
+  // in-progress drag at all.
+  const getBarPosition = (start: string, due: string) => {
     if (days.length === 0) return { left: "0%", width: "4%" };
     const timelineStart = days[0].date;
-    let startOffset = Math.max(0, daysBetween(timelineStart, start));
-    let endOffset = Math.max(startOffset + 1, daysBetween(timelineStart, due));
-
-    if (activeDrag && activeDrag.rowId === rowId && timelineRef.current) {
-      const pxPerDay = timelineRef.current.getBoundingClientRect().width / days.length;
-      const deltaDays = pxPerDay > 0 ? activeDrag.deltaPx / pxPerDay : 0;
-      if (activeDrag.kind === "move") {
-        startOffset += deltaDays;
-        endOffset += deltaDays;
-      } else if (activeDrag.kind === "resize-left") {
-        startOffset = Math.min(endOffset - 1, startOffset + deltaDays);
-      } else {
-        endOffset = Math.max(startOffset + 1, endOffset + deltaDays);
-      }
-    }
-
+    const startOffset = Math.max(0, daysBetween(timelineStart, start));
+    const endOffset = Math.max(startOffset + 1, daysBetween(timelineStart, due));
     const duration = endOffset - startOffset;
     return {
       left: `${(startOffset / days.length) * 100}%`,
@@ -273,15 +276,8 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks" }: Gantt
     };
   };
 
-  const handleDragMove = (event: DragMoveEvent) => {
-    const data = event.active.data.current as { kind: "move" | "resize-left" | "resize-right"; rowId: string } | undefined;
-    if (!data) return;
-    setActiveDrag({ kind: data.kind, rowId: data.rowId, deltaPx: event.delta.x });
-  };
-
   const handleDragEnd = async (event: DragEndEvent) => {
     const data = event.active.data.current as { kind: "move" | "resize-left" | "resize-right"; rowId: string; rowType: "task" | "phase" } | undefined;
-    setActiveDrag(null);
     if (!data || !timelineRef.current || days.length === 0) return;
     const pxPerDay = timelineRef.current.getBoundingClientRect().width / days.length;
     if (pxPerDay <= 0) return;
@@ -501,7 +497,7 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks" }: Gantt
         </div>
       </div>
 
-      <DndContext sensors={sensors} onDragMove={handleDragMove} onDragEnd={handleDragEnd} onDragCancel={() => setActiveDrag(null)}>
+      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
         <div
           ref={scrollRef}
           className="border border-border rounded-lg bg-card overflow-auto scroll-smooth"
@@ -564,7 +560,7 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks" }: Gantt
                 {(phases ?? []).map((phase: any) => {
                   const start = phaseStart(phase);
                   const end = phase.end_date || phase.start_date;
-                  const position = getBarPosition(String(phase.id), start, end);
+                  const position = getBarPosition(start, end);
                   return (
                     <div key={phase.id} className="flex hover:bg-secondary/20 transition-colors group">
                       <div className="w-[200px] shrink-0 px-[12px] py-[10px] border-r border-border flex items-center sticky left-0 z-10 bg-card">
@@ -577,35 +573,42 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks" }: Gantt
                             className={`flex-1 min-w-[30px] border-r border-border/30 ${day.isWeekend ? "bg-muted/10" : ""}`}
                           />
                         ))}
-                        <DraggableHandle
-                          id={`move:phase:${phase.id}`}
-                          data={{ kind: "move", rowId: String(phase.id), rowType: "phase" }}
-                          disabled={!canReschedule}
-                          className={`absolute top-1/2 -translate-y-1/2 h-[28px] rounded flex items-center px-[8px] gap-[4px] shadow-sm ${getPhaseStatusColor(
-                            phase.status
-                          )} border-2 border-muted-foreground ${canReschedule ? "cursor-move" : "cursor-not-allowed"}`}
+                        {/* Plain positioned wrapper -- NOT itself a draggable.
+                            The move/resize handles below are siblings inside
+                            it, never nested inside one another. */}
+                        <div
+                          className="absolute top-1/2 -translate-y-1/2 h-[28px]"
                           style={{ left: position.left, width: position.width }}
                           title={`${phase.name} - ${phase.status}${!canReschedule ? " (Manager/Admin/Supervisor only)" : ""}`}
                         >
+                          <DraggableHandle
+                            id={`move:phase:${phase.id}`}
+                            data={{ kind: "move", rowId: String(phase.id), rowType: "phase" }}
+                            disabled={!canReschedule}
+                            className={`absolute inset-0 rounded flex items-center px-[8px] gap-[4px] shadow-sm ${getPhaseStatusColor(
+                              phase.status
+                            )} border-2 border-muted-foreground ${canReschedule ? "cursor-move" : "cursor-not-allowed"}`}
+                          >
+                            <GripHorizontal className="w-3 h-3 text-white/70 shrink-0" />
+                            <span className="text-white small-text truncate flex-1">{phase.name}</span>
+                          </DraggableHandle>
                           {canReschedule && (
                             <DraggableHandle
                               id={`resize-left:phase:${phase.id}`}
                               data={{ kind: "resize-left", rowId: String(phase.id), rowType: "phase" }}
-                              className="absolute left-0 top-0 bottom-0 w-[8px] cursor-ew-resize hover:bg-white/30 rounded-l"
+                              className="absolute left-0 top-0 bottom-0 w-[8px] z-10 cursor-ew-resize hover:bg-white/30 rounded-l"
                               title="Drag to change start date"
                             />
                           )}
-                          <GripHorizontal className="w-3 h-3 text-white/70 shrink-0" />
-                          <span className="text-white small-text truncate flex-1">{phase.name}</span>
                           {canReschedule && (
                             <DraggableHandle
                               id={`resize-right:phase:${phase.id}`}
                               data={{ kind: "resize-right", rowId: String(phase.id), rowType: "phase" }}
-                              className="absolute right-0 top-0 bottom-0 w-[8px] cursor-ew-resize hover:bg-white/30 rounded-r"
+                              className="absolute right-0 top-0 bottom-0 w-[8px] z-10 cursor-ew-resize hover:bg-white/30 rounded-r"
                               title="Drag to change end date"
                             />
                           )}
-                        </DraggableHandle>
+                        </div>
                       </div>
                     </div>
                   );
@@ -634,7 +637,7 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks" }: Gantt
                     <div className="divide-y divide-border/50">
                       {group.tasks.map((task) => {
                         const assignee = task.assignee ? getTeamMember(task.assignee) : null;
-                        const position = getBarPosition(String(task.id), taskStart(task), task.dueDate);
+                        const position = getBarPosition(taskStart(task), task.dueDate);
                         const canEdit = canEditThisTask(task);
                         const canDrag = canReschedule;
 
@@ -670,35 +673,47 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks" }: Gantt
 
                               <ContextMenu>
                                 <ContextMenuTrigger asChild>
-                                  <DraggableHandle
-                                    id={`move:task:${task.id}`}
-                                    data={{ kind: "move", rowId: String(task.id), rowType: "task" }}
-                                    disabled={!canDrag}
-                                    className={`absolute top-1/2 -translate-y-1/2 h-[28px] rounded flex items-center px-[8px] gap-[4px] hover:opacity-90 transition-opacity shadow-sm ${getStatusColor(
-                                      task.status
-                                    )} ${getPriorityColor(task.priority)} border-2 ${canDrag ? "cursor-move" : "cursor-not-allowed"}`}
+                                  {/* Plain positioned wrapper -- NOT itself a
+                                      draggable. The move/resize handles below
+                                      are siblings inside it, never nested
+                                      inside one another (nesting caused a
+                                      race between their pointer-event
+                                      listeners -- a drag would randomly
+                                      resize instead of move, or fail to
+                                      commit at all). */}
+                                  <div
+                                    className="absolute top-1/2 -translate-y-1/2 h-[28px]"
                                     style={{ left: position.left, width: position.width }}
                                     title={`${task.title} - ${task.status}${!canDrag ? " (Manager/Admin/Supervisor only)" : ""} -- right-click to change status`}
                                   >
+                                    <DraggableHandle
+                                      id={`move:task:${task.id}`}
+                                      data={{ kind: "move", rowId: String(task.id), rowType: "task" }}
+                                      disabled={!canDrag}
+                                      className={`absolute inset-0 rounded flex items-center px-[8px] gap-[4px] hover:opacity-90 transition-opacity shadow-sm ${getStatusColor(
+                                        task.status
+                                      )} ${getPriorityColor(task.priority)} border-2 ${canDrag ? "cursor-move" : "cursor-not-allowed"}`}
+                                    >
+                                      <GripHorizontal className="w-3 h-3 text-white/70 shrink-0" />
+                                      <span className="text-white small-text truncate flex-1">{task.title}</span>
+                                    </DraggableHandle>
                                     {canDrag && (
                                       <DraggableHandle
                                         id={`resize-left:task:${task.id}`}
                                         data={{ kind: "resize-left", rowId: String(task.id), rowType: "task" }}
-                                        className="absolute left-0 top-0 bottom-0 w-[8px] cursor-ew-resize hover:bg-white/30 rounded-l"
+                                        className="absolute left-0 top-0 bottom-0 w-[8px] z-10 cursor-ew-resize hover:bg-white/30 rounded-l"
                                         title="Drag to change start date"
                                       />
                                     )}
-                                    <GripHorizontal className="w-3 h-3 text-white/70 shrink-0" />
-                                    <span className="text-white small-text truncate flex-1">{task.title}</span>
                                     {canDrag && (
                                       <DraggableHandle
                                         id={`resize-right:task:${task.id}`}
                                         data={{ kind: "resize-right", rowId: String(task.id), rowType: "task" }}
-                                        className="absolute right-0 top-0 bottom-0 w-[8px] cursor-ew-resize hover:bg-white/30 rounded-r"
+                                        className="absolute right-0 top-0 bottom-0 w-[8px] z-10 cursor-ew-resize hover:bg-white/30 rounded-r"
                                         title="Drag to change due date"
                                       />
                                     )}
-                                  </DraggableHandle>
+                                  </div>
                                 </ContextMenuTrigger>
                                 <ContextMenuContent>
                                   <ContextMenuLabel>{task.title}</ContextMenuLabel>
