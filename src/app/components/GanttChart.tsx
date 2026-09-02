@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo } from "react";
-import { Edit2, Trash2, Plus, GripHorizontal, ChevronLeft, ChevronRight } from "lucide-react";
+import { Edit2, Trash2, Plus, GripHorizontal, ChevronLeft, ChevronRight, Maximize2, Minimize2 } from "lucide-react";
 import {
   DndContext,
   useDraggable,
@@ -30,6 +30,9 @@ interface GanttChartProps {
    *  from the Tasks tab. "phases": one bar per phase, reached from the
    *  Phases tab -- net new, no phase-level Gantt existed before this. */
   groupBy?: "phase-tasks" | "phases";
+  /** Clicking a phase bar (groupBy="phases") opens the phase for editing --
+   *  the caller owns that dialog (ProjectDetailsReal.tsx already has one). */
+  onEditPhase?: (phase: any) => void;
 }
 
 type TaskWithDates = Task & { start_date?: string; phase_id?: string };
@@ -73,7 +76,7 @@ function daysBetween(a: string, b: string): number {
 // parallel percentage-based position state is computed here anymore. The
 // actual date math on drop always uses dnd-kit's own `event.delta`, which
 // is unaffected by whatever this renders during the drag.
-function DraggableHandle({ id, data, disabled, className, style, children, title }: {
+function DraggableHandle({ id, data, disabled, className, style, children, title, onClick }: {
   id: string;
   data: Record<string, any>;
   disabled?: boolean;
@@ -81,6 +84,11 @@ function DraggableHandle({ id, data, disabled, className, style, children, title
   style?: React.CSSProperties;
   children?: React.ReactNode;
   title?: string;
+  // A plain click (no real movement) still fires this normally -- browsers
+  // don't dispatch `click` after a pointerdown->move->up sequence that
+  // actually dragged, so this and the drag listeners coexist safely on the
+  // same element without extra bookkeeping.
+  onClick?: (e: React.MouseEvent) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id, data, disabled });
   return (
@@ -88,6 +96,7 @@ function DraggableHandle({ id, data, disabled, className, style, children, title
       ref={setNodeRef}
       {...(disabled ? {} : listeners)}
       {...(disabled ? {} : attributes)}
+      onClick={onClick}
       className={className}
       title={title}
       style={{
@@ -102,7 +111,7 @@ function DraggableHandle({ id, data, disabled, className, style, children, title
   );
 }
 
-export default function GanttChart({ projectId, groupBy = "phase-tasks" }: GanttChartProps) {
+export default function GanttChart({ projectId, groupBy = "phase-tasks", onEditPhase }: GanttChartProps) {
   const { getTasksByProject, getTeamMember, updateTask, deleteTask, getProject, addTask, teamMembers } = useApp();
   const { currentUser, hasPermission } = useAuth();
   const { phases, updatePhase } = useProjectPhases(projectId);
@@ -110,8 +119,32 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks" }: Gantt
   const [selectedTask, setSelectedTask] = useState<Task | undefined>(undefined);
   const [taskDialogMode, setTaskDialogMode] = useState<"add" | "edit">("add");
   const [newTaskDate, setNewTaskDate] = useState<string | null>(null);
+  const [labelWidth, setLabelWidth] = useState(200);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const timelineRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const labelResizeRef = useRef<{ startX: number; startWidth: number } | null>(null);
+
+  // Plain mouse/touch resize for the label column -- deliberately not part
+  // of the DndContext above (that's for day-based bar scheduling; this is
+  // just a pixel width, no dates involved).
+  const handleLabelResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    labelResizeRef.current = { startX: e.clientX, startWidth: labelWidth };
+    const onMove = (moveEvent: MouseEvent) => {
+      const r = labelResizeRef.current;
+      if (!r) return;
+      const next = Math.min(480, Math.max(120, r.startWidth + (moveEvent.clientX - r.startX)));
+      setLabelWidth(next);
+    };
+    const onUp = () => {
+      labelResizeRef.current = null;
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -181,8 +214,22 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks" }: Gantt
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(task);
     }
+    // Stable row order -- deliberately NOT sorted by date. Sorting by date
+    // meant every drag reordered the whole table around the bar you just
+    // moved, since the table re-renders with the task's new due date
+    // immediately after the drop -- extremely disorienting (you'd lose
+    // track of which row you just dragged). Phases don't have this problem
+    // because they're always ordered by their own stable `position` field,
+    // never by date -- tasks now use the same idea: `sequence` (a manual
+    // order, set via the Phases tab's drag-to-reorder) if set, falling back
+    // to `id` so ordering is at least consistent across renders.
     for (const list of groups.values()) {
-      list.sort((a, b) => new Date(taskStart(a)).getTime() - new Date(taskStart(b)).getTime());
+      list.sort((a: any, b: any) => {
+        const sa = typeof a.sequence === "number" ? a.sequence : Number.POSITIVE_INFINITY;
+        const sb = typeof b.sequence === "number" ? b.sequence : Number.POSITIVE_INFINITY;
+        if (sa !== sb) return sa - sb;
+        return Number(a.id) - Number(b.id);
+      });
     }
     return Array.from(groups.entries())
       .map(([key, list]) => ({
@@ -276,6 +323,20 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks" }: Gantt
     };
   };
 
+  // A task/phase shouldn't quietly end up ending on a Sunday -- the crew
+  // doesn't work Sundays, so a due/end date landing there is almost always
+  // a mis-drag. Ask, rather than silently allow or silently block: OK
+  // keeps the Sunday date (a real edge case the user asked to still
+  // support), Cancel bumps it to the following Monday.
+  const resolveEndDate = (dateStr: string): string => {
+    const d = new Date(dateStr);
+    if (d.getUTCDay() !== 0) return dateStr;
+    const keepSunday = window.confirm(
+      `This would end on Sunday, ${formatCalendarDate(dateStr)}. Click OK to keep it on Sunday, or Cancel to move it to the following Monday instead.`
+    );
+    return keepSunday ? dateStr : addDays(dateStr, 1);
+  };
+
   const handleDragEnd = async (event: DragEndEvent) => {
     const data = event.active.data.current as { kind: "move" | "resize-left" | "resize-right"; rowId: string; rowType: "task" | "phase" } | undefined;
     if (!data || !timelineRef.current || days.length === 0) return;
@@ -291,8 +352,9 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks" }: Gantt
       const due = t.dueDate;
       try {
         if (data.kind === "move") {
-          const newStart = addDays(start, deltaDays);
-          const newDue = addDays(due, deltaDays);
+          const newDue = resolveEndDate(addDays(due, deltaDays));
+          const shift = daysBetween(due, newDue);
+          const newStart = addDays(start, deltaDays + shift);
           await updateTask(t.id, { start_date: newStart, dueDate: newDue } as Partial<Task>);
           toast.success(`Task rescheduled to ${formatCalendarDate(newStart)}`);
         } else if (data.kind === "resize-left") {
@@ -304,6 +366,7 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks" }: Gantt
         } else {
           let newDue = addDays(due, deltaDays);
           if (daysBetween(start, newDue) < 1) newDue = addDays(start, 1);
+          newDue = resolveEndDate(newDue);
           await updateTask(t.id, { dueDate: newDue });
           toast.success(`Task now due ${formatCalendarDate(newDue)}`);
           offerSaveDurationToTemplate(t as any, daysBetween(start, newDue));
@@ -318,8 +381,9 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks" }: Gantt
       const end = p.end_date || p.start_date;
       try {
         if (data.kind === "move") {
-          const newStart = addDays(start, deltaDays);
-          const newEnd = addDays(end, deltaDays);
+          const newEnd = resolveEndDate(addDays(end, deltaDays));
+          const shift = daysBetween(end, newEnd);
+          const newStart = addDays(start, deltaDays + shift);
           await updatePhase(p.id, { start_date: newStart, end_date: newEnd });
           toast.success(`Phase rescheduled to ${formatCalendarDate(newStart)}`);
         } else if (data.kind === "resize-left") {
@@ -330,6 +394,7 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks" }: Gantt
         } else {
           let newEnd = addDays(end, deltaDays);
           if (daysBetween(start, newEnd) < 1) newEnd = addDays(start, 1);
+          newEnd = resolveEndDate(newEnd);
           await updatePhase(p.id, { end_date: newEnd });
           toast.success(`Phase now ends ${formatCalendarDate(newEnd)}`);
         }
@@ -459,15 +524,15 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks" }: Gantt
   }
 
   return (
-    <div className="space-y-[16px]">
+    <div className={isFullscreen ? "fixed inset-0 z-50 bg-background p-[16px] overflow-auto space-y-[16px]" : "space-y-[16px]"}>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-foreground">Gantt Chart</h3>
           <p className="text-muted-foreground small-text">
             {groupBy === "phases"
-              ? "Drag a phase bar to reschedule it"
-              : "Click on a day to add a task, drag a task bar to reschedule it"}
+              ? "Drag a phase bar to reschedule it, click to open it"
+              : "Click on a day to add a task, drag a task bar to reschedule it, click it to open"}
           </p>
         </div>
         <div className="flex items-center gap-[8px]">
@@ -485,6 +550,13 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks" }: Gantt
           >
             <ChevronRight className="w-4 h-4 text-foreground" />
           </button>
+          <button
+            onClick={() => setIsFullscreen((v) => !v)}
+            className="p-[8px] rounded-[6px] bg-background border border-border hover:bg-secondary transition-colors"
+            title={isFullscreen ? "Exit full screen" : "Full screen"}
+          >
+            {isFullscreen ? <Minimize2 className="w-4 h-4 text-foreground" /> : <Maximize2 className="w-4 h-4 text-foreground" />}
+          </button>
           {groupBy !== "phases" && (
             <button
               onClick={handleAddTask}
@@ -501,15 +573,23 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks" }: Gantt
         <div
           ref={scrollRef}
           className="border border-border rounded-lg bg-card overflow-auto scroll-smooth"
-          style={{ maxHeight: "70vh" }}
+          style={{ maxHeight: isFullscreen ? "calc(100vh - 120px)" : "70vh" }}
         >
           <div className="min-w-max relative">
             {/* Month band -- sticky to the top of the scroll container so it
                 stays visible while scrolling down through many rows; the
                 label column corner cell is ALSO sticky to the left, so it
-                stays put while scrolling right through many weeks. */}
-            <div className="flex sticky top-0 z-20 bg-secondary/50 border-b border-border h-[22px]">
-              <div className="w-[200px] shrink-0 sticky left-0 z-30 bg-secondary/50 border-r border-border" />
+                stays put while scrolling right through many weeks. Solid
+                backgrounds (not /alpha) -- transparency let body content
+                show through the header while scrolling. */}
+            <div className="flex sticky top-0 z-20 bg-secondary border-b border-border h-[22px]">
+              <div style={{ width: labelWidth }} className="shrink-0 sticky left-0 z-30 bg-secondary border-r border-border relative">
+                <div
+                  onMouseDown={handleLabelResizeStart}
+                  className="absolute right-0 top-0 bottom-0 w-[6px] cursor-ew-resize hover:bg-accent/30 z-40"
+                  title="Drag to resize the label column"
+                />
+              </div>
               <div className="flex-1 flex">
                 {monthBands.map((band) => (
                   <div
@@ -524,8 +604,8 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks" }: Gantt
             </div>
 
             {/* Day/weekday row -- sticky just below the month band. */}
-            <div className="flex border-b border-border bg-secondary/30 sticky top-[22px] z-20">
-              <div className="w-[200px] shrink-0 px-[12px] py-[8px] border-r border-border sticky left-0 z-30 bg-secondary/30">
+            <div className="flex border-b border-border bg-secondary sticky top-[22px] z-20">
+              <div style={{ width: labelWidth }} className="shrink-0 px-[12px] py-[8px] border-r border-border sticky left-0 z-30 bg-secondary">
                 <span className="text-foreground">{groupBy === "phases" ? "Phase" : "Task"}</span>
               </div>
               <div className="flex-1 flex" ref={timelineRef}>
@@ -551,7 +631,7 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks" }: Gantt
             {todayIndex >= 0 && days.length > 0 && (
               <div
                 className="absolute top-0 bottom-0 w-[2px] bg-accent/60 pointer-events-none z-[5]"
-                style={{ left: `calc(200px + (100% - 200px) * ${todayIndex / days.length})` }}
+                style={{ left: `calc(${labelWidth}px + (100% - ${labelWidth}px) * ${todayIndex / days.length})` }}
               />
             )}
 
@@ -563,7 +643,7 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks" }: Gantt
                   const position = getBarPosition(start, end);
                   return (
                     <div key={phase.id} className="flex hover:bg-secondary/20 transition-colors group">
-                      <div className="w-[200px] shrink-0 px-[12px] py-[10px] border-r border-border flex items-center sticky left-0 z-10 bg-card">
+                      <div style={{ width: labelWidth }} className="shrink-0 px-[12px] py-[10px] border-r border-border flex items-center sticky left-0 z-10 bg-card">
                         <span className="text-foreground truncate small-text">{phase.name}</span>
                       </div>
                       <div className="flex-1 relative flex h-[48px]">
@@ -585,9 +665,10 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks" }: Gantt
                             id={`move:phase:${phase.id}`}
                             data={{ kind: "move", rowId: String(phase.id), rowType: "phase" }}
                             disabled={!canReschedule}
+                            onClick={onEditPhase ? () => onEditPhase(phase) : undefined}
                             className={`absolute inset-0 rounded flex items-center px-[8px] gap-[4px] shadow-sm ${getPhaseStatusColor(
                               phase.status
-                            )} border-2 border-muted-foreground ${canReschedule ? "cursor-move" : "cursor-not-allowed"}`}
+                            )} border-2 border-muted-foreground ${canReschedule ? "cursor-move" : "cursor-not-allowed"} ${onEditPhase ? "hover:opacity-90" : ""}`}
                           >
                             <GripHorizontal className="w-3 h-3 text-white/70 shrink-0" />
                             <span className="text-white small-text truncate flex-1">{phase.name}</span>
@@ -618,8 +699,8 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks" }: Gantt
               <div className="divide-y divide-border">
                 {phaseGroups.map((group) => (
                   <div key={group.key}>
-                    <div className="flex bg-secondary/40">
-                      <div className="w-[200px] shrink-0 px-[12px] py-[6px] border-r border-border sticky left-0 z-10 bg-secondary/40">
+                    <div className="flex bg-secondary/70">
+                      <div style={{ width: labelWidth }} className="shrink-0 px-[12px] py-[6px] border-r border-border sticky left-0 z-10 bg-secondary/70">
                         <span className="font-['Roboto_Mono'] font-bold text-[10px] text-foreground uppercase tracking-wide">
                           {group.name}
                         </span>
@@ -643,7 +724,7 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks" }: Gantt
 
                         return (
                           <div key={task.id} className="flex hover:bg-secondary/20 transition-colors group">
-                            <div className="w-[200px] shrink-0 px-[12px] py-[10px] border-r border-border flex items-center justify-between gap-[8px] sticky left-0 z-10 bg-card">
+                            <div style={{ width: labelWidth }} className="shrink-0 px-[12px] py-[10px] border-r border-border flex items-center justify-between gap-[8px] sticky left-0 z-10 bg-card">
                               <div className="flex-1 min-w-0 pl-[8px]">
                                 <div className="text-foreground truncate small-text">{task.title}</div>
                                 {assignee && (
@@ -690,6 +771,7 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks" }: Gantt
                                       id={`move:task:${task.id}`}
                                       data={{ kind: "move", rowId: String(task.id), rowType: "task" }}
                                       disabled={!canDrag}
+                                      onClick={() => handleEditTask(task)}
                                       className={`absolute inset-0 rounded flex items-center px-[8px] gap-[4px] hover:opacity-90 transition-opacity shadow-sm ${getStatusColor(
                                         task.status
                                       )} ${getPriorityColor(task.priority)} border-2 ${canDrag ? "cursor-move" : "cursor-not-allowed"}`}

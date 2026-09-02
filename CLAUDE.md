@@ -1,5 +1,60 @@
 # Cstle Livn Web App — Project Handoff
 
+## Gantt chart UX round 3: stable row order, Sunday guard, resizable column, fullscreen, click-to-edit — September 2, 2026
+
+- **User confirmed dragging basically works now** (prior two fixes held),
+  then reported five more issues:
+  1. **Task view reshuffled the whole table on every drag**, disorienting
+     -- you'd lose track of which row you just moved. Root cause: each
+     phase group's task list was sorted by due date, so the instant a
+     drag committed a new date, the row jumped to a new position in the
+     sort order. Phase view never had this problem because phases are
+     always ordered by their own stable `position` field, never by date.
+     Fixed the same way: task rows within a phase group now sort by
+     `sequence` (the existing manual-order field, set via the Phases
+     tab's drag-to-reorder) falling back to `id`, never by date -- a
+     row's vertical position is now stable across a date-only drag; only
+     the bar itself moves horizontally.
+  2. **A task/phase should never silently end on a Sunday.** Added
+     `resolveEndDate()`: if a move or a right-edge resize would land the
+     due/end date on a Sunday, a confirm prompt asks whether to keep it
+     there or bump to the following Monday (used `window.confirm`,
+     consistent with this file's existing pattern for irreversible
+     actions like `handleDeleteTask`). Left-edge (start date) resizes are
+     unaffected -- only the END date matters here, per the user.
+  3. **Header was see-through**, letting body rows show through while
+     scrolling. Both sticky header rows changed from `bg-secondary/50`
+     `/30` (translucent) to solid `bg-secondary`.
+  4. **Label column is now resizable** (drag the right edge of the
+     header's corner cell, 120-480px range) via a new `labelWidth` state
+     -- plain mouse-move resize (like the original `TaskGanttChart`'s
+     bar-resize pattern), deliberately outside the day-grid `DndContext`
+     since it's a pixel width, not a date.
+  5. **Full screen toggle** added next to the scroll arrows (`Maximize2`/
+     `Minimize2`) -- expands the whole chart to `fixed inset-0` for
+     planning without the rest of the page's chrome around it.
+  6. **Click a bar (no real drag) now opens it for editing** -- a task
+     bar opens the existing `TaskDialog` (same as clicking a task
+     anywhere else in the app); a phase bar calls a new `onEditPhase`
+     prop, wired in `ProjectDetailsReal.tsx` to open the existing "Manage
+     Phases" dialog. This relies on ordinary browser behavior (a real
+     drag doesn't fire a native `click` afterward), not extra
+     bookkeeping -- `DraggableHandle` just gained a passthrough `onClick`.
+- `npx tsc --noEmit -p tsconfig.sync.json`, `npm run build`, and `npm test`
+  (13/13) all pass. **Not verified live** -- same standing limitation as
+  the previous two Gantt entries (this session's automated browser
+  couldn't reliably deliver click/drag gestures to the app). The user
+  should confirm: dragging a task no longer reshuffles other rows;
+  dragging something to end on a Sunday prompts a confirm; the header
+  background is solid; the label column can be dragged wider/narrower;
+  full screen expands the chart; and clicking (not dragging) a bar opens
+  its edit dialog.
+- **Not done** (scope note): the phase click currently opens the same
+  "Manage Phases" dialog used elsewhere (rename/reorder/duration) rather
+  than a new rich single-phase dialog with its own add-task/assign UI --
+  building that dedicated dialog is a larger, separate piece of work the
+  user's message also asked for but wasn't in scope for this pass.
+
 ## Gantt chart drag bug fix #2: nested draggables were racing each other — September 2, 2026
 
 - **User reported the fix from the previous entry didn't work** -- drag

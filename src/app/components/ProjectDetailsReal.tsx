@@ -1319,7 +1319,7 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
             </button>
           </div>
           {phaseView === "gantt" ? (
-            <GanttChart projectId={projectId} groupBy="phases" />
+            <GanttChart projectId={projectId} groupBy="phases" onEditPhase={() => setIsManagePhasesOpen(true)} />
           ) : (
             <PhaseView projectId={projectId} />
           )}
