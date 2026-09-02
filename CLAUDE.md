@@ -1,5 +1,54 @@
 # Cstle Livn Web App — Project Handoff
 
+## Gantt chart: real cause of the row flicker, and a Sunday-check off-by-one — September 2, 2026
+
+- **User reported round 3's row-stability fix didn't actually work** --
+  the table still flickered/reshuffled on every drag, and the Sunday
+  confirm dialog's stated date didn't match where the bar visually ended.
+  Both were real, confirmed bugs, verified with a standalone Node repro
+  before shipping (not just reasoned about):
+  1. **The sort tiebreak used `Number(a.id) - Number(b.id))`.** Real task
+     ids in this app are UUID strings (the `Task.id: number` TypeScript
+     type doesn't match the database -- a mismatch already documented
+     elsewhere in this file). `Number(uuid)` is `NaN`, and a comparator
+     that returns `NaN` for nearly every pair (since `sequence` is null on
+     most tasks, so almost everything reaches this tiebreak) makes
+     `Array.sort` a **no-op** -- confirmed directly: sorting the same five
+     UUIDs with this comparator just returns whatever order the array
+     already arrived in, unchanged. Since `getTasksByProject()`'s
+     returned array order isn't guaranteed stable across renders (an
+     optimistic merge after a drag can reorder it), the DISPLAYED order
+     silently tracked that incidental array order instead of being
+     genuinely sorted -- which is exactly "the whole table flickers and
+     rearranges." Fixed: `String(a.id).localeCompare(String(b.id))`,
+     verified in the same repro to produce identical output regardless of
+     the incoming array's order.
+  2. **The Sunday check tested `due_date`/`end_date` directly**, but this
+     app treats that field as an EXCLUSIVE end everywhere, including the
+     scheduler (`applyTemplateToProject`'s own convention: a "1 day" task
+     gets `start=Monday, due=Tuesday` -- the work only happens Monday).
+     The bar's real last visible day -- and what a person means by "ends
+     on ___" -- is `due_date - 1`, not `due_date` itself. Confirming a
+     task should "end Sunday" therefore left the bar still visually
+     stopping on Saturday, since the actual stored value was the
+     following Monday. Fixed: `resolveEndDate()` now checks and displays
+     `due_date - 1` (the actual last worked day); the value written to
+     the database is unchanged (still the exclusive `due_date`/`end_date`
+     the rest of the app expects).
+  3. Also bumped the default label column width (200px -> 240px) and gave
+     its resize handle a small always-visible grip mark instead of only
+     appearing on hover, since it wasn't being noticed.
+- `npx tsc --noEmit -p tsconfig.sync.json`, `npm run build`, and `npm test`
+  (13/13) all pass. The NaN-comparator fix was verified directly (a
+  standalone Node script reproducing the exact bug and confirming the
+  fix), which is stronger evidence than the previous two Gantt entries in
+  this file had -- those relied on code review only, since this session's
+  browser still can't reliably deliver live drag gestures to the app. The
+  Sunday-date-off-by-one fix is code-review-verified, not live-verified.
+  The user should confirm: dragging a task no longer visibly reorders
+  other rows, and a Sunday-end confirmation now names the day the bar
+  will actually still show as its last day.
+
 ## Gantt chart UX round 3: stable row order, Sunday guard, resizable column, fullscreen, click-to-edit — September 2, 2026
 
 - **User confirmed dragging basically works now** (prior two fixes held),

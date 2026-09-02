@@ -119,7 +119,7 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks", onEditP
   const [selectedTask, setSelectedTask] = useState<Task | undefined>(undefined);
   const [taskDialogMode, setTaskDialogMode] = useState<"add" | "edit">("add");
   const [newTaskDate, setNewTaskDate] = useState<string | null>(null);
-  const [labelWidth, setLabelWidth] = useState(200);
+  const [labelWidth, setLabelWidth] = useState(240);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const timelineRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -223,12 +223,21 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks", onEditP
     // never by date -- tasks now use the same idea: `sequence` (a manual
     // order, set via the Phases tab's drag-to-reorder) if set, falling back
     // to `id` so ordering is at least consistent across renders.
+    //
+    // The `id` tiebreak MUST be a string comparison, not `Number(a.id) -
+    // Number(b.id)` -- real task ids in this app are UUID strings despite
+    // the `Task.id: number` TypeScript type (a known type/DB mismatch
+    // elsewhere in this codebase too). `Number(uuid)` is NaN, and a
+    // comparator that returns NaN for most pairs (since `sequence` is null
+    // on most tasks, so almost everything ties there) produces genuinely
+    // UNSTABLE sort output -- different order on every render, which is
+    // exactly the "whole table rearranges/flickers on every drag" report.
     for (const list of groups.values()) {
       list.sort((a: any, b: any) => {
         const sa = typeof a.sequence === "number" ? a.sequence : Number.POSITIVE_INFINITY;
         const sb = typeof b.sequence === "number" ? b.sequence : Number.POSITIVE_INFINITY;
         if (sa !== sb) return sa - sb;
-        return Number(a.id) - Number(b.id);
+        return String(a.id).localeCompare(String(b.id));
       });
     }
     return Array.from(groups.entries())
@@ -328,11 +337,21 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks", onEditP
   // a mis-drag. Ask, rather than silently allow or silently block: OK
   // keeps the Sunday date (a real edge case the user asked to still
   // support), Cancel bumps it to the following Monday.
+  //
+  // `dateStr` here is `due_date`/`end_date`, which this app treats as an
+  // EXCLUSIVE end everywhere (matches applyTemplateToProject's own
+  // scheduling: a "1 day" task gets start=Monday, due=Tuesday -- the work
+  // itself only happens Monday). So the day actually worked -- and the day
+  // the bar visually appears to stop on -- is `dateStr` minus one, not
+  // `dateStr` itself. Checking/showing `dateStr` directly here previously
+  // asked about the wrong day: a task confirmed to "end Sunday" would
+  // visually still stop on Saturday, since the bar's real last day is
+  // always one before the stored due/end date.
   const resolveEndDate = (dateStr: string): string => {
-    const d = new Date(dateStr);
-    if (d.getUTCDay() !== 0) return dateStr;
+    const lastWorkedDay = addDays(dateStr, -1);
+    if (new Date(lastWorkedDay).getUTCDay() !== 0) return dateStr;
     const keepSunday = window.confirm(
-      `This would end on Sunday, ${formatCalendarDate(dateStr)}. Click OK to keep it on Sunday, or Cancel to move it to the following Monday instead.`
+      `This would end on Sunday, ${formatCalendarDate(lastWorkedDay)}. Click OK to keep it on Sunday, or Cancel to move it to the following Monday instead.`
     );
     return keepSunday ? dateStr : addDays(dateStr, 1);
   };
@@ -586,9 +605,11 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks", onEditP
               <div style={{ width: labelWidth }} className="shrink-0 sticky left-0 z-30 bg-secondary border-r border-border relative">
                 <div
                   onMouseDown={handleLabelResizeStart}
-                  className="absolute right-0 top-0 bottom-0 w-[6px] cursor-ew-resize hover:bg-accent/30 z-40"
+                  className="absolute right-[-4px] top-0 bottom-0 w-[9px] cursor-ew-resize hover:bg-accent/40 z-40 flex items-center justify-center"
                   title="Drag to resize the label column"
-                />
+                >
+                  <div className="w-[2px] h-[12px] rounded-full bg-muted-foreground/50" />
+                </div>
               </div>
               <div className="flex-1 flex">
                 {monthBands.map((band) => (
