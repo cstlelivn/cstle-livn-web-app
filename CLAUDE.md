@@ -1,5 +1,51 @@
 # Cstle Livn Web App — Project Handoff
 
+## Secondary Suite Development template — August 31, 2026
+
+- **New, distinct project template** (`project_type = 'Secondary Suite'`),
+  separate from "Basement Finishing & Development" (`20240061`) and the
+  narrow "Basement Finishing" template. Per the user: a secondary suite
+  specifically adds the mechanical/electrical work that makes the basement
+  a self-sustaining dwelling unit -- which means a real design/permit
+  package (new drawing, mechanical ventilation design form, electrical
+  upgrade scope, signed homeowner letter, completed BCA form) has to exist
+  BEFORE framing starts, which basement finishing/development don't need.
+  `project_type` is purely a label column read nowhere in the frontend
+  (`CreateProjectDialog.tsx`'s template picker just lists all active
+  `project_templates` by name), so adding this new value required no code
+  changes -- pure data migration.
+- Migration `20240067_secondary_suite_template.sql`: 13 phases, dictated
+  end-to-end by the user and confirmed with no corrections needed --
+  Design & Permit Package -> Submit & Receive Permit -> Site Clear &
+  Framing -> Mechanical Rough-In -> Backing & Blocking -> Electrical
+  Rough-In -> Framing Inspection -> Insulation & Drywall -> Finishing
+  (doors/paint first coat/flooring/baseboards) -> Finishing (kitchen/
+  vanity/toilet/fixtures) -> Second Coat -> Electrical Final Trim -> Final
+  Clean & Walkthrough.
+- Same governing rules as the basement template rebuild (see "Basement
+  template realistic rebuild" below for the full mechanism): every phase's
+  `default_duration_days` is the exact sum of its own tasks'
+  `default_duration_days` (closes the scheduler-drift bug at the source);
+  no standalone photo/documentation tasks (every task already requires its
+  own before/after evidence photo); administrative gates combined wherever
+  they don't need their own tracked row.
+- **Total: 54 workdays (~9 weeks at a 6-day work week)** -- inside the
+  user's stated 6-8 week target band (they've seen it done in 6, want 8 as
+  the realistic default), comfortably under their explicit 12-week
+  ceiling.
+- Not yet run by the user. No frontend/build verification needed for this
+  entry (pure SQL seed data, no TypeScript touched) -- once run, the user
+  should confirm "Secondary Suite Development" appears as its own entry in
+  the Create Project template picker, distinct from the two Basement
+  templates.
+- **Deliberately deferred, not part of this change**: the user separately
+  asked for a much larger Gantt chart rebuild (dependency arrows with
+  lead/lag values -- `task_dependencies` has no lag/lead columns today --
+  drag-driven downstream rescheduling, a phase-vs-task view toggle, and a
+  7-day calendar week with Sunday shown but non-working) inspired by
+  onlinegantt.com and ganttpro.com. Explicitly scoped as its own
+  Plan-Mode pass, not started here.
+
 ## Bounded project header and smaller H1 scale — August 31, 2026
 
 - Project Details no longer lets a long project name move or strand the
