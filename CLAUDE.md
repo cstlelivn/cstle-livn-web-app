@@ -1,5 +1,78 @@
 # Cstle Livn Web App — Project Handoff
 
+## Gantt chart Stage 1 bugfixes: double-transform, phase persistence, calendar header, sticky header/column — August 31, 2026
+
+- **User caught four real bugs live** right after Stage 1 shipped: (1) task
+  bars "snapped back" after a successful-looking toast; (2) task bars
+  changed *length* when dragged, and didn't land on the day the pointer was
+  actually over; (3) no day-of-week visible, and month only labeled once at
+  the 1st instead of spanning every day in that month; (4) neither the
+  label column nor the date header stayed in view while scrolling.
+- **Root cause of (1) — phase bars**: `GanttChart.tsx` was importing
+  `updateProjectPhase` directly and writing straight to the DB, completely
+  bypassing `useProjectPhases()`'s own local `phases` state. The write
+  succeeded (hence the toast), but the hook's `phases` array never updated,
+  so `getBarPosition` kept reading the old dates once the live-drag preview
+  cleared -- looked exactly like the bar "snapping back." Fixed by using
+  the hook's own `updatePhase(id, updates)` (already existed, already
+  updates local state) instead of the raw API import. Task bars didn't have
+  this bug -- `AppContext.updateTask` already does an optimistic local
+  merge before the write.
+- **Root cause of (2) — wrong day, changes length instead of moving**: the
+  `DraggableHandle` wrapper was applying dnd-kit's own `useDraggable`
+  `transform` (a raw pixel CSS translate) on top of the SAME element's
+  `left`/`width`, which were ALSO being recomputed live from
+  `activeDrag.deltaPx` on every `onDragMove`. Both mechanisms were moving
+  the bar simultaneously -- one in pixels via `transform`, one in
+  percentage via inline `left`/`width` -- so the visible position during a
+  drag (and therefore where it landed on drop) didn't correspond to either
+  calculation cleanly, and a "move" drag visually looked like a resize
+  because the two mechanisms didn't shift the left and right edges by
+  matching amounts. Fixed by dropping dnd-kit's `transform` entirely from
+  `DraggableHandle` -- the manual `activeDrag`-driven `left`/`width` in
+  `getBarPosition` is now the only thing moving the bar, both during the
+  drag and on commit.
+- **Fix for (3) — calendar header**: replaced the single day-number header
+  row with two sticky rows: a month band (each month spans every day-column
+  it actually covers, computed via a new `monthBands` grouping, not just
+  labeled on the 1st) and a day row that now shows both the weekday
+  abbreviation (Mon/Tue/...) and the day number stacked together.
+- **Fix for (4) — frozen header/column**: the scroll container gained
+  `overflow-auto` + a `70vh` max-height (previously only horizontal scroll
+  existed, so `sticky top-0` had no scrolling ancestor to stick within);
+  both header rows get `sticky top-0` / `sticky top-[22px]`, and every row's
+  200px label cell (phase-group headers, task rows, phase-bar rows, and the
+  header's own corner cell) gets `sticky left-0` with a matching solid
+  background and a layered z-index (corner highest, header rows next, row
+  labels above body content) so nothing shows through while scrolling in
+  either direction.
+- **Verification**: this was checked against **real project data** in an
+  already-authenticated browser session that was present when this work
+  started (not a session this agent signed into -- no credentials were
+  entered at any point, consistent with the standing rule never to do so).
+  Confirmed programmatically (via `getBoundingClientRect` before/after
+  `scrollTop`/`scrollLeft` changes) that both the header rows and every
+  label column genuinely stay pinned while the container scrolls in each
+  direction, and confirmed via `get_page_text` that the month-band/weekday
+  header renders correctly ("August 2026" / "September 2026" spanning
+  their real day ranges, "Fri Sat Sun Mon..." per column) against the real
+  "30 & 34 Spence Street Ceiling Repairs" project's 22 tasks.
+  **Not verified**: the actual drag gesture itself. This session's
+  automated browser could not reliably deliver click events to this app at
+  all (even switching to a pre-existing, already-working view like Grid
+  failed silently) until the button's React handler was invoked directly
+  as a one-time diagnostic to confirm `GanttChart` mounts and renders
+  without runtime errors -- a multi-step drag gesture is even less likely
+  to register through this same tooling limitation, and no drag was forced
+  through by any other means. The double-transform removal is a confirmed
+  logical fix from code review (two simultaneous position mechanisms on one
+  element, now one), not one verified by watching a bar move on screen. The
+  user should personally drag a task bar and a phase bar (mouse and touch,
+  if available) and confirm both move smoothly and land where the pointer
+  is, before trusting this for real scheduling work.
+- `npx tsc --noEmit -p tsconfig.sync.json`, `npm run build`, and `npm test`
+  (13/13) all pass. No new migration.
+
 ## Gantt chart rebuild, Stage 1 of 3 (touch-capable engine, phase Gantt) — August 31, 2026
 
 - **Planned in Plan Mode** (`/Users/demidhemian/.claude/plans/glittery-zooming-breeze.md`

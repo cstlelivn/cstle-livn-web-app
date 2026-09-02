@@ -11,7 +11,6 @@ import {
   type DragEndEvent,
   type DragMoveEvent,
 } from "@dnd-kit/core";
-import { CSS } from "@dnd-kit/utilities";
 import { useApp, type Task } from "./AppContext";
 import { useAuth } from "./AuthContext";
 import { canEditTask, canDragReschedule } from "../src/features/tasks/permissions";
@@ -23,7 +22,6 @@ import { toast } from "sonner";
 import { formatDate as formatCalendarDate } from "../src/lib/dates";
 import { isWorkingDay } from "../src/lib/workDays";
 import { useProjectPhases } from "../src/features/projectPhases/useProjectPhases";
-import { updateProjectPhase } from "../src/features/projectPhases/api";
 import { buildPhasePositionMap } from "../src/lib/taskOrder";
 
 interface GanttChartProps {
@@ -58,7 +56,15 @@ function daysBetween(a: string, b: string): number {
 // pattern already proven in PhaseView.tsx (react-dnd's HTML5 backend was
 // tried there first and abandoned for lacking touch support -- the same
 // gap TaskGanttChart.tsx had with its native HTML5 drag/raw-mouse resize).
-function DraggableHandle({ id, data, disabled, className, style, children, title, onMouseDownCapture }: {
+//
+// Deliberately does NOT apply dnd-kit's own `transform` here -- the bar's
+// visual position during a drag is entirely driven by the parent's
+// `activeDrag`-derived `left`/`width` (see getBarPosition), recomputed on
+// every onDragMove. Also applying dnd-kit's raw pixel transform on top of
+// that percentage-based reposition double-moved the element (the original
+// bug: a "move" drag visibly resized the bar instead of translating it,
+// and the final landing day didn't match where the pointer actually was).
+function DraggableHandle({ id, data, disabled, className, style, children, title }: {
   id: string;
   data: Record<string, any>;
   disabled?: boolean;
@@ -66,22 +72,16 @@ function DraggableHandle({ id, data, disabled, className, style, children, title
   style?: React.CSSProperties;
   children?: React.ReactNode;
   title?: string;
-  onMouseDownCapture?: (e: React.MouseEvent) => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform } = useDraggable({ id, data, disabled });
+  const { attributes, listeners, setNodeRef } = useDraggable({ id, data, disabled });
   return (
     <div
       ref={setNodeRef}
       {...(disabled ? {} : listeners)}
       {...(disabled ? {} : attributes)}
-      onMouseDownCapture={onMouseDownCapture}
       className={className}
       title={title}
-      style={{
-        ...style,
-        transform: transform ? CSS.Translate.toString(transform) : undefined,
-        touchAction: "none",
-      }}
+      style={{ ...style, touchAction: "none" }}
     >
       {children}
     </div>
@@ -91,7 +91,7 @@ function DraggableHandle({ id, data, disabled, className, style, children, title
 export default function GanttChart({ projectId, groupBy = "phase-tasks" }: GanttChartProps) {
   const { getTasksByProject, getTeamMember, updateTask, deleteTask, getProject, addTask, teamMembers } = useApp();
   const { currentUser, hasPermission } = useAuth();
-  const { phases } = useProjectPhases(projectId);
+  const { phases, updatePhase } = useProjectPhases(projectId);
   const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | undefined>(undefined);
   const [taskDialogMode, setTaskDialogMode] = useState<"add" | "edit">("add");
@@ -140,7 +140,14 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks" }: Gantt
     return {
       date: dateStr,
       label: `${d.getUTCDate()}`,
-      monthLabel: d.getUTCDate() === 1 ? d.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" }) : "",
+      // Every day carries its month, not just the 1st -- the month band
+      // header (built from these) needs a key/label for every column so it
+      // can group consecutive same-month days into one spanning segment,
+      // per the user's explicit request to see the month "all across the
+      // top," not just once at the start of each month.
+      monthKey: `${d.getUTCFullYear()}-${d.getUTCMonth()}`,
+      monthLabel: d.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" }),
+      weekdayLabel: d.toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" }),
       // Sunday only -- the crew works Monday-Saturday. isWorkingDay is the
       // one shared source of truth for this (src/app/src/lib/workDays.ts);
       // this used to independently flag Saturday as non-working too, which
@@ -223,6 +230,23 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks" }: Gantt
   const days = getDaysTimeline();
   const todayIndex = days.findIndex((d) => d.isToday);
 
+  // Group consecutive days into month segments for the month-band header
+  // row -- each segment's width is proportional to how many day-columns
+  // it covers (flexGrow: count), so "September" visibly spans every
+  // September day-column instead of only labeling the 1st.
+  const monthBands = useMemo(() => {
+    const bands: { key: string; label: string; count: number }[] = [];
+    for (const day of days) {
+      const last = bands[bands.length - 1];
+      if (last && last.key === day.monthKey) {
+        last.count++;
+      } else {
+        bands.push({ key: day.monthKey, label: day.monthLabel, count: 1 });
+      }
+    }
+    return bands;
+  }, [days]);
+
   const getBarPosition = (rowId: string, start: string, due: string) => {
     if (days.length === 0) return { left: "0%", width: "4%" };
     const timelineStart = days[0].date;
@@ -300,17 +324,17 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks" }: Gantt
         if (data.kind === "move") {
           const newStart = addDays(start, deltaDays);
           const newEnd = addDays(end, deltaDays);
-          await updateProjectPhase(p.id, { start_date: newStart, end_date: newEnd });
+          await updatePhase(p.id, { start_date: newStart, end_date: newEnd });
           toast.success(`Phase rescheduled to ${formatCalendarDate(newStart)}`);
         } else if (data.kind === "resize-left") {
           let newStart = addDays(start, deltaDays);
           if (daysBetween(newStart, end) < 1) newStart = addDays(end, -1);
-          await updateProjectPhase(p.id, { start_date: newStart });
+          await updatePhase(p.id, { start_date: newStart });
           toast.success(`Phase now starts ${formatCalendarDate(newStart)}`);
         } else {
           let newEnd = addDays(end, deltaDays);
           if (daysBetween(start, newEnd) < 1) newEnd = addDays(start, 1);
-          await updateProjectPhase(p.id, { end_date: newEnd });
+          await updatePhase(p.id, { end_date: newEnd });
           toast.success(`Phase now ends ${formatCalendarDate(newEnd)}`);
         }
       } catch {
@@ -478,27 +502,48 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks" }: Gantt
       </div>
 
       <DndContext sensors={sensors} onDragMove={handleDragMove} onDragEnd={handleDragEnd} onDragCancel={() => setActiveDrag(null)}>
-        <div ref={scrollRef} className="border border-border rounded-lg overflow-hidden bg-card overflow-x-auto scroll-smooth">
+        <div
+          ref={scrollRef}
+          className="border border-border rounded-lg bg-card overflow-auto scroll-smooth"
+          style={{ maxHeight: "70vh" }}
+        >
           <div className="min-w-max relative">
-            {/* Timeline Header */}
-            <div className="flex border-b border-border bg-secondary/30 sticky top-0 z-10">
-              <div className="w-[200px] shrink-0 px-[12px] py-[8px] border-r border-border">
+            {/* Month band -- sticky to the top of the scroll container so it
+                stays visible while scrolling down through many rows; the
+                label column corner cell is ALSO sticky to the left, so it
+                stays put while scrolling right through many weeks. */}
+            <div className="flex sticky top-0 z-20 bg-secondary/50 border-b border-border h-[22px]">
+              <div className="w-[200px] shrink-0 sticky left-0 z-30 bg-secondary/50 border-r border-border" />
+              <div className="flex-1 flex">
+                {monthBands.map((band) => (
+                  <div
+                    key={band.key}
+                    style={{ flexGrow: band.count, flexBasis: 0 }}
+                    className="min-w-0 flex items-center justify-center border-r border-border/50 overflow-hidden"
+                  >
+                    <span className="small-text font-bold text-foreground truncate px-[4px]">{band.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Day/weekday row -- sticky just below the month band. */}
+            <div className="flex border-b border-border bg-secondary/30 sticky top-[22px] z-20">
+              <div className="w-[200px] shrink-0 px-[12px] py-[8px] border-r border-border sticky left-0 z-30 bg-secondary/30">
                 <span className="text-foreground">{groupBy === "phases" ? "Phase" : "Task"}</span>
               </div>
               <div className="flex-1 flex" ref={timelineRef}>
                 {days.map((day) => (
                   <div
                     key={day.date}
-                    className={`flex-1 min-w-[30px] px-[4px] py-[8px] border-r border-border text-center ${
+                    className={`flex-1 min-w-[30px] px-[4px] py-[6px] border-r border-border text-center ${
                       day.isWeekend ? "bg-muted/40" : ""
                     } ${day.isToday ? "bg-accent/10" : ""}`}
                   >
-                    {day.monthLabel && (
-                      <div className="small-text text-muted-foreground mb-[2px]">
-                        {day.monthLabel}
-                      </div>
-                    )}
-                    <div className={`small-text ${day.isToday ? "text-accent font-bold" : day.isWeekend ? "text-muted-foreground" : "text-foreground"}`}>
+                    <div className={`small-text leading-tight ${day.isToday ? "text-accent" : "text-muted-foreground"}`}>
+                      {day.weekdayLabel}
+                    </div>
+                    <div className={`small-text leading-tight ${day.isToday ? "text-accent font-bold" : day.isWeekend ? "text-muted-foreground" : "text-foreground"}`}>
                       {day.label}
                     </div>
                   </div>
@@ -522,7 +567,7 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks" }: Gantt
                   const position = getBarPosition(String(phase.id), start, end);
                   return (
                     <div key={phase.id} className="flex hover:bg-secondary/20 transition-colors group">
-                      <div className="w-[200px] shrink-0 px-[12px] py-[10px] border-r border-border flex items-center">
+                      <div className="w-[200px] shrink-0 px-[12px] py-[10px] border-r border-border flex items-center sticky left-0 z-10 bg-card">
                         <span className="text-foreground truncate small-text">{phase.name}</span>
                       </div>
                       <div className="flex-1 relative flex h-[48px]">
@@ -571,7 +616,7 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks" }: Gantt
                 {phaseGroups.map((group) => (
                   <div key={group.key}>
                     <div className="flex bg-secondary/40">
-                      <div className="w-[200px] shrink-0 px-[12px] py-[6px] border-r border-border">
+                      <div className="w-[200px] shrink-0 px-[12px] py-[6px] border-r border-border sticky left-0 z-10 bg-secondary/40">
                         <span className="font-['Roboto_Mono'] font-bold text-[10px] text-foreground uppercase tracking-wide">
                           {group.name}
                         </span>
@@ -595,7 +640,7 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks" }: Gantt
 
                         return (
                           <div key={task.id} className="flex hover:bg-secondary/20 transition-colors group">
-                            <div className="w-[200px] shrink-0 px-[12px] py-[10px] border-r border-border flex items-center justify-between gap-[8px]">
+                            <div className="w-[200px] shrink-0 px-[12px] py-[10px] border-r border-border flex items-center justify-between gap-[8px] sticky left-0 z-10 bg-card">
                               <div className="flex-1 min-w-0 pl-[8px]">
                                 <div className="text-foreground truncate small-text">{task.title}</div>
                                 {assignee && (
