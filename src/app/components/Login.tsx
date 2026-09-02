@@ -336,6 +336,25 @@ export default function Login() {
           )}
           
         </div>
+
+        {/* Membership credential belongs on the entry screen, where it can
+            establish trust without competing with task-led working screens. */}
+        <a
+          href="https://reginahomebuilders.com/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-[24px] flex flex-col items-center gap-[10px] rounded-[var(--radius-card)] border border-border bg-white px-[20px] py-[18px] text-center transition-colors hover:bg-[#f8f8f6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label="Visit the Regina & Region Home Builders’ Association website"
+        >
+          <img
+            src="/rrhba-member-logo-horizontal.svg"
+            alt="RRHBA Member — Regina & Region Home Builders’ Association"
+            className="h-auto w-[190px] sm:w-[230px]"
+          />
+          <p className="max-w-[300px] font-['Roboto_Mono'] text-[9px] leading-[1.5] text-[#4a4a47]">
+            Proud Member of the Regina &amp; Region Home Builders’ Association.
+          </p>
+        </a>
       </div>
     </div>
   );

@@ -1,5 +1,59 @@
 # Cstle Livn Web App — Project Handoff
 
+## Gantt chart drag bug fix #2: nested draggables were racing each other — September 2, 2026
+
+- **User reported the fix from the previous entry didn't work** -- drag
+  still snapped back. The actual root cause was different from (and more
+  fundamental than) the double-transform theory in the previous entry:
+  each bar's move-handle **wrapped** its two resize-handles as DOM
+  children, all three built with dnd-kit's `useDraggable`. This is a real,
+  documented dnd-kit gotcha -- a pointerdown on a resize strip bubbles up
+  to the parent move-handle's own pointerdown listener, so both draggables'
+  sensors can try to claim the same gesture. Whichever one's internal
+  "activate" logic won was effectively a race, which is exactly why a drag
+  sometimes looked like a resize, sometimes committed nothing, and
+  sometimes reverted after drop.
+- **Fix**: restructured every bar (`GanttChart.tsx`, both the `"phases"`
+  and `"phase-tasks"` render paths) so the move-handle and its two resize-
+  handles are absolutely-positioned **siblings** inside one plain,
+  non-draggable wrapper div -- never nested inside each other. A
+  pointerdown now only ever has one draggable ancestor, so there's no
+  ambiguity about which handle should activate.
+- Also reverted to the standard, well-tested dnd-kit usage pattern for
+  visual feedback: `DraggableHandle` now applies dnd-kit's own `transform`
+  again (removed in the previous entry's fix, based on an incorrect
+  "double-transform" diagnosis). The parallel `activeDrag` state,
+  `onDragMove` handler, and the live-preview branch inside `getBarPosition`
+  were all deleted -- position during a drag is dnd-kit's own concern now;
+  `getBarPosition` is purely data-driven, and the final commit in
+  `handleDragEnd` always reads `event.delta` fresh, independent of
+  whatever was rendered during the drag.
+- `npx tsc --noEmit -p tsconfig.sync.json`, `npm run build`, and `npm test`
+  (13/13) all pass. **Not verified live** -- this session's automated
+  browser could not reliably deliver drag gestures to the app (documented
+  in the previous entry; even plain clicks needed a one-time diagnostic
+  workaround), so this fix is grounded in a specific, correctly-identified
+  root cause (a known dnd-kit anti-pattern, now removed) and a clean
+  build, not in watching a bar drag correctly on screen. The user should
+  try dragging a task bar and a phase bar again and report back.
+
+## RRHBA membership credential on app sign-in — September 2, 2026
+
+- The RRHBA Member logo is placed on the sign-in/sign-up screen below the
+  account guidance card. This is the least intrusive app location: visitors
+  see the professional credential before entering, while task, project, QC,
+  finance, and mobile jobsite screens remain focused on work.
+- Artwork comes from page 5 of RRHBA's official Membership Guide hosted at
+  `reginahomebuilders.com`. The guide requires members to use one of the two
+  versions containing the word `Member`; the app uses the approved horizontal
+  version. It was preserved as vector artwork with its original red, green,
+  black, and white colours and original proportions—no crop into the mark,
+  recolouring, distortion, shadow, or effect.
+- The linked trust block opens `https://reginahomebuilders.com/` in a new tab,
+  includes the line `Proud Member of the Regina & Region Home Builders’
+  Association.`, and uses the required alt text. The logo renders at 230px on
+  desktop and 190px on mobile.
+
 ## Gantt chart Stage 1 bugfixes: double-transform, phase persistence, calendar header, sticky header/column — August 31, 2026
 
 - **User caught four real bugs live** right after Stage 1 shipped: (1) task
