@@ -366,8 +366,15 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks", onEditP
       try {
         if (data.kind === "move") {
           const newDue = resolveEndDate(addDays(due, deltaDays));
+          // `shift` is the TOTAL change from the original due date to the
+          // resolved one -- it already includes deltaDays (resolveEndDate's
+          // input was `addDays(due, deltaDays)`), plus one more day if the
+          // Sunday prompt bumped it. Adding deltaDays again here double-
+          // counted the move: a 1-week drag became a 2-week shift on start
+          // while due only moved 1 week, silently shrinking the task's
+          // duration (a 7-day task could come out looking like 2 days).
           const shift = daysBetween(due, newDue);
-          const newStart = addDays(start, deltaDays + shift);
+          const newStart = addDays(start, shift);
           await updateTask(t.id, { start_date: newStart, dueDate: newDue } as Partial<Task>);
           toast.success(`Task rescheduled to ${formatCalendarDate(newStart)}`);
         } else if (data.kind === "resize-left") {
@@ -397,8 +404,10 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks", onEditP
       try {
         if (data.kind === "move") {
           const newEnd = resolveEndDate(addDays(end, deltaDays));
+          // See the matching task branch above for why this isn't
+          // `deltaDays + shift` -- shift already includes deltaDays.
           const shift = daysBetween(end, newEnd);
-          const newStart = addDays(start, deltaDays + shift);
+          const newStart = addDays(start, shift);
           await updatePhase(p.id, { start_date: newStart, end_date: newEnd });
           toast.success(`Phase rescheduled to ${formatCalendarDate(newStart)}`);
         } else if (data.kind === "resize-left") {

@@ -1,5 +1,36 @@
 # Cstle Livn Web App — Project Handoff
 
+## Gantt "move whole bar" was silently shrinking task duration — September 2, 2026
+
+- **User caught this dragging a real 1-week task 1 week forward**: the due
+  date moved correctly, but the task came out only ~2 days long instead of
+  staying a week -- start moved much further than intended. Root cause:
+  the "move" commit math introduced with the Sunday-check
+  (`resolveEndDate`, previous entry) computed
+  `shift = daysBetween(originalDue, resolvedNewDue)`, which **already
+  includes** the drag's own `deltaDays` (since `resolveEndDate` was called
+  with `addDays(due, deltaDays)` as its input) -- then added `deltaDays`
+  to it a second time when computing the new start
+  (`addDays(start, deltaDays + shift)`). A 7-day drag with no Sunday
+  adjustment produced `shift = 7`, so start moved `7 + 7 = 14` days while
+  due only moved 7 -- the task's span silently shrank by however much the
+  drag distance was. This affected **every** whole-bar move, not just ones
+  that hit the Sunday prompt -- the user just happened to notice it on one
+  that did.
+- **Fix**: `newStart = addDays(start, shift)` (dropped the extra
+  `deltaDays +`) in both the task and phase "move" branches of
+  `handleDragEnd`. Verified with a standalone script before shipping,
+  reproducing the user's exact scenario (a 7-day task, Mon-Sun, dragged
+  forward 7 days): the fixed formula gives `start=Sept7, due=Sept13`
+  (correctly still a 7-day span) whether the Sunday prompt is answered
+  "keep it" or "bump to Monday" -- the old formula instead pushed `start`
+  a further 7 days past that, visibly shrinking the bar on screen.
+- `npx tsc --noEmit -p tsconfig.sync.json`, `npm run build`, and `npm test`
+  (13/13) all pass. Math verified via standalone simulation (not live) --
+  same standing limitation as every other Gantt entry in this file. The
+  user should drag a multi-day task or phase by its middle (not an edge)
+  and confirm the bar keeps its original width/duration after the move.
+
 ## Due date / end date is now INCLUSIVE everywhere it's scheduled — September 2, 2026
 
 - **Explicit product decision, overriding the previous entry's approach**:
