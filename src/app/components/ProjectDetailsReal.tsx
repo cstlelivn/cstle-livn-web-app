@@ -472,8 +472,10 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
       teamMembers,
       assigneeIds: taskAssigneeIds,
     });
+    // due_date is INCLUSIVE (the last day of work), so a task's real span
+    // is the day count between start and due PLUS the due day itself.
     const durationDays = (task as any).start_date && task.dueDate
-      ? Math.max(1, daysBetweenUTC((task as any).start_date, task.dueDate))
+      ? Math.max(1, daysBetweenUTC((task as any).start_date, task.dueDate) + 1)
       : null;
     const actualHours = workSessions
       .filter((session: any) => String(session.taskId) === String(task.id))
@@ -683,8 +685,10 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
       teamMembers,
       assigneeIds: taskAssigneeIds,
     });
+    // due_date is INCLUSIVE (the last day of work), so a task's real span
+    // is the day count between start and due PLUS the due day itself.
     const durationDays = (task as any).start_date && task.dueDate
-      ? Math.max(1, daysBetweenUTC((task as any).start_date, task.dueDate))
+      ? Math.max(1, daysBetweenUTC((task as any).start_date, task.dueDate) + 1)
       : null;
 
     const handleAssigneeChange = async (memberId: string) => {

@@ -228,13 +228,18 @@ export async function applyTemplateToProject(
     .sort((a: any, b: any) => a.position - b.position);
 
   let cursor = startDate ? new Date(startDate) : new Date();
+  let lastActualEndDate = new Date(cursor);
   const createdPhases: any[] = [];
 
   for (let i = 0; i < enabledPhases.length; i++) {
     const ph = enabledPhases[i];
     const phStart = cursor.toISOString().split('T')[0];
-    const phEnd = addWorkDays(cursor, ph.default_duration_days ?? 7)
-      .toISOString().split('T')[0];
+    // `end_date`/`due_date` are INCLUSIVE -- the end date IS the last day
+    // of work, per explicit product direction, not the day after it. A
+    // `default_duration_days` of N therefore spans N-1 additional workdays
+    // past the start (a 1-day phase/task starts and ends the same day).
+    const phEndDate = addWorkDays(cursor, (ph.default_duration_days ?? 7) - 1);
+    const phEnd = phEndDate.toISOString().split('T')[0];
 
     const { data: phase, error: phErr } = await supabase
       .from('project_phases')
@@ -262,10 +267,13 @@ export async function applyTemplateToProject(
     // same due date regardless of how many days apart they actually are.
     const taskTemplates = (ph.task_templates ?? []).sort((a: any, b: any) => a.position - b.position);
     let taskCursor = new Date(cursor);
+    let lastTaskDueDate: Date | null = null;
     for (const tt of taskTemplates) {
       const taskStart = taskCursor.toISOString().split('T')[0];
-      taskCursor = addWorkDays(taskCursor, tt.default_duration_days ?? 1);
-      const taskDue = taskCursor.toISOString().split('T')[0];
+      const taskDueDate = addWorkDays(taskCursor, (tt.default_duration_days ?? 1) - 1);
+      const taskDue = taskDueDate.toISOString().split('T')[0];
+      taskCursor = addWorkDays(taskDueDate, 1); // next task starts the following workday
+      lastTaskDueDate = taskDueDate;
       await supabase.from('tasks').insert({
         project_id: projectId,
         phase_id: phase.id,
@@ -291,8 +299,9 @@ export async function applyTemplateToProject(
     // declared duration (leaves buffer if the phase has one) or when its last
     // task actually finishes (so a phase whose tasks add up to more than its
     // nominal duration doesn't bleed the next phase's tasks into it).
-    const phaseDeclaredEnd = addWorkDays(cursor, ph.default_duration_days ?? 7);
-    cursor = taskCursor > phaseDeclaredEnd ? taskCursor : phaseDeclaredEnd;
+    const phaseActualEndDate = lastTaskDueDate && lastTaskDueDate > phEndDate ? lastTaskDueDate : phEndDate;
+    lastActualEndDate = phaseActualEndDate;
+    cursor = addWorkDays(phaseActualEndDate, 1);
   }
 
   // Log activity
@@ -304,12 +313,13 @@ export async function applyTemplateToProject(
     created_at: now(),
   });
 
-  // `cursor` is where the last phase's work-days-only schedule actually
-  // landed -- this is the real finish date. Callers must NOT separately
-  // re-estimate an end date from `phase.default_duration_days` (that sum
-  // is calendar-day arithmetic with no Sunday skip and ignores any task
-  // whose combined duration ran longer than its phase's nominal length,
-  // which is exactly how a project's shown end date used to disagree with
-  // its actual last task's due date by months).
-  return { phases: createdPhases, scheduledEndDate: cursor.toISOString().split('T')[0] };
+  // `lastActualEndDate` is the last phase's actual inclusive end date --
+  // i.e. the real last day worked, matching the `end_date`/`due_date`
+  // convention everywhere else now. Callers must NOT separately re-estimate
+  // an end date from `phase.default_duration_days` (that sum is calendar-day
+  // arithmetic with no Sunday skip and ignores any task whose combined
+  // duration ran longer than its phase's nominal length, which is exactly
+  // how a project's shown end date used to disagree with its actual last
+  // task's due date by months).
+  return { phases: createdPhases, scheduledEndDate: lastActualEndDate.toISOString().split('T')[0] };
 }

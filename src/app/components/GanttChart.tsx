@@ -320,11 +320,15 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks", onEditP
   // from recomputing this. The real commit always reads `event.delta`
   // fresh in handleDragEnd, so this function never needs to know about an
   // in-progress drag at all.
+  // `due`/`end` are INCLUSIVE -- the due/end date IS the last day of work,
+  // per explicit product direction (matches applyTemplateToProject's own
+  // scheduling: a "1 day" task now gets start=due=the same day). So the
+  // bar spans through and including that column, not up to it.
   const getBarPosition = (start: string, due: string) => {
     if (days.length === 0) return { left: "0%", width: "4%" };
     const timelineStart = days[0].date;
     const startOffset = Math.max(0, daysBetween(timelineStart, start));
-    const endOffset = Math.max(startOffset + 1, daysBetween(timelineStart, due));
+    const endOffset = Math.max(startOffset + 1, daysBetween(timelineStart, due) + 1);
     const duration = endOffset - startOffset;
     return {
       left: `${(startOffset / days.length) * 100}%`,
@@ -336,22 +340,12 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks", onEditP
   // doesn't work Sundays, so a due/end date landing there is almost always
   // a mis-drag. Ask, rather than silently allow or silently block: OK
   // keeps the Sunday date (a real edge case the user asked to still
-  // support), Cancel bumps it to the following Monday.
-  //
-  // `dateStr` here is `due_date`/`end_date`, which this app treats as an
-  // EXCLUSIVE end everywhere (matches applyTemplateToProject's own
-  // scheduling: a "1 day" task gets start=Monday, due=Tuesday -- the work
-  // itself only happens Monday). So the day actually worked -- and the day
-  // the bar visually appears to stop on -- is `dateStr` minus one, not
-  // `dateStr` itself. Checking/showing `dateStr` directly here previously
-  // asked about the wrong day: a task confirmed to "end Sunday" would
-  // visually still stop on Saturday, since the bar's real last day is
-  // always one before the stored due/end date.
+  // support), Cancel bumps it to the following Monday. `dateStr` is the
+  // real due/end date (inclusive), so this checks it directly.
   const resolveEndDate = (dateStr: string): string => {
-    const lastWorkedDay = addDays(dateStr, -1);
-    if (new Date(lastWorkedDay).getUTCDay() !== 0) return dateStr;
+    if (new Date(dateStr).getUTCDay() !== 0) return dateStr;
     const keepSunday = window.confirm(
-      `This would end on Sunday, ${formatCalendarDate(lastWorkedDay)}. Click OK to keep it on Sunday, or Cancel to move it to the following Monday instead.`
+      `This would end on Sunday, ${formatCalendarDate(dateStr)}. Click OK to keep it on Sunday, or Cancel to move it to the following Monday instead.`
     );
     return keepSunday ? dateStr : addDays(dateStr, 1);
   };
@@ -377,18 +371,20 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks", onEditP
           await updateTask(t.id, { start_date: newStart, dueDate: newDue } as Partial<Task>);
           toast.success(`Task rescheduled to ${formatCalendarDate(newStart)}`);
         } else if (data.kind === "resize-left") {
+          // due is inclusive now, so start === due (a 1-day task) is valid;
+          // only start landing AFTER due needs clamping.
           let newStart = addDays(start, deltaDays);
-          if (daysBetween(newStart, due) < 1) newStart = addDays(due, -1);
+          if (daysBetween(newStart, due) < 0) newStart = due;
           await updateTask(t.id, { start_date: newStart } as Partial<Task>);
           toast.success(`Task now starts ${formatCalendarDate(newStart)}`);
-          offerSaveDurationToTemplate(t as any, daysBetween(newStart, due));
+          offerSaveDurationToTemplate(t as any, daysBetween(newStart, due) + 1);
         } else {
           let newDue = addDays(due, deltaDays);
-          if (daysBetween(start, newDue) < 1) newDue = addDays(start, 1);
+          if (daysBetween(start, newDue) < 0) newDue = start;
           newDue = resolveEndDate(newDue);
           await updateTask(t.id, { dueDate: newDue });
           toast.success(`Task now due ${formatCalendarDate(newDue)}`);
-          offerSaveDurationToTemplate(t as any, daysBetween(start, newDue));
+          offerSaveDurationToTemplate(t as any, daysBetween(start, newDue) + 1);
         }
       } catch {
         toast.error("Failed to reschedule task");
@@ -407,12 +403,12 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks", onEditP
           toast.success(`Phase rescheduled to ${formatCalendarDate(newStart)}`);
         } else if (data.kind === "resize-left") {
           let newStart = addDays(start, deltaDays);
-          if (daysBetween(newStart, end) < 1) newStart = addDays(end, -1);
+          if (daysBetween(newStart, end) < 0) newStart = end;
           await updatePhase(p.id, { start_date: newStart });
           toast.success(`Phase now starts ${formatCalendarDate(newStart)}`);
         } else {
           let newEnd = addDays(end, deltaDays);
-          if (daysBetween(start, newEnd) < 1) newEnd = addDays(start, 1);
+          if (daysBetween(start, newEnd) < 0) newEnd = start;
           newEnd = resolveEndDate(newEnd);
           await updatePhase(p.id, { end_date: newEnd });
           toast.success(`Phase now ends ${formatCalendarDate(newEnd)}`);
