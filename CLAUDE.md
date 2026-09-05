@@ -1,5 +1,42 @@
 # Cstle Livn Web App — Project Handoff
 
+## CRM "can't delete client" was swallowing the real reason — September 5, 2026
+
+- **User asked "why can't I delete clients" with no error detail visible.**
+  Root cause: `clients.id` is referenced `ON DELETE RESTRICT` from both
+  `projects.client` and `estimates.client_id` (see
+  `20240062_project_force_delete.sql`'s own comment for the full FK map),
+  so a client with any linked project or estimate can't be deleted
+  directly -- correct, intentional protection. But
+  `CRMModule.tsx`'s `confirmDelete()` caught the resulting error and threw
+  away the real message, always showing a bare "Failed to delete client"
+  with no explanation -- the exact same class of bug already fixed once
+  for team members (`20240055`) and projects (`20240062`): `failIf()`
+  (`src/app/src/lib/errors.ts`) already preserves the real Postgres error
+  text, the UI just wasn't surfacing it.
+- **Fix**: `confirmDelete()` now detects the FK-violation pattern (same
+  regex used everywhere else in this app for this) and, for a blocked
+  client specifically, shows a clear description: it has a project and/or
+  estimate linked, delete/reassign those first, or -- if it's a single
+  project -- use that project's existing "Force Delete" flow
+  (`ProjectManagement.tsx`) with "Also delete the linked client" checked,
+  which already handles this exact case.
+- **Not built in this pass**: a direct "force delete this client" path for
+  a client blocked by an **estimate with no project yet** (the project
+  force-delete flow only deletes a client as a side effect of deleting a
+  project, so it doesn't cover a client stuck on just an estimate). If
+  that turns out to be the user's actual situation, it needs its own
+  small RPC mirroring `delete_project_and_related`'s client/estimate
+  handling. Flagged, not guessed at, since the user's specific blocking
+  case (which project/estimate, how many) wasn't given.
+- `npx tsc --noEmit -p tsconfig.sync.json`, `npm run build`, and `npm test`
+  (13/13) all pass. Not live-verified (needs a real blocked client in the
+  browser to see the new message, which needs a signed-in session this
+  agent doesn't have). The user should retry deleting the client now and
+  read the new message -- it will say exactly what's linked, which
+  determines whether the existing Force Delete flow is enough or a new
+  one is needed.
+
 ## Gantt "move whole bar" was silently shrinking task duration — September 2, 2026
 
 - **User caught this dragging a real 1-week task 1 week forward**: the due

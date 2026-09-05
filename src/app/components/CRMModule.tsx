@@ -248,8 +248,25 @@ export default function CRMModule({ onOpenEstimate, onOpenProject }: { onOpenEst
       }
       setItemToDelete(null);
       setDeleteConfirmOpen(false);
-    } catch (error) {
-      toast.error(`Failed to delete ${itemToDelete.type}`);
+    } catch (error: any) {
+      // The real Postgres error (e.g. "violates foreign key constraint") was
+      // being thrown away here and replaced with a generic "Failed to
+      // delete" toast -- so a client blocked by a linked project/estimate
+      // (clients.id is ON DELETE RESTRICT from both projects.client and
+      // estimates.client_id) looked identical to a real failure, with no
+      // way to tell why. Surface the actual cause instead.
+      const blocked = /foreign key|violates|restrict/i.test(error?.message || "");
+      if (blocked && itemToDelete.type === "client") {
+        toast.error("Can't delete this client", {
+          description: "This client still has a project and/or estimate linked to it. Delete or reassign those first -- or, if it's one project, open that project and use its \"Force Delete\" option with \"Also delete the linked client\" checked.",
+          duration: 8000,
+        });
+      } else {
+        toast.error(`Failed to delete ${itemToDelete.type}`, {
+          description: blocked ? "This record has other data linked to it and can't be deleted directly." : (error?.message || undefined),
+          duration: 6000,
+        });
+      }
     }
   };
 
