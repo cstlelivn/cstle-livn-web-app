@@ -7,7 +7,7 @@ import { Card } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Input } from "./ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "./ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from "./ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "./ui/alert-dialog";
 import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
@@ -28,23 +28,25 @@ import { SERVICE_TYPES } from "../src/constants/serviceTypes";
 import { RevenueOverview } from "./revenue/RevenueOverview";
 import { SalesWorkQueue } from "./revenue/SalesWorkQueue";
 import { addLeadActivity, openOrCreateEstimateFromLead } from "../src/features/revenue/api";
+import { listEstimates, type Estimate } from "../src/features/estimating/api";
 
 export default function CRMModule({ onOpenEstimate, onOpenProject }: { onOpenEstimate?: (estimateId: string) => void; onOpenProject?: (projectId: string) => void }) {
   const { hasPermission, currentUser } = useAuth();
-  const { 
-    leads, 
-    clients, 
+  const {
+    leads,
+    clients,
+    projects,
     addLead,
     updateLead,
-    deleteLead, 
+    deleteLead,
     addClient,
-    updateClient, 
+    updateClient,
     deleteClient,
     convertLeadToClient,
     refreshLeads,
     refreshClients,
     isLoadingLeads,
-    isLoadingClients 
+    isLoadingClients
   } = useApp();
   
   // Local fallback state when backend is not deployed
@@ -78,6 +80,12 @@ export default function CRMModule({ onOpenEstimate, onOpenProject }: { onOpenEst
   // Delete confirmation state
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<{ id: number; type: "lead" | "client"; name: string } | null>(null);
+  // Shown instead of a bare error toast when a client delete is blocked --
+  // lists exactly which projects/estimates are still linked, so the user
+  // can see what's actually there instead of guessing (e.g. thinking
+  // they'd already deleted every project when one was actually missed).
+  const [clientBlockers, setClientBlockers] = useState<{ clientId: number; clientName: string; projects: any[]; estimates: Estimate[] } | null>(null);
+  const [loadingClientBlockers, setLoadingClientBlockers] = useState(false);
   
   const [filters, setFilters] = useState<Record<string, any>>({
     search: "",
@@ -257,10 +265,23 @@ export default function CRMModule({ onOpenEstimate, onOpenProject }: { onOpenEst
       // way to tell why. Surface the actual cause instead.
       const blocked = /foreign key|violates|restrict/i.test(error?.message || "");
       if (blocked && itemToDelete.type === "client") {
-        toast.error("Can't delete this client", {
-          description: "This client still has a project and/or estimate linked to it. Delete or reassign those first -- or, if it's one project, open that project and use its \"Force Delete\" option with \"Also delete the linked client\" checked.",
-          duration: 8000,
-        });
+        // Show exactly what's still linked instead of a vague toast -- the
+        // user reported thinking they'd already deleted every project tied
+        // to a client when the delete still failed; this lists the real,
+        // current set so nothing is missed or guessed at.
+        setDeleteConfirmOpen(false);
+        const blockedClientId = itemToDelete.id;
+        const blockedClientName = itemToDelete.name;
+        setLoadingClientBlockers(true);
+        setClientBlockers({ clientId: blockedClientId, clientName: blockedClientName, projects: [], estimates: [] });
+        try {
+          const linkedProjects = (projects || []).filter((p: any) => String(p.clientId) === String(blockedClientId));
+          const allEstimates = await listEstimates().catch(() => [] as Estimate[]);
+          const linkedEstimates = allEstimates.filter((e) => String(e.client_id) === String(blockedClientId));
+          setClientBlockers({ clientId: blockedClientId, clientName: blockedClientName, projects: linkedProjects, estimates: linkedEstimates });
+        } finally {
+          setLoadingClientBlockers(false);
+        }
       } else {
         toast.error(`Failed to delete ${itemToDelete.type}`, {
           description: blocked ? "This record has other data linked to it and can't be deleted directly." : (error?.message || undefined),
@@ -1094,6 +1115,93 @@ export default function CRMModule({ onOpenEstimate, onOpenProject }: { onOpenEst
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Client Delete Blocked -- lists exactly what's still linked instead
+          of a vague error, since a client can't be deleted while any
+          project or estimate still references it. */}
+      <Dialog open={!!clientBlockers} onOpenChange={(open) => !open && setClientBlockers(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Can't delete {clientBlockers?.clientName}</DialogTitle>
+            <DialogDescription>
+              This client still has the following linked -- delete or reassign each one, then try deleting the client again.
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingClientBlockers ? (
+            <p className="text-sm text-muted-foreground py-4">Checking what's linked...</p>
+          ) : (
+            <div className="space-y-4 py-2">
+              <div>
+                <p className="text-sm font-medium mb-2">
+                  Projects ({clientBlockers?.projects.length ?? 0})
+                </p>
+                {clientBlockers && clientBlockers.projects.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">None.</p>
+                ) : (
+                  <div className="space-y-1">
+                    {clientBlockers?.projects.map((p: any) => (
+                      <div key={p.id} className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2">
+                        <div className="min-w-0">
+                          <p className="text-sm truncate">{p.title}</p>
+                          <p className="text-xs text-muted-foreground">{p.status}</p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => { setClientBlockers(null); onOpenProject?.(String(p.id)); }}
+                        >
+                          Open
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <p className="text-sm font-medium mb-2">
+                  Estimates ({clientBlockers?.estimates.length ?? 0})
+                </p>
+                {clientBlockers && clientBlockers.estimates.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">None.</p>
+                ) : (
+                  <div className="space-y-1">
+                    {clientBlockers?.estimates.map((e) => (
+                      <div key={e.id} className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2">
+                        <div className="min-w-0">
+                          <p className="text-sm truncate">{e.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {e.status}
+                            {e.converted_project_id ? " -- already converted to a project (see above)" : ""}
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => { setClientBlockers(null); onOpenEstimate?.(e.id); }}
+                        >
+                          Open
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {clientBlockers && clientBlockers.projects.length === 0 && clientBlockers.estimates.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  Nothing found here, but the delete was still blocked -- this client may have a record type not listed above. Contact support with the client's name.
+                </p>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setClientBlockers(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Bulk Campaign Dialog */}
       <BulkCampaignDialog

@@ -1,5 +1,36 @@
 # Cstle Livn Web App — Project Handoff
 
+## CRM client-delete now lists exactly what's still linked — September 5, 2026
+
+- **Follow-up to the same-day error-message fix above**: the user said the
+  new message ("a project and/or estimate is linked") wasn't enough --
+  they believed they'd already deleted every project tied to that client,
+  so the block meant something was missed, and they wanted to actually
+  see what's still there rather than guess.
+- **`CRMModule.tsx`**: when a client delete is blocked, it now opens a
+  dialog listing the client's real, current linked records instead of a
+  toast -- every `project` (from `AppContext`, filtered client-side on
+  `p.clientId === client.id`, no extra query needed) and every `estimate`
+  (fetched via `listEstimates()` from
+  `src/app/src/features/estimating/api.ts`, filtered on
+  `client_id === client.id`) each get their own row with status and a
+  real "Open" button. Those buttons reuse the `onOpenProject`/
+  `onOpenEstimate` navigation callbacks `CRMModule` already receives from
+  `App.tsx` (confirmed wired there, not just optional/unused props) --
+  clicking one closes this dialog and jumps straight to that record so
+  the user can review and delete it without hunting for it by name.
+  An already-converted estimate is labeled as such so it's clear its
+  linked project (listed above it) is the thing to actually delete.
+- `npx tsc --noEmit -p tsconfig.sync.json`, `npm run build`, and `npm test`
+  (13/13) all pass. Not live-verified (needs a real blocked client to
+  open this dialog against, which needs a signed-in session this agent
+  doesn't have). The user should retry the same client delete and confirm
+  the list shown actually matches what they expect -- if it comes back
+  empty on both counts while the delete is still blocked, that points to
+  a linked record type not covered by the two RESTRICT constraints this
+  fix checks (worth reporting back with the client's name so it can be
+  investigated specifically).
+
 ## CRM "can't delete client" was swallowing the real reason — September 5, 2026
 
 - **User asked "why can't I delete clients" with no error detail visible.**
