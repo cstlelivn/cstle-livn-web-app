@@ -252,10 +252,10 @@ export default function TemplateBuilder() {
         <div>
           <h2 className="font-['Roboto_Mono'] font-bold text-[16px] text-foreground flex items-center gap-[8px]">
             <LayoutTemplate className="w-4 h-4" />
-            Project Templates
+            Phase Templates
           </h2>
           <p className="font-['Roboto_Mono'] text-[11px] text-muted-foreground mt-[4px]">
-            Build the phases and tasks that get copied into a new project when someone picks this template.
+            Every project template and its phases are shown here. Open a template to add, edit, remove, or reorder its phases.
           </p>
         </div>
         <button

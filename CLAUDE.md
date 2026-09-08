@@ -3653,3 +3653,10 @@ for the push itself.
   to the refinement workflow. Image/PDF optimization progress stays visible.
   The 2 MiB plan ceiling is now checked after local compression but before the
   signed upload URL is requested, so a rejected plan never consumes R2 storage.
+## Settings uses the canonical project/phase template editor — September 8, 2026
+
+- **Root cause**: Settings rendered the legacy KV-backed `PhaseTemplateManager`, so it showed only the old Drywall, Default, and FCC phase sets while the real project creation workflow used relational `project_templates`, `phase_templates`, and `task_templates` records.
+- **Fix**: Settings now renders the existing canonical `TemplateBuilder`. Every active or archived project template and all of its relational phases are available in one place, grouped under their project template.
+- Administrators can add, rename, remove, archive/restore, and reorder phases with the up/down controls. Reordering updates the phase `position` values used when a new project is created; it does not rewrite projects already created from a template.
+- Tasks remain attached to their phase records when phases are reordered and can be expanded for later review. The old KV templates are no longer presented in Settings, preventing two conflicting template systems from being edited independently.
+- Phase and task reorder APIs now surface any failed Supabase update instead of silently reporting success after a partial failure.

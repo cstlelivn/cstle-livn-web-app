@@ -12,7 +12,7 @@ import { Separator } from "./ui/separator";
 import { useAuth } from "./AuthContext";
 import { useApp } from "./AppContext";
 import { toast } from "sonner";
-import PhaseTemplateManager from "./PhaseTemplateManager";
+import TemplateBuilder from "./TemplateBuilder";
 import QAChecklist from "./QAChecklist";
 
 // Default project phases for Cstle Livn
@@ -50,7 +50,7 @@ export default function SettingsModule() {
             color: 'var(--foreground-70)'
           }}
         >
-          Manage phase templates and QA checklists
+          Manage project phases, their order, and QA checklists
         </p>
       </div>
 
@@ -72,10 +72,8 @@ export default function SettingsModule() {
         </TabsList>
 
         <TabsContent value="templates" className="mt-6">
-          <Card>
-            <div className="p-6">
-              <PhaseTemplateManager />
-            </div>
+          <Card className="overflow-hidden">
+            <TemplateBuilder />
           </Card>
         </TabsContent>
 

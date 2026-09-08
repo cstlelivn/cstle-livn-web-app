@@ -132,11 +132,13 @@ export async function deletePhaseTemplate(id: string) {
 }
 
 export async function reorderPhaseTemplates(orderedIds: string[]) {
-  await Promise.all(
+  const results = await Promise.all(
     orderedIds.map((id, idx) =>
       supabase.from('phase_templates').update({ position: idx, updated_at: now() }).eq('id', id)
     )
   );
+  const failed = results.find(({ error }) => error);
+  failIf(failed?.error, 'Failed to reorder phases');
 }
 
 export interface TaskTemplateInput {
@@ -178,11 +180,13 @@ export async function deleteTaskTemplate(id: string) {
 }
 
 export async function reorderTaskTemplates(orderedIds: string[]) {
-  await Promise.all(
+  const results = await Promise.all(
     orderedIds.map((id, idx) =>
       supabase.from('task_templates').update({ position: idx, updated_at: now() }).eq('id', id)
     )
   );
+  const failed = results.find(({ error }) => error);
+  failIf(failed?.error, 'Failed to reorder tasks');
 }
 
 export async function getProjectTemplate(id: string) {
