@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowUpRight, MapPin } from "lucide-react";
+import { ArrowUpRight, MapPin, Trash2 } from "lucide-react";
 import type { Estimate } from "../../src/features/estimating/api";
 import { formatDate } from "../../src/lib/dates";
 
@@ -23,7 +23,7 @@ const MILESTONES: Array<keyof Estimate> = [
   "customer_approved",
 ];
 
-export default function EstimateListView({ estimates, clientName, onOpen }: { estimates: Estimate[]; clientName: (id: string) => string; onOpen: (id: string) => void }) {
+export default function EstimateListView({ estimates, clientName, onOpen, onDelete, canDelete }: { estimates: Estimate[]; clientName: (id: string) => string; onOpen: (id: string) => void; onDelete: (estimate: Estimate) => void; canDelete: boolean }) {
   const [widths, setWidths] = useState([260, 210, 250, 120, 140, 120, 84]);
   const template = `minmax(${widths[0]}px,1.5fr) minmax(${widths[1]}px,1.1fr) minmax(${widths[2]}px,1.35fr) ${widths[3]}px ${widths[4]}px ${widths[5]}px ${widths[6]}px`;
   const minWidth = widths.reduce((total, width) => total + width, 0) + (widths.length - 1) * 16 + 32;
@@ -68,7 +68,7 @@ export default function EstimateListView({ estimates, clientName, onOpen }: { es
             <div className="min-w-0"><div className="mb-1 flex items-center justify-between gap-2"><span className="text-[10px] font-semibold tabular-nums">{progress}%</span><span className="font-['Roboto_Mono'] text-[8px] text-muted-foreground">{complete}/7</span></div><div className="h-1.5 overflow-hidden rounded-full bg-black/[0.07]"><div className="h-full rounded-full bg-[#65733d]" style={{ width: `${progress}%` }} /></div></div>
             <span className="w-fit max-w-full truncate rounded-full border border-[#65733d]/20 bg-[#eef1e3] px-2 py-1 text-[9px] font-medium text-[#53602f]">{STATUS_LABELS[estimate.status] || estimate.status}</span>
             <p className="truncate text-[10px] text-muted-foreground">{formatDate(estimate.updated_at || estimate.created_at)}</p>
-            <div className="flex items-center justify-end border-l border-black/[0.07] pl-2"><button type="button" onClick={(event) => { event.stopPropagation(); onOpen(estimate.id); }} className="flex h-8 items-center gap-1 rounded-md px-2 font-['Roboto_Mono'] text-[9px] font-bold text-[#53602f] hover:bg-[#eef1e3]" aria-label={`Open ${estimate.name}`}>Open <ArrowUpRight className="size-3" /></button></div>
+            <div className="flex items-center justify-end gap-1 border-l border-black/[0.07] pl-2"><button type="button" onClick={(event) => { event.stopPropagation(); onOpen(estimate.id); }} className="flex h-8 items-center gap-1 rounded-md px-2 font-['Roboto_Mono'] text-[9px] font-bold text-[#53602f] hover:bg-[#eef1e3]" aria-label={`Open ${estimate.name}`}>Open <ArrowUpRight className="size-3" /></button>{canDelete && <button type="button" onClick={(event) => { event.stopPropagation(); onDelete(estimate); }} className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive" aria-label={`Delete ${estimate.name}`}><Trash2 className="size-3.5" /></button>}</div>
           </div>
         );
       })}

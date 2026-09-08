@@ -302,22 +302,29 @@
   build, not in watching a bar drag correctly on screen. The user should
   try dragging a task bar and a phase bar again and report back.
 
-## RRHBA membership credential on app sign-in — September 2, 2026
+## RRHBA membership credential — updated September 8, 2026
 
-- The RRHBA Member logo is placed on the sign-in/sign-up screen below the
-  account guidance card. This is the least intrusive app location: visitors
-  see the professional credential before entering, while task, project, QC,
-  finance, and mobile jobsite screens remain focused on work.
-- Artwork comes from page 5 of RRHBA's official Membership Guide hosted at
-  `reginahomebuilders.com`. The guide requires members to use one of the two
-  versions containing the word `Member`; the app uses the approved horizontal
-  version. It was preserved as vector artwork with its original red, green,
-  black, and white colours and original proportions—no crop into the mark,
-  recolouring, distortion, shadow, or effect.
-- The linked trust block opens `https://reginahomebuilders.com/` in a new tab,
-  includes the line `Proud Member of the Regina & Region Home Builders’
-  Association.`, and uses the required alt text. The logo renders at 230px on
-  desktop and 190px on mobile.
+- The RRHBA Member logo was removed from the admin app at the user's direction.
+  It is displayed only on the public website homepage so internal task,
+  project, QC, finance, and mobile jobsite screens remain focused on work.
+- The unused source artwork may remain in `public/`, but no admin-app screen
+  references or renders it.
+
+## Super Admin estimate deletion — September 8, 2026
+
+- Estimates are permanently deletable by Super Admin only from both the
+  estimating list and an open estimate. Other roles do not see the controls.
+- Deletion requires typing the exact estimate name and clearly states which
+  child records will be removed. A converted project is deliberately preserved
+  and continues to use the existing guarded project-deletion workflow.
+- The authenticated Edge Function verifies the caller's authoritative role is
+  exactly `Super Admin`, deletes every linked estimate-media object from R2,
+  then deletes the estimate so cascading measurements, takeoff, pricing,
+  proposals, and approvals cannot leave storage or database orphans.
+- This closes the client-deletion dead end: when a client is blocked by an
+  estimate, the blocker dialog opens that estimate, where the Super Admin can
+  permanently delete it, return to CRM, and then delete the client. Leads are
+  `ON DELETE SET NULL` from estimates and remain independently deletable.
 
 ## Gantt chart Stage 1 bugfixes: double-transform, phase persistence, calendar header, sticky header/column — August 31, 2026
 

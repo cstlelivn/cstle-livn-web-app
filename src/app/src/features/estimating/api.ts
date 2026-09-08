@@ -87,6 +87,15 @@ export async function updateEstimate(id: string, updates: Partial<Estimate>): Pr
   return data;
 }
 
+/**
+ * Permanently remove an estimate. The UI exposes this only to Super Admins and
+ * requires typed confirmation. R2 objects are removed before the database row
+ * so a successful delete cannot leave storage-consuming orphan files behind.
+ */
+export async function deleteEstimate(id: string): Promise<void> {
+  await apiCall(`/estimates/${id}`, { method: 'DELETE', requiresAuth: true });
+}
+
 // ---------------------------------------------------------------------------
 // Site capture -- measurements & documents
 // ---------------------------------------------------------------------------

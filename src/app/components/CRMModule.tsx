@@ -55,6 +55,7 @@ export default function CRMModule({ onOpenEstimate, onOpenProject }: { onOpenEst
   const [localClients, setLocalClients] = useState<any[]>([]);
   
   const canViewFinance = hasPermission("canViewFinance");
+  const isSuperAdmin = currentUser?.role === "Super Admin";
   const [searchQuery, setSearchQuery] = useState("");
   const [isCreateLeadDialogOpen, setIsCreateLeadDialogOpen] = useState(false);
   const [isClientDialogOpen, setIsClientDialogOpen] = useState(false);
@@ -976,6 +977,7 @@ export default function CRMModule({ onOpenEstimate, onOpenProject }: { onOpenEst
               viewMode={viewMode}
               onLeadClick={setSelectedLead}
               onDeleteLead={handleDeleteLead}
+              canDelete={isSuperAdmin}
               getStatusColor={getStatusColor}
               selectedLeadIds={selectedLeadIds}
               onToggleSelection={toggleLeadSelection}
@@ -1002,7 +1004,7 @@ export default function CRMModule({ onOpenEstimate, onOpenProject }: { onOpenEst
               </Button>
             </Card>
           ) : viewMode === "list" ? (
-            <ClientListView clients={filteredClients} canViewFinance={canViewFinance} onOpen={setSelectedClient} onDelete={(client, event) => handleDeleteClient(client.id, client.name, event)} onStatusChange={(client, status) => handleUpdateClient(client.id, { status })} />
+            <ClientListView clients={filteredClients} canViewFinance={canViewFinance} canDelete={isSuperAdmin} onOpen={setSelectedClient} onDelete={(client, event) => handleDeleteClient(client.id, client.name, event)} onStatusChange={(client, status) => handleUpdateClient(client.id, { status })} />
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {filteredClients.map((client) => (
@@ -1055,13 +1057,13 @@ export default function CRMModule({ onOpenEstimate, onOpenProject }: { onOpenEst
                   </div>
 
                   {/* Delete button - appears on hover */}
-                  <button
+                  {isSuperAdmin && <button
                     onClick={(e) => handleDeleteClient(client.id, client.name, e)}
                     className="absolute top-[16px] right-[16px] p-[8px] rounded-[6px] bg-background border border-border hover:bg-destructive hover:border-destructive hover:text-white transition-colors opacity-0 group-hover:opacity-100"
                     title="Delete client"
                   >
                     <Trash2 className="w-4 h-4" />
-                  </button>
+                  </button>}
                 </Card>
               ))}
             </div>

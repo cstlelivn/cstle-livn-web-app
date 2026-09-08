@@ -11,6 +11,7 @@ interface LeadListViewProps {
   viewMode: "grid" | "list";
   onLeadClick: (lead: any) => void;
   onDeleteLead: (id: number, name: string, e?: React.MouseEvent) => void;
+  canDelete?: boolean;
   getStatusColor: (status: string) => string;
   selectedLeadIds?: number[];
   onToggleSelection?: (leadId: number) => void;
@@ -23,6 +24,7 @@ export default function LeadListView({
   viewMode,
   onLeadClick,
   onDeleteLead,
+  canDelete = false,
   getStatusColor,
   selectedLeadIds = [],
   onToggleSelection,
@@ -123,7 +125,7 @@ export default function LeadListView({
               >
                 <Phone className="size-3.5" />
               </Button>
-              <Button variant="ghost" size="sm" onClick={(e) => onDeleteLead(lead.id, lead.name, e)} className="h-8 w-8 p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" aria-label={`Delete ${lead.name}`}><Trash2 className="size-3.5" /></Button>
+              {canDelete && <Button variant="ghost" size="sm" onClick={(e) => onDeleteLead(lead.id, lead.name, e)} className="h-8 w-8 p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" aria-label={`Delete ${lead.name}`}><Trash2 className="size-3.5" /></Button>}
             </div>
           </div>
         ))}
@@ -163,13 +165,13 @@ export default function LeadListView({
                   <Phone className="w-[14px] h-[14px] mr-[6px]" />
                   Call
                 </Button>
-                <button
+                {canDelete && <button
                   onClick={(e) => onDeleteLead(lead.id, lead.name, e)}
                   className="p-2 rounded-[6px] bg-background border border-border hover:bg-destructive hover:border-destructive hover:text-white transition-colors shrink-0"
                   title="Delete lead"
                 >
                   <Trash2 className="w-4 h-4" />
-                </button>
+                </button>}
               </div>
             </div>
           ))}
@@ -243,9 +245,9 @@ export default function LeadListView({
               <TrendingUp className="w-4 h-4 mr-2" />
               Details
             </Button>
-            <Button variant="ghost" className="px-3 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={(event) => onDeleteLead(lead.id, lead.name, event)} aria-label={`Delete ${lead.name}`}>
+            {canDelete && <Button variant="ghost" className="px-3 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={(event) => onDeleteLead(lead.id, lead.name, event)} aria-label={`Delete ${lead.name}`}>
               <Trash2 className="size-4" />
-            </Button>
+            </Button>}
           </div>
         </Card>
       ))}

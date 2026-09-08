@@ -4,7 +4,7 @@ import { Button } from './ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { formatDateTime, formatNaturalDateTime } from '../src/lib/dateFormatter';
 
-export function ClientListView({ clients, canViewFinance, onOpen, onDelete, onStatusChange }: { clients: any[]; canViewFinance: boolean; onOpen: (client: any) => void; onDelete: (client: any, event: React.MouseEvent) => void; onStatusChange: (client: any, status: string) => void }) {
+export function ClientListView({ clients, canViewFinance, canDelete, onOpen, onDelete, onStatusChange }: { clients: any[]; canViewFinance: boolean; canDelete: boolean; onOpen: (client: any) => void; onDelete: (client: any, event: React.MouseEvent) => void; onStatusChange: (client: any, status: string) => void }) {
   const [widths, setWidths] = useState(canViewFinance ? [240, 120, 110, 260, 150, 92] : [260, 130, 290, 160, 92]);
   const template = canViewFinance
     ? `minmax(${widths[0]}px,1.25fr) ${widths[1]}px ${widths[2]}px minmax(${widths[3]}px,1.55fr) ${widths[4]}px ${widths[5]}px`
@@ -25,7 +25,7 @@ export function ClientListView({ clients, canViewFinance, onOpen, onDelete, onSt
       {canViewFinance && <p className="truncate text-[12px] font-semibold tabular-nums">${Number(client.totalSpent || 0).toLocaleString()}</p>}
       <div className="flex min-w-0 items-center gap-2"><Mail className="size-3.5 shrink-0 text-muted-foreground" /><span className="truncate text-[10px] text-muted-foreground">{client.email || 'Email not added'}</span></div>
       <p className="truncate text-[10px] text-muted-foreground" title={client.lastContact ? `${formatDateTime(client.lastContact)} Regina time` : 'No contact recorded'}>{formatNaturalDateTime(client.lastContact)}</p>
-      <div className="flex items-center justify-end gap-1 border-l border-black/[0.07] pl-2"><Button variant="ghost" size="sm" disabled={!client.email} onClick={(event) => { event.stopPropagation(); if (client.email) window.location.href = `mailto:${client.email}`; }} className="h-8 w-8 p-0" aria-label={`Email ${client.name}`}><Mail className="size-3.5" /></Button><Button variant="ghost" size="sm" onClick={(event) => onDelete(client, event)} className="h-8 w-8 p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" aria-label={`Delete ${client.name}`}><Trash2 className="size-3.5" /></Button></div>
+      <div className="flex items-center justify-end gap-1 border-l border-black/[0.07] pl-2"><Button variant="ghost" size="sm" disabled={!client.email} onClick={(event) => { event.stopPropagation(); if (client.email) window.location.href = `mailto:${client.email}`; }} className="h-8 w-8 p-0" aria-label={`Email ${client.name}`}><Mail className="size-3.5" /></Button>{canDelete && <Button variant="ghost" size="sm" onClick={(event) => onDelete(client, event)} className="h-8 w-8 p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" aria-label={`Delete ${client.name}`}><Trash2 className="size-3.5" /></Button>}</div>
     </div>)}
   </div>;
 }

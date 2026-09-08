@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { toast } from "sonner";
 import { useAuth } from "../AuthContext";
 import { useEstimates } from "../../src/features/estimating/useEstimates";
-import { createEstimate } from "../../src/features/estimating/api";
+import { createEstimate, deleteEstimate, type Estimate } from "../../src/features/estimating/api";
 import { listClients, createClient as createClientRecord } from "../../src/features/clients/api";
 import { listLeads } from "../../src/features/leads/api";
 import EstimateListView from "./EstimateListView";
@@ -23,6 +23,10 @@ export default function LeadsListScreen({ onOpen }: LeadsListScreenProps) {
   const [clients, setClients] = useState<any[]>([]);
   const [leads, setLeads] = useState<any[]>([]);
   const [search, setSearch] = useState("");
+  const isSuperAdmin = currentUser?.role === "Super Admin";
+  const [estimateToDelete, setEstimateToDelete] = useState<Estimate | null>(null);
+  const [deleteText, setDeleteText] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -79,6 +83,22 @@ export default function LeadsListScreen({ onOpen }: LeadsListScreenProps) {
     clientName(e.client_id).toLowerCase().includes(search.toLowerCase())
   );
 
+  const confirmDeleteEstimate = async () => {
+    if (!estimateToDelete || deleteText.trim() !== estimateToDelete.name) return;
+    setDeleting(true);
+    try {
+      await deleteEstimate(estimateToDelete.id);
+      toast.success("Estimate permanently deleted");
+      setEstimateToDelete(null);
+      setDeleteText("");
+      await refresh();
+    } catch (error: any) {
+      toast.error("Estimate could not be deleted", { description: error?.message || undefined, duration: 7000 });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="space-y-[12px]">
@@ -118,8 +138,27 @@ export default function LeadsListScreen({ onOpen }: LeadsListScreenProps) {
           </p>
         </div>
       ) : (
-        <EstimateListView estimates={filtered} clientName={clientName} onOpen={onOpen} />
+        <EstimateListView estimates={filtered} clientName={clientName} onOpen={onOpen} canDelete={isSuperAdmin} onDelete={(estimate) => { setEstimateToDelete(estimate); setDeleteText(""); }} />
       )}
+
+      <Dialog open={!!estimateToDelete} onOpenChange={(next) => { if (!next && !deleting) { setEstimateToDelete(null); setDeleteText(""); } }}>
+        <DialogContent className="max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>Permanently delete “{estimateToDelete?.name}”?</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-sm text-muted-foreground">This removes the estimate, measurements, proposal, pricing history, approvals, and attached R2 files. A converted project is preserved and must be deleted separately. This cannot be undone.</p>
+            <div>
+              <Label className="font-['Roboto_Mono'] text-[10px] font-bold uppercase">Type {estimateToDelete?.name} to confirm</Label>
+              <Input value={deleteText} onChange={(event) => setDeleteText(event.target.value)} className="mt-2" autoComplete="off" />
+            </div>
+          </div>
+          <DialogFooter>
+            <button onClick={() => { setEstimateToDelete(null); setDeleteText(""); }} disabled={deleting} className="px-4 py-2 rounded-md border border-border text-sm">Cancel</button>
+            <button onClick={confirmDeleteEstimate} disabled={deleting || deleteText.trim() !== estimateToDelete?.name} className="px-4 py-2 rounded-md bg-destructive text-destructive-foreground text-sm font-semibold disabled:opacity-40">{deleting ? "Deleting…" : "Permanently Delete Estimate"}</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-[480px]">

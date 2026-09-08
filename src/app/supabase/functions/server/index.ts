@@ -4297,6 +4297,39 @@ app.post("/make-server-bcab437c/estimate-media/:id/complete", authMiddleware, as
   }
 });
 
+app.delete("/make-server-bcab437c/estimates/:id", authMiddleware, async (c) => {
+  try {
+    if (c.get("userRole") !== "Super Admin") {
+      return c.json({ error: "Only a Super Admin can permanently delete an estimate" }, 403);
+    }
+    const id = c.req.param("id");
+    const { data: estimate, error: estimateError } = await supabase.from("estimates")
+      .select("id, name, converted_project_id")
+      .eq("id", id)
+      .maybeSingle();
+    if (estimateError) return c.json({ error: estimateError.message }, 400);
+    if (!estimate) return c.json({ error: "Estimate not found" }, 404);
+
+    // Remove every R2 object before the database cascade removes its key.
+    // DeleteObject is idempotent, so previously cleaned/soft-deleted media is
+    // safe to include and cannot leave an orphan consuming R2 storage.
+    const { data: media, error: mediaError } = await supabase.from("estimate_media")
+      .select("object_key")
+      .eq("estimate_id", id);
+    if (mediaError) return c.json({ error: mediaError.message }, 400);
+    for (const item of media ?? []) {
+      await getR2Client().send(new DeleteObjectCommand({ Bucket: R2_BUCKET_NAME, Key: item.object_key }));
+    }
+
+    const { error: deleteError } = await supabase.from("estimates").delete().eq("id", id);
+    if (deleteError) return c.json({ error: deleteError.message }, 400);
+    return c.json({ success: true, deletedEstimate: estimate.name, preservedProjectId: estimate.converted_project_id });
+  } catch (error: any) {
+    console.error("Permanent estimate delete error:", error);
+    return c.json({ error: error?.message ?? "Could not delete estimate" }, 500);
+  }
+});
+
 app.get("/make-server-bcab437c/estimate-media", authMiddleware, async (c) => {
   try {
     const role = c.get("userRole");
