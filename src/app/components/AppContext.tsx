@@ -774,47 +774,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         throw new Error("Add an email address for this lead before converting to a client");
       }
 
-      // EXACT mapping as specified in requirements:
-      // clients.name = if leads.name exists use it, else combine first_name + last_name
-      const clientName = lead.name && lead.name.trim()
-        ? lead.name
-        : `${lead.first_name || ''} ${lead.last_name || ''}`.trim() || 'Unknown';
-
-      // clients.source = based on source_form
-      let clientSource = 'Website';
-      if (lead.source_form === 'booking') {
-        clientSource = 'Website - Booking';
-      } else if (lead.source_form === 'contact') {
-        clientSource = 'Website - Contact';
-      } else if (lead.source_page) {
-        clientSource = lead.source_page;
-      } else if (lead.source) {
-        clientSource = lead.source;
-      }
-
-      // clients.notes = internal_notes || project_details || message
-      const clientNotes = lead.internal_notes || lead.project_details || lead.message || '';
-
-      // Create client from lead with exact field mapping
-      const clientData: any = {
-        name: clientName,
-        email: lead.email,
-        phone: lead.phone || null,
-        status: 'Active',
-        projects_count: 0,
-        total_value: 0,
-        source: clientSource,
-        notes: clientNotes,
-        last_contact: null, // Initially null, admin will update when they contact
-      };
-
-      console.log('🔄 Converting lead to client:', { lead, clientData });
-
-      await addClient(clientData);
-      // "Won" matches the CRM pipeline vocabulary (New/Contacted/Proposal/
-      // Won/Lost) -- the lead stays visible in the leads list afterward
-      // (listLeads no longer hides it) so a won deal remains auditable.
-      await updateLead(leadId, { status: "Won", pipeline_stage: "Won" });
+      // The server performs the find-or-create and lead update as one guarded
+      // operation. It reuses the estimate-linked client first, then an exact
+      // normalized-email match, so repeated conversions cannot create another
+      // client row.
+      await leadsAPI.convertLeadToClientRecord(String(leadId));
 
       console.log('✅ Lead converted to client successfully');
     } catch (error) {

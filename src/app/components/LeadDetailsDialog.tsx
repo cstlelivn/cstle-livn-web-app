@@ -79,7 +79,7 @@ interface LeadDetailsDialogProps {
   lead: Lead | null;
   isOpen: boolean;
   onClose: () => void;
-  onConvertToClient?: (leadId: number) => void;
+  onConvertToClient?: (leadId: number) => Promise<void>;
   onUpdateLead?: (leadId: number, updates: Partial<Lead>) => void;
   onOpenEstimate?: (lead: Lead) => Promise<void>;
   onOpenClient?: (clientId: string) => void;
@@ -94,6 +94,7 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
   const [reminderTime, setReminderTime] = useState("");
   const [reminderNotes, setReminderNotes] = useState("");
   const [openingEstimate, setOpeningEstimate] = useState(false);
+  const [convertingClient, setConvertingClient] = useState(false);
   const [related, setRelated] = useState<LeadRelatedRecords | null>(null);
   useEffect(() => { let active = true; if (!lead?.id || !isOpen) { setRelated(null); return; } getLeadRelatedRecords(String(lead.id)).then((value) => active && setRelated(value)).catch(() => active && setRelated(null)); return () => { active = false; }; }, [lead?.id, isOpen]);
   
@@ -370,10 +371,11 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
     }
   };
 
-  const handleConvertToClient = () => {
-    if (onConvertToClient) {
-      onConvertToClient(displayLead.id);
-    }
+  const handleConvertToClient = async () => {
+    if (!onConvertToClient || convertingClient) return;
+    setConvertingClient(true);
+    try { await onConvertToClient(displayLead.id); }
+    finally { setConvertingClient(false); }
   };
 
   return (
@@ -928,11 +930,11 @@ export default function LeadDetailsDialog({ lead, isOpen, onClose, onConvertToCl
                 <Button
                   className="w-full h-11 bg-accent hover:bg-accent/90"
                   onClick={handleConvertToClient}
-                  disabled={!displayLead.email}
+                  disabled={!displayLead.email || convertingClient}
                   title={!displayLead.email ? "Add an email address first" : undefined}
                 >
                   <UserCheck className="w-4 h-4 mr-2" />
-                  {displayLead.email ? "Convert to Client" : "Add an email to convert"}
+                  {convertingClient ? "Converting…" : displayLead.email ? "Convert to Client" : "Add an email to convert"}
                 </Button>
               </>
             )}

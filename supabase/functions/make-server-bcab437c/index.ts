@@ -1646,6 +1646,53 @@ app.delete("/make-server-bcab437c/leads/:id", authMiddleware, async (c) => {
   return c.json({ success: true });
 });
 
+app.post("/make-server-bcab437c/leads/:id/convert-client", authMiddleware, async (c) => {
+  try {
+    const role = c.get("userRole");
+    if (!hasPermission(role, "canEditCRM")) return c.json({ error: "Insufficient permissions" }, 403);
+    const leadId = c.req.param("id");
+    const { data: lead, error: leadError } = await supabase.from("leads").select("*").eq("id", leadId).maybeSingle();
+    if (leadError) return c.json({ error: leadError.message }, 400);
+    if (!lead) return c.json({ error: "Lead not found" }, 404);
+    const email = String(lead.email || "").trim();
+    if (!email) return c.json({ error: "Add an email address for this lead before converting to a client" }, 400);
+
+    // An estimate is authoritative conversion lineage. If none exists, reuse
+    // the oldest exact email match before considering a new client.
+    const { data: linkedEstimate } = await supabase.from("estimates").select("client_id")
+      .eq("lead_id", leadId).order("created_at", { ascending: true }).limit(1).maybeSingle();
+    let client: any = null;
+    let reusedExistingClient = false;
+    if (linkedEstimate?.client_id) {
+      const result = await supabase.from("clients").select("*").eq("id", linkedEstimate.client_id).maybeSingle();
+      client = result.data;
+      reusedExistingClient = !!client;
+    }
+    if (!client) {
+      const emailPattern = email.replace(/[\\%_]/g, "\\$&");
+      const result = await supabase.from("clients").select("*").ilike("email", emailPattern)
+        .order("created_at", { ascending: true }).limit(1).maybeSingle();
+      if (result.error) return c.json({ error: result.error.message }, 400);
+      client = result.data;
+      reusedExistingClient = !!client;
+    }
+    if (!client) {
+      const source = lead.source_form === "booking" ? "Website - Booking" : lead.source_form === "contact" ? "Website - Contact" : lead.source_page || lead.source || "Website";
+      const name = String(lead.name || "").trim() || `${lead.first_name || ""} ${lead.last_name || ""}`.trim() || "Unknown";
+      const result = await supabase.from("clients").insert({ name, email, phone: lead.phone || null, status: "Active", projects_count: 0, total_value: 0, source, notes: lead.internal_notes || lead.project_details || lead.message || "", last_contact: null }).select().single();
+      if (result.error) return c.json({ error: result.error.message }, 400);
+      client = result.data;
+    }
+
+    const { error: updateError } = await supabase.from("leads").update({ status: "Converted", pipeline_stage: "Won", updated_at: new Date().toISOString() }).eq("id", leadId);
+    if (updateError) return c.json({ error: updateError.message }, 400);
+    return c.json({ success: true, client, reusedExistingClient });
+  } catch (error: any) {
+    console.error("Lead conversion error:", error);
+    return c.json({ error: error?.message ?? "Could not convert lead" }, 500);
+  }
+});
+
 // Convert lead to client
 app.post("/make-server-bcab437c/leads/:id/convert", authMiddleware, async (c) => {
   const userRole = c.get("userRole");

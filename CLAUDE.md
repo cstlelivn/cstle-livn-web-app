@@ -326,6 +326,21 @@
   permanently delete it, return to CRM, and then delete the client. Leads are
   `ON DELETE SET NULL` from estimates and remain independently deletable.
 
+## Lead-to-client conversion is an idempotent move — September 8, 2026
+
+- `Won` remains a sales outcome and does not by itself remove a lead. A real
+  conversion writes `leads.status = 'Converted'` while retaining
+  `pipeline_stage = 'Won'` for revenue reporting.
+- Converted leads are excluded from the active Leads list immediately after
+  refresh, while their Won result remains available to revenue metrics.
+- Conversion now runs through the authenticated Edge Function. It reuses the
+  client already linked through the lead's estimate; otherwise it reuses the
+  oldest exact case-insensitive email match; only then does it create a client.
+  Repeated conversion is therefore idempotent and no longer creates duplicate
+  client rows.
+- The Convert button is disabled while the request is running to prevent a
+  second submission from a double click.
+
 ## Gantt chart Stage 1 bugfixes: double-transform, phase persistence, calendar header, sticky header/column — August 31, 2026
 
 - **User caught four real bugs live** right after Stage 1 shipped: (1) task

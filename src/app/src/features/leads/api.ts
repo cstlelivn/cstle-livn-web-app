@@ -1,4 +1,4 @@
-import { createClient } from '../../../utils/supabase/client.tsx';
+import { createClient, apiCall } from '../../../utils/supabase/client.tsx';
 import { failIf } from '../../lib/errors';
 import { now } from '../../lib/dates';
 import { toast } from 'sonner';
@@ -240,4 +240,12 @@ export async function deleteLead(id: string) {
     .eq('id', id);
   
   failIf(error, 'Failed to delete lead');
+}
+
+export async function convertLeadToClientRecord(id: string) {
+  const result = await apiCall(`/leads/${id}/convert-client`, {
+    method: 'POST',
+    requiresAuth: true,
+  });
+  return result.client;
 }

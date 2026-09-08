@@ -507,6 +507,7 @@ export default function CRMModule({ onOpenEstimate, onOpenProject }: { onOpenEst
       return lead.status;
     })(),
     pipeline_stage: (lead as any).pipeline_stage,
+    isConverted: String(lead.status || '').toLowerCase() === 'converted',
     qualification_band: (lead as any).qualification_band,
     qualification_score: (lead as any).qualification_score,
     qualification_reasons: (lead as any).qualification_reasons,
@@ -531,6 +532,7 @@ export default function CRMModule({ onOpenEstimate, onOpenProject }: { onOpenEst
 
   // Filter and sort leads
   const filteredLeads = transformedLeads
+    .filter((lead) => !lead.isConverted)
     .filter((lead) => {
       const matchesSearch = !filters.search ||
         lead.name.toLowerCase().includes(filters.search.toLowerCase()) ||
@@ -863,7 +865,7 @@ export default function CRMModule({ onOpenEstimate, onOpenProject }: { onOpenEst
             className="border rounded-lg bg-card"
           >
             <ToggleGroupItem value="leads" className="px-4 py-2">
-              All Leads ({transformedLeads.length})
+              All Leads ({transformedLeads.filter((lead) => !lead.isConverted).length})
             </ToggleGroupItem>
             <ToggleGroupItem value="clients" className="px-4 py-2">
               Clients ({transformedClients.length})
@@ -920,7 +922,7 @@ export default function CRMModule({ onOpenEstimate, onOpenProject }: { onOpenEst
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-muted-foreground" style={{ fontSize: 'var(--text-label)' }}>
-            {activeTab === "leads" ? `${filteredLeads.length} of ${transformedLeads.length} leads` : `${filteredClients.length} clients`}
+            {activeTab === "leads" ? `${filteredLeads.length} of ${transformedLeads.filter((lead) => !lead.isConverted).length} leads` : `${filteredClients.length} clients`}
           </span>
         </div>
 
