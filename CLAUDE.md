@@ -1,5 +1,56 @@
 # Cstle Livn Web App — Project Handoff
 
+## Basement/Secondary Suite finishing phases now follow the old "FCC Projects" sequence — September 13, 2026 (migration not yet run)
+
+- **User's request**: "the FCC template I had before" is a real, legacy
+  phase template (`fcc-projects`, seeded in
+  `supabase/functions/make-server-bcab437c/index.ts`'s
+  `initializeDefaultPhaseTemplates()`/`admin/refresh-default-templates`) --
+  a lightweight, KV-backed name+days list that predates the relational
+  `project_templates` system this app now uses. It was removed from the
+  Settings UI on September 8, 2026 (see that entry below), which is why the
+  user could no longer find it in the template picker. Its real phase
+  sequence is: Planning(3) -> Wall Priming(2) -> Doors & Trim(5) ->
+  Spraying(3) -> Wall Painting 1st coat(2) -> Flooring(4) -> Baseboard &
+  Railing Install(3) -> Wall Painting 2nd coat(2) -> Finishing &
+  Installs(3) -> Final Inspection(1) -> Delivered/Completed(1).
+- **Migration `20240068_fcc_finishing_sequence.sql`** (archives both
+  existing templates, inserts new versions -- never deletes, same
+  convention as `20240061`) replaces every phase AFTER Drywall /
+  Insulation & Drywall in both "Basement Finishing & Development" (now
+  v3.0, 18 phases, 75 workdays / ~2.9 months, still under the user's 3-4
+  month ceiling) and "Secondary Suite Development" (now v2.0, 18 phases, 68
+  workdays / ~11-12 weeks, still under the 12-week ceiling) with that FCC
+  sequence -- Wall Priming, Doors & Trim, Spraying, Wall Painting First
+  Coat, Flooring, Baseboard & Railing Install, Wall Painting Second Coat,
+  Finishing & Installs, then the existing fully-built-out "Deficiencies,
+  Final QC & Handover" phase (covers FCC's bare "Final Inspection" +
+  "Delivered/Completed" with real QC/deficiency/cleaning/walkthrough/
+  handover tasks, since FCC itself has no task-level detail to reuse).
+  Every new phase's `default_duration_days` is the exact sum of its own
+  tasks' `default_duration_days`, same drift-prevention rule as `20240061`.
+  Secondary Suite keeps its two suite-specific phases (Finishing -- Kitchen,
+  Vanity & Fixtures; Electrical Final Trim) slotted in after Wall Painting
+  Second Coat, since a self-sustaining suite needs its own kitchen/bath and
+  electrical final trim that plain basement finishing doesn't.
+- **Explicitly out of scope, per the user** ("they will work on the
+  insurance rebuild after that"): Insurance Rebuild
+  (`71a2130f-3276-40f3-9f13-b1a3d03bd7eb`, still the old bloated
+  `20240006` seed -- generic 1-2 task phases, no task-level duration
+  discipline, standalone documentation tasks) is next up, not part of this
+  change. The user described it as similar to Secondary Suite except its
+  upfront preparation/documentation phases differ (insurance-specific
+  emergency handoff, scope/authorization, hazmat review) -- when that work
+  starts, the same FCC-based finishing sequence built here is the intended
+  template to reuse for its back half.
+- **Not yet run.** This is a pure SQL data migration -- no TypeScript
+  touched, so no build/typecheck/test verification applies. The user
+  should run `20240068_fcc_finishing_sequence.sql` in the Supabase SQL
+  Editor, then create one new test project from each of "Basement
+  Finishing & Development" and "Secondary Suite Development" and confirm
+  the new finishing-phase sequence and names appear in order after
+  Drywall/Insulation & Drywall.
+
 ## CRM client-delete now lists exactly what's still linked — September 5, 2026
 
 - **Follow-up to the same-day error-message fix above**: the user said the
