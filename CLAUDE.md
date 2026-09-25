@@ -3711,3 +3711,11 @@ for the push itself.
 - Administrators can add, rename, remove, archive/restore, and reorder phases with the up/down controls. Reordering updates the phase `position` values used when a new project is created; it does not rewrite projects already created from a template.
 - Tasks remain attached to their phase records when phases are reordered and can be expanded for later review. The old KV templates are no longer presented in Settings, preventing two conflicting template systems from being edited independently.
 - Phase and task reorder APIs now surface any failed Supabase update instead of silently reporting success after a partial failure.
+## Secondary Suite real construction sequence — September 25, 2026
+
+- Replaced the active `Secondary Suite Development` template in place (version 2.0) with the user's real legal-suite workflow: 24 ordered phases, 60 tasks, and 103 scheduled workdays including permit review and a 15-workday drywall/mudding/ceiling-texture phase.
+- Critical order: initial framing -> plumbing/HVAC rough-in -> service bulkheads/soffits and blocking -> electrical rough-in -> trade approvals -> building framing inspection. Construction does not begin before permit approval.
+- The template has no ceiling finish-paint task. Ceiling texture is part of drywall finishing; PVA primer still covers new walls and ceilings, while first/final finish coats are walls only.
+- Closeout explicitly includes City-issued suite addressing, peephole, door sweep, self-closing hinge test/adjustment, detailed clean, final building inspection, and occupancy approval.
+- The migration updates the canonical template record and replaces only its child template phases/tasks. Projects already created from it keep their independent copied phase/task records; their old template foreign keys safely become null where applicable.
+- The Settings template task form now exposes instructions, default assignee/trade, inspection-required, and photo/document-evidence-required fields in addition to duration, priority, and required/optional status.

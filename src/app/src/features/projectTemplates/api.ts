@@ -151,6 +151,9 @@ export interface TaskTemplateInput {
   priority?: string;
   required?: boolean;
   default_duration_days?: number;
+  suggested_role?: string;
+  inspection_required?: boolean;
+  evidence_required?: boolean;
 }
 
 export async function createTaskTemplate(input: TaskTemplateInput) {

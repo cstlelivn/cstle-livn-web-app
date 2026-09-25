@@ -175,7 +175,7 @@ export default function TemplateBuilder() {
   };
 
   // ---- Task template actions ----
-  const handleSaveTask = async (form: { name: string; task_type: string; priority: string; default_duration_days: number; required: boolean }) => {
+  const handleSaveTask = async (form: { name: string; description: string; task_type: string; priority: string; default_duration_days: number; required: boolean; suggested_role: string; inspection_required: boolean; evidence_required: boolean }) => {
     if (!taskDialog) return;
     if (!form.name.trim()) { toast.error("Task name is required"); return; }
     setSaving(true);
@@ -377,6 +377,15 @@ export default function TemplateBuilder() {
                               <span className="font-['Roboto_Mono'] text-foreground flex-1 truncate">{task.name}</span>
                               <span className="font-['Roboto_Mono'] text-[9px] text-muted-foreground bg-secondary px-[6px] py-[1px] rounded">{task.task_type}</span>
                               <span className="font-['Roboto_Mono'] text-[9px] text-muted-foreground">{task.priority}</span>
+                              {task.suggested_role && (
+                                <span className="font-['Roboto_Mono'] text-[9px] text-muted-foreground">{task.suggested_role}</span>
+                              )}
+                              {task.inspection_required && (
+                                <span className="font-['Roboto_Mono'] text-[9px] text-accent">inspection</span>
+                              )}
+                              {task.evidence_required && (
+                                <span className="font-['Roboto_Mono'] text-[9px] text-accent">evidence</span>
+                              )}
                               {!task.required && (
                                 <span className="font-['Roboto_Mono'] text-[9px] text-muted-foreground italic">optional</span>
                               )}
@@ -617,13 +626,17 @@ function TaskFormDialog({ mode, initial, saving, onCancel, onSave }: {
   initial?: any;
   saving: boolean;
   onCancel: () => void;
-  onSave: (form: { name: string; task_type: string; priority: string; default_duration_days: number; required: boolean }) => void;
+  onSave: (form: { name: string; description: string; task_type: string; priority: string; default_duration_days: number; required: boolean; suggested_role: string; inspection_required: boolean; evidence_required: boolean }) => void;
 }) {
   const [name, setName] = useState(initial?.name ?? "");
+  const [description, setDescription] = useState(initial?.description ?? "");
   const [taskType, setTaskType] = useState(initial?.task_type ?? "Administrative");
   const [priority, setPriority] = useState(initial?.priority ?? "Medium");
   const [duration, setDuration] = useState(initial?.default_duration_days ?? 1);
   const [required, setRequired] = useState(initial?.required ?? true);
+  const [suggestedRole, setSuggestedRole] = useState(initial?.suggested_role ?? "");
+  const [inspectionRequired, setInspectionRequired] = useState(initial?.inspection_required ?? false);
+  const [evidenceRequired, setEvidenceRequired] = useState(initial?.evidence_required ?? false);
 
   return (
     <Dialog open onOpenChange={onCancel}>
@@ -637,6 +650,11 @@ function TaskFormDialog({ mode, initial, saving, onCancel, onSave }: {
           <div>
             <Label className="font-['Roboto_Mono'] text-[11px]">Task Name *</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Apply primer"
+              className="mt-[4px] font-['Roboto_Mono'] text-[11px] rounded-[6px]" />
+          </div>
+          <div>
+            <Label className="font-['Roboto_Mono'] text-[11px]">Instructions</Label>
+            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3}
               className="mt-[4px] font-['Roboto_Mono'] text-[11px] rounded-[6px]" />
           </div>
           <div className="grid grid-cols-2 gap-[8px]">
@@ -672,15 +690,29 @@ function TaskFormDialog({ mode, initial, saving, onCancel, onSave }: {
             <Input type="number" min={1} value={duration} onChange={(e) => setDuration(Number(e.target.value))}
               className="mt-[4px] font-['Roboto_Mono'] text-[11px] rounded-[6px]" />
           </div>
+          <div>
+            <Label className="font-['Roboto_Mono'] text-[11px]">Default Assignee or Trade</Label>
+            <Input value={suggestedRole} onChange={(e) => setSuggestedRole(e.target.value)} placeholder="e.g. Plumbing Subcontractor"
+              className="mt-[4px] font-['Roboto_Mono'] text-[11px] rounded-[6px]" />
+            <p className="mt-[4px] font-['Roboto_Mono'] text-[9px] text-muted-foreground">The actual person is selected when the project is staffed.</p>
+          </div>
           <div className="flex items-center justify-between">
             <Label className="font-['Roboto_Mono'] text-[11px]">Required (must be completed for the phase to complete)</Label>
             <Switch checked={required} onCheckedChange={setRequired} />
+          </div>
+          <div className="flex items-center justify-between">
+            <Label className="font-['Roboto_Mono'] text-[11px]">Inspection required</Label>
+            <Switch checked={inspectionRequired} onCheckedChange={setInspectionRequired} />
+          </div>
+          <div className="flex items-center justify-between">
+            <Label className="font-['Roboto_Mono'] text-[11px]">Photo or document evidence required</Label>
+            <Switch checked={evidenceRequired} onCheckedChange={setEvidenceRequired} />
           </div>
         </div>
         <DialogFooter>
           <button onClick={onCancel} className="px-[14px] py-[7px] border border-border rounded-[6px] font-['Roboto_Mono'] text-[11px]">Cancel</button>
           <button
-            onClick={() => onSave({ name, task_type: taskType, priority, default_duration_days: duration, required })}
+            onClick={() => onSave({ name, description, task_type: taskType, priority, default_duration_days: duration, required, suggested_role: suggestedRole, inspection_required: inspectionRequired, evidence_required: evidenceRequired })}
             disabled={saving}
             className="px-[14px] py-[7px] bg-accent text-accent-foreground rounded-[6px] font-['Roboto_Mono'] text-[11px] disabled:opacity-50"
           >
