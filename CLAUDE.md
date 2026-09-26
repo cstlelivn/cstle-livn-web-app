@@ -3733,3 +3733,10 @@ for the push itself.
 - The project-level selector now reads the same active canonical templates as Settings, including every ordered phase and task. Selecting Secondary Suite Development previews its current 23-phase version rather than one of the unrelated legacy templates.
 - Applying a selected template is now an explicit **Replace Plan** action. Migration `20240071_replace_project_plan_from_template.sql` atomically replaces both normalized project phases and tasks, preserves the project's existing default assignee/supervisor where available, uses the established six-day workweek scheduler, updates the legacy phase summary and project end date, and records the change in the project activity log.
 - Replacement has a server-side history guard. It refuses to erase a plan once any task has progressed or the project has photos, notes/queries, timer sessions, QC/Aura/completion history, procurement, or inspection records. Merely choosing a template never changes the project, and a clear impact confirmation is required before replacement.
+
+## Secondary Suite task coverage and permit-fee state — September 26, 2026
+
+- The live version 4.0 Secondary Suite Development template contains 23 phases and 59 tasks; every phase has at least one task. Added independently accountable work for permit-fee payment, site protection, fire-separation/draft-stop verification, individual rough-trade approval records, board-type verification, suite-entry fire-door checks, self-closing door tests, smoke/CO life-safety checks, and final deficiency completion.
+- The active 2992 Trombley project was synchronized additively with those nine missing tasks. Existing 50 tasks were preserved. It now has 23 phases and 59 tasks, with all 23 phases covered.
+- `Pay City permit fee` is the current `In Progress` task under `Permit Review & Approval`; the project and phase current-state labels were aligned to that stage.
+- Applying a canonical template now reloads once after the atomic replacement. This prevents the project page from temporarily showing an empty/stale task collection while the database already contains the newly created tasks.

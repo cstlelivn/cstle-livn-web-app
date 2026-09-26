@@ -380,6 +380,11 @@ export default function EditProjectPhasesDialog({
           `Applied "${result.templateName}": ${result.phaseCount} phases and ${result.taskCount} tasks.`,
         );
         onOpenChange(false);
+        // The replacement changes the complete normalized phase/task graph in
+        // one transaction. Reload once so every project view and AppContext
+        // collection immediately reflects the new graph instead of waiting
+        // for a chain of realtime invalidations.
+        window.location.reload();
         return;
       }
 
