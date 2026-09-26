@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, GripVertical, X } from "lucide-react";
+import { Plus, GripVertical } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "./ui/dialog";
 import { Label } from "./ui/label";
 import { Input } from "./ui/input";
@@ -8,13 +8,14 @@ import { Combobox, type ComboboxOption } from "./ui/combobox";
 import { toast } from "sonner";
 import { useApp, type PhaseWithDuration, type Project } from "./AppContext";
 import { 
-  fetchPhaseTemplates, 
   fetchMasterPhases, 
   createMasterPhase,
-  createPhaseTemplate,
-  type PhaseTemplate,
   type MasterPhase
 } from "../src/api/phaseTemplates";
+import {
+  listProjectTemplates,
+  replaceProjectPlanFromTemplate,
+} from "../src/features/projectTemplates/api";
 import svgPaths from "../imports/svg-irwlcgai14";
 import { DndProvider, useDrag, useDrop } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
@@ -147,14 +148,14 @@ export default function EditProjectPhasesDialog({
   const [newPhaseName, setNewPhaseName] = useState("");
   const [newPhaseDays, setNewPhaseDays] = useState("1");
   const [selectedTemplate, setSelectedTemplate] = useState<string>("");
-  const [templates, setTemplates] = useState<PhaseTemplate[]>([]);
-  const [saveAsTemplateName, setSaveAsTemplateName] = useState("");
-  const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [isApplyingTemplate, setIsApplyingTemplate] = useState(false);
   const [masterPhases, setMasterPhases] = useState<MasterPhase[]>([]);
 
   // Load current project phases when dialog opens
   useEffect(() => {
     if (open && project) {
+      setSelectedTemplate("");
       // Load existing phases or start empty
       if (project.phases && project.phases.length > 0) {
         setCustomPhases(project.phases.map(p => ({ name: p.name, days: p.days })));
@@ -164,7 +165,7 @@ export default function EditProjectPhasesDialog({
       
       // Load templates
       const loadTemplates = async () => {
-        const loadedTemplates = await fetchPhaseTemplates();
+        const loadedTemplates = await listProjectTemplates();
         setTemplates(loadedTemplates);
       };
       loadTemplates();
@@ -182,18 +183,19 @@ export default function EditProjectPhasesDialog({
   const handleTemplateSelect = (templateId: string) => {
     setSelectedTemplate(templateId);
     const template = templates.find(t => t.id === templateId);
-    if (template && template.phases) {
-      const copiedPhases = template.phases.map(p => ({
+    if (template && template.phase_templates) {
+      const copiedPhases = template.phase_templates.map((p: any) => ({
         name: p.name,
-        days: p.days
+        days: p.default_duration_days ?? 1
       }));
       setCustomPhases(copiedPhases);
-      toast.success(`Loaded ${copiedPhases.length} phases from "${template.name}"`);
+      toast.success(`Loaded ${copiedPhases.length} phases and their tasks from "${template.name}"`);
     }
   };
 
   // Add individual phase
   const handleAddPhase = () => {
+    setSelectedTemplate("");
     if (!newPhaseName.trim()) {
       toast.error("Phase name cannot be empty");
       return;
@@ -225,6 +227,7 @@ export default function EditProjectPhasesDialog({
 
   // Handle phase selection from combobox - immediately add the phase
   const handlePhaseSelect = (phaseId: string) => {
+    setSelectedTemplate("");
     console.log('🔵 handlePhaseSelect called with phaseId:', phaseId);
     console.log('🔵 masterPhases:', masterPhases);
     
@@ -261,6 +264,7 @@ export default function EditProjectPhasesDialog({
 
   // Handle creating a new phase - create in master list and add to project
   const handleCreateNewPhase = async (phaseName: string) => {
+    setSelectedTemplate("");
     if (!phaseName.trim()) {
       toast.error("Phase name cannot be empty");
       return;
@@ -319,6 +323,7 @@ export default function EditProjectPhasesDialog({
 
   // Remove phase
   const handleRemovePhase = (index: number) => {
+    setSelectedTemplate("");
     const phaseName = customPhases[index].name;
     setCustomPhases(customPhases.filter((_, i) => i !== index));
     toast.success(`Phase "${phaseName}" removed`);
@@ -326,6 +331,7 @@ export default function EditProjectPhasesDialog({
 
   // Move phase via drag and drop
   const handleMovePhase = (fromIndex: number, toIndex: number) => {
+    setSelectedTemplate("");
     const newPhases = [...customPhases];
     const [movedPhase] = newPhases.splice(fromIndex, 1);
     newPhases.splice(toIndex, 0, movedPhase);
@@ -335,33 +341,11 @@ export default function EditProjectPhasesDialog({
 
   // Update phase details
   const handleUpdatePhase = (index: number, name: string, days: number) => {
+    setSelectedTemplate("");
     const newPhases = [...customPhases];
     newPhases[index] = { name, days };
     setCustomPhases(newPhases);
     // DO NOT increment renderKey here - it breaks editing!
-  };
-
-  // Save as new template
-  const handleSaveAsTemplate = async () => {
-    if (!saveAsTemplateName.trim()) {
-      toast.error("Template name is required");
-      return;
-    }
-    
-    try {
-      // Save to database via API
-      await createPhaseTemplate(saveAsTemplateName.trim(), customPhases);
-      
-      // Refresh templates list
-      const updatedTemplates = await fetchPhaseTemplates();
-      setTemplates(updatedTemplates);
-      
-      setSaveAsTemplateName("");
-      setShowSaveTemplate(false);
-      toast.success(`Template "${saveAsTemplateName}" saved!`);
-    } catch (error: any) {
-      toast.error(error.message || "Failed to save template");
-    }
   };
 
   const totalDays = customPhases.reduce((sum, p) => sum + p.days, 0);
@@ -373,6 +357,32 @@ export default function EditProjectPhasesDialog({
     }
 
     try {
+      if (selectedTemplate) {
+        const template = templates.find((item) => item.id === selectedTemplate);
+        const taskCount = (template?.phase_templates ?? []).reduce(
+          (sum: number, phase: any) => sum + (phase.task_templates?.length ?? 0),
+          0,
+        );
+        const confirmed = window.confirm(
+          `Replace the current project plan with "${template?.name}"?\n\n` +
+          `This will replace the existing phases and tasks with ${customPhases.length} phases and ${taskCount} tasks. ` +
+          `The replacement will be blocked if this project already has recorded work, photos, timer history, QC, procurement, or inspections.`,
+        );
+        if (!confirmed) return;
+
+        setIsApplyingTemplate(true);
+        const result = await replaceProjectPlanFromTemplate(
+          String(project.id),
+          selectedTemplate,
+          project.startDate,
+        );
+        toast.success(
+          `Applied "${result.templateName}": ${result.phaseCount} phases and ${result.taskCount} tasks.`,
+        );
+        onOpenChange(false);
+        return;
+      }
+
       console.log('🟢 handleSave - Starting save process');
       console.log('🟢 handleSave - Current phases:', customPhases);
       console.log('🟢 handleSave - Project:', { id: project.id, startDate: project.startDate });
@@ -397,6 +407,8 @@ export default function EditProjectPhasesDialog({
     } catch (error: any) {
       console.error('❌ handleSave - Failed to save project phases:', error);
       toast.error(error.message || "Failed to save project phases");
+    } finally {
+      setIsApplyingTemplate(false);
     }
   };
 
@@ -533,55 +545,17 @@ export default function EditProjectPhasesDialog({
             </div>
           </DndProvider>
 
-          {/* Save As Template */}
-          {showSaveTemplate && (
-            <div className="bg-[#f7f7f7] border border-[#858585] rounded-[8px] p-[16px]">
-              <div className="flex gap-[8px]">
-                <Input
-                  value={saveAsTemplateName}
-                  onChange={(e) => setSaveAsTemplateName(e.target.value)}
-                  placeholder="Template name (e.g., Painting Projects)"
-                  className="flex-1 h-[36px] bg-white border-[#858585] font-['Roboto_Mono'] text-[12px]"
-                />
-                <button
-                  type="button"
-                  onClick={handleSaveAsTemplate}
-                  className="px-[16px] py-[8px] bg-[#748b7b] text-white rounded-[6px] hover:opacity-90 transition-opacity font-['Roboto_Mono'] font-medium text-[12px]"
-                >
-                  Save
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowSaveTemplate(false);
-                    setSaveAsTemplateName("");
-                  }}
-                  className="px-[12px] py-[8px] bg-white border border-[#858585] rounded-[6px] hover:bg-[#f7f7f7] transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          )}
-
           {/* Footer Buttons */}
           <div className="flex gap-[8px] justify-between items-center pt-[17px] border-t border-[#858585]">
             <div className="flex gap-[8px]">
               <button
                 type="button"
-                onClick={() => setShowSaveTemplate(!showSaveTemplate)}
-                disabled={customPhases.length === 0}
-                className="px-[16px] py-[8px] bg-white border border-[#858585] rounded-[6px] hover:bg-[#f7f7f7] transition-colors font-['Roboto_Mono'] font-normal text-[12px] text-[#111111] disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Save As Template
-              </button>
-              <button
-                type="button"
                 onClick={() => {
                   setCustomPhases([]);
+                  setSelectedTemplate("");
                   toast.success("All phases cleared");
                 }}
-                disabled={customPhases.length === 0}
+                disabled={customPhases.length === 0 || isApplyingTemplate}
                 className="px-[16px] py-[8px] bg-white border border-destructive text-destructive rounded-[6px] hover:bg-destructive/10 transition-colors font-['Roboto_Mono'] font-normal text-[12px] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Clear All
@@ -598,10 +572,14 @@ export default function EditProjectPhasesDialog({
               <button
                 type="button"
                 onClick={handleSave}
-                disabled={customPhases.length === 0}
+                disabled={customPhases.length === 0 || isApplyingTemplate}
                 className="flex-1 min-w-[200px] px-[16px] py-[8px] bg-[#748b7b] rounded-[6px] hover:opacity-90 transition-opacity font-['Roboto_Mono'] font-bold text-[12px] text-white disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Save Phases ({totalDays} days)
+                {isApplyingTemplate
+                  ? "Applying Template..."
+                  : selectedTemplate
+                    ? `Replace Plan (${customPhases.length} phases)`
+                    : `Save Phases (${totalDays} days)`}
               </button>
             </div>
           </div>

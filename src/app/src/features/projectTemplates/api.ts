@@ -213,6 +213,30 @@ export async function getProjectTemplate(id: string) {
   };
 }
 
+/**
+ * Atomically replace an untouched project's plan with a canonical project
+ * template. The database RPC refuses projects that already contain work
+ * history, so selecting a template can never silently erase site records.
+ */
+export async function replaceProjectPlanFromTemplate(
+  projectId: string,
+  templateId: string,
+  startDate: string,
+) {
+  const { data, error } = await supabase.rpc('replace_project_plan_from_template', {
+    p_project_id: projectId,
+    p_template_id: templateId,
+    p_start_date: startDate,
+  });
+  failIf(error, 'Failed to replace project plan');
+  return data as {
+    templateName: string;
+    phaseCount: number;
+    taskCount: number;
+    scheduledEndDate: string;
+  };
+}
+
 /** Clone a full template into a project, creating project_phases and tasks */
 export async function applyTemplateToProject(
   projectId: string,
