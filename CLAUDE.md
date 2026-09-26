@@ -3740,3 +3740,10 @@ for the push itself.
 - The active 2992 Trombley project was synchronized additively with those nine missing tasks. Existing 50 tasks were preserved. It now has 23 phases and 59 tasks, with all 23 phases covered.
 - `Pay City permit fee` is the current `In Progress` task under `Permit Review & Approval`; the project and phase current-state labels were aligned to that stage.
 - Applying a canonical template now reloads once after the atomic replacement. This prevents the project page from temporarily showing an empty/stale task collection while the database already contains the newly created tasks.
+
+## Secondary Suite framing and backing field workflow — September 26, 2026
+
+- Version 5.0 expands framing into the actual site sequence: clear/protect the work area; laser-map floor levels; mark and square the complete layout; install pressure-treated floor plates; contain and complete approved self-levelling; build, stand, align and fasten floating-wall sections; frame verified door rough openings; document usability adjustments; and complete floating-wall QC.
+- Post-plumbing/HVAC framing is kept in `Bulkheads, Soffits & Blocking`: frame around the confirmed service routes, add drywall edge support, install fixture/accessory backing from a documented schedule, apply specified acoustic sealant/caulking, photograph concealed backing and obtain supervisor approval before closing walls.
+- Backing defaults are explicitly planning references measured AFF, never code claims: towel bar 42–48 in; toilet-paper holder about 26 in high and 8–12 in forward of the bowl; handrail backing sized for a 34–38 in rail height above the nosing line; TV centred on the approved bracket/screen location (typical 42–48 in screen centre); vanity backing at the actual cleat/mounting location (typical 34–36 in finished top). Drawings, adopted code, accessibility requirements and manufacturer details always override.
+- Additional backing checks cover grab bars, shower doors, mirrors/medicine cabinets, wall-hung fixtures, closet shelving, laundry accessories and other wall-mounted equipment. Kitchen cabinet backing is drawing/system-specific rather than automatic.
