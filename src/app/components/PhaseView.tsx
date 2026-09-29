@@ -3,6 +3,7 @@ import {
   ChevronDown, ChevronRight, Plus, Trash2,
   AlertCircle, Package, ClipboardCheck, Search,
   MoreHorizontal, ArrowUpDown, Calendar, User, GripVertical,
+  Pencil,
 } from "lucide-react";
 import {
   DndContext, DragOverlay, PointerSensor, TouchSensor, KeyboardSensor,
@@ -26,7 +27,7 @@ import { useApp } from "./AppContext";
 import { useAuth } from "./AuthContext";
 import { canEditTask } from "../src/features/tasks/permissions";
 import { reorderPhaseTasks } from "../src/features/tasks/api";
-import { calculateCompletion } from "../src/lib/progress";
+import { derivePhaseState } from "../src/lib/phaseState";
 import { sortTasksByPhase } from "../src/lib/taskOrder";
 import TaskStatusControl from "./TaskStatusControl";
 import { useProjectPhases } from "../src/features/projectPhases/useProjectPhases";
@@ -69,6 +70,7 @@ function statusColor(s: string) {
   switch (s) {
     case "Completed": return "bg-success/10 text-success border-success/20";
     case "In Progress": return "bg-primary/10 text-primary border-primary/20";
+    case "Pending QC": return "bg-warning/10 text-warning border-warning/20";
     case "On Hold": return "bg-warning/10 text-warning border-warning/20";
     case "Blocked": return "bg-destructive/10 text-destructive border-destructive/20";
     default: return "bg-muted/10 text-muted-foreground border-muted/20";
@@ -120,6 +122,8 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
 
   // Dialogs
   const [addPhaseOpen, setAddPhaseOpen] = useState(false);
+  const [editPhase, setEditPhase] = useState<any | null>(null);
+  const [editPhaseForm, setEditPhaseForm] = useState({ name: "", description: "", start_date: "", end_date: "", qc_required: true });
   const [deletePhaseId, setDeletePhaseId] = useState<string | null>(null);
   const [qcSubmitPhaseId, setQcSubmitPhaseId] = useState<string | null>(null);
   const [qcReviewPhaseId, setQcReviewPhaseId] = useState<string | null>(null);
@@ -220,9 +224,41 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
     }
   };
 
+  const openEditPhase = (phase: any) => {
+    setEditPhase(phase);
+    setEditPhaseForm({
+      name: phase.name ?? "",
+      description: phase.description ?? "",
+      start_date: phase.start_date ? String(phase.start_date).slice(0, 10) : "",
+      end_date: phase.end_date ? String(phase.end_date).slice(0, 10) : "",
+      qc_required: phase.qc_required !== false,
+    });
+  };
+
+  const handleEditPhase = async () => {
+    if (!editPhase) return;
+    if (!editPhaseForm.name.trim()) { toast.error("Phase name is required"); return; }
+    if (editPhaseForm.start_date && editPhaseForm.end_date && editPhaseForm.start_date > editPhaseForm.end_date) {
+      toast.error("End date must be on or after the start date"); return;
+    }
+    setSaving(true);
+    try {
+      await updatePhase(editPhase.id, {
+        name: editPhaseForm.name.trim(), description: editPhaseForm.description,
+        start_date: editPhaseForm.start_date || null, end_date: editPhaseForm.end_date || null,
+        qc_required: editPhaseForm.qc_required,
+      });
+      setEditPhase(null);
+      toast.success("Phase schedule updated — project status refreshed");
+      refresh();
+    } catch (error: any) { toast.error(error.message || "Failed to update phase"); }
+    finally { setSaving(false); }
+  };
+
   const handleSubmitQC = async (phaseId: string) => {
     if (!currentUser) return;
-    const readiness = qcReadiness[phaseId];
+    const readiness = await checkPhaseQCReadiness(phaseId).catch(() => qcReadiness[phaseId]);
+    if (readiness) setQcReadiness(prev => ({ ...prev, [phaseId]: readiness }));
     if (readiness && !readiness.ready) {
       toast.error("Phase is not ready for QC: " + readiness.blockers.join(", "));
       return;
@@ -510,12 +546,10 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
       {visiblePhases.map((phase: any, idx: number) => {
         const phaseTasks = phaseTaskLists.get(phase.id) ?? [];
         const phaseTaskGroups = phaseGroups.get(phase.id) ?? new Map<string, string[]>();
+        const liveState = derivePhaseState(phase, phaseTasks);
         const requiredTasks = phaseTasks.filter((t: any) => t.is_required !== false);
         const completedRequired = requiredTasks.filter((t: any) => t.status === "Completed");
-        // Live from phaseTasks, not the phase.progress DB column -- that
-        // column is only ever written by an explicit recalculate call, so it
-        // goes stale the moment a task's status changes without one.
-        const phaseProgress = calculateCompletion(phaseTasks).percent;
+        const phaseProgress = liveState.progress;
         const isExpanded = expandedPhases.has(phase.id);
         const procurement = phaseProcurement[phase.id] ?? [];
         const qc = phaseQC[phase.id];
@@ -563,8 +597,8 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
                   <h4 className="font-['Roboto_Mono'] font-bold text-[12px] text-foreground">
                     {phase.name}
                   </h4>
-                  <span className={`px-[8px] py-[2px] rounded-full text-[9px] font-['Roboto_Mono'] border ${statusColor(phase.status)}`}>
-                    {phase.status}
+                  <span className={`px-[8px] py-[2px] rounded-full text-[9px] font-['Roboto_Mono'] border ${statusColor(liveState.status)}`}>
+                    {liveState.status}
                   </span>
                   <span className={`px-[8px] py-[2px] rounded-full text-[9px] font-['Roboto_Mono'] border ${qcColor(phase.qc_status ?? 'Not Started')}`}>
                     QC: {phase.qc_status ?? 'Not Started'}
@@ -602,6 +636,9 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
 
                 {canEditPhases && (
                 <div className="flex items-center gap-[4px]" onClick={e => e.stopPropagation()}>
+                  <button onClick={() => openEditPhase(phase)} className="p-[6px] hover:bg-accent/10 rounded-[4px] transition-colors" title="Edit phase and schedule">
+                    <Pencil className="w-3 h-3 text-muted-foreground" />
+                  </button>
                   <button
                     onClick={() => setDeletePhaseId(phase.id)}
                     className="p-[6px] hover:bg-destructive/10 rounded-[4px] transition-colors"
@@ -745,10 +782,10 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
                       {phase.qc_status ?? 'Not Started'}
                     </span>
 
-                    {readiness && !readiness.ready && (
+                    {liveState.incompleteRequiredCount > 0 && (
                       <div className="flex items-center gap-[6px] text-[10px] text-muted-foreground">
                         <AlertCircle className="w-3 h-3 text-warning" />
-                        {readiness.blockers.join(" · ")}
+                        {liveState.incompleteRequiredCount} required task(s) not completed
                       </div>
                     )}
 
@@ -856,6 +893,24 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
               {saving ? "Adding…" : "Add Phase"}
             </button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Phase Confirm */}
+      <Dialog open={!!editPhase} onOpenChange={(open) => { if (!open) setEditPhase(null); }}>
+        <DialogContent className="max-w-[520px]">
+          <DialogHeader><DialogTitle className="font-['Roboto_Mono'] font-bold text-[13px]">Edit Phase</DialogTitle><DialogDescription className="font-['Roboto_Mono'] text-[10px]">Edit the same schedule used by List and Gantt views.</DialogDescription></DialogHeader>
+          <div className="space-y-[12px]">
+            <div><Label className="font-['Roboto_Mono'] text-[11px]">Phase Name</Label><Input value={editPhaseForm.name} onChange={(e) => setEditPhaseForm((form) => ({ ...form, name: e.target.value }))} className="mt-[4px] text-[11px]" /></div>
+            <div><Label className="font-['Roboto_Mono'] text-[11px]">Description</Label><Textarea value={editPhaseForm.description} onChange={(e) => setEditPhaseForm((form) => ({ ...form, description: e.target.value }))} rows={2} className="mt-[4px] text-[11px]" /></div>
+            <div className="grid grid-cols-2 gap-[10px]">
+              <div><Label className="font-['Roboto_Mono'] text-[11px]">Start Date</Label><Input type="date" value={editPhaseForm.start_date} onChange={(e) => setEditPhaseForm((form) => ({ ...form, start_date: e.target.value }))} className="mt-[4px] text-[11px]" /></div>
+              <div><Label className="font-['Roboto_Mono'] text-[11px]">Due / End Date</Label><Input type="date" value={editPhaseForm.end_date} onChange={(e) => setEditPhaseForm((form) => ({ ...form, end_date: e.target.value }))} className="mt-[4px] text-[11px]" /></div>
+            </div>
+            <div className="rounded-[6px] border border-border bg-secondary/30 px-[10px] py-[8px] font-['Roboto_Mono'] text-[9px] text-muted-foreground">Duration: {editPhaseForm.start_date && editPhaseForm.end_date && editPhaseForm.start_date <= editPhaseForm.end_date ? `${Math.floor((new Date(`${editPhaseForm.end_date}T00:00:00Z`).getTime() - new Date(`${editPhaseForm.start_date}T00:00:00Z`).getTime()) / 86400000) + 1} calendar day(s)` : "Set both dates"}</div>
+            <label className="flex items-center gap-[8px] font-['Roboto_Mono'] text-[10px]"><input type="checkbox" checked={editPhaseForm.qc_required} onChange={(e) => setEditPhaseForm((form) => ({ ...form, qc_required: e.target.checked }))} />This phase requires QC approval</label>
+          </div>
+          <DialogFooter><button onClick={() => setEditPhase(null)} className="px-[14px] py-[7px] border border-border rounded-[6px] text-[11px]">Cancel</button><button onClick={handleEditPhase} disabled={saving} className="px-[14px] py-[7px] bg-accent text-accent-foreground rounded-[6px] text-[11px] disabled:opacity-50">{saving ? "Saving…" : "Save Phase"}</button></DialogFooter>
         </DialogContent>
       </Dialog>
 

@@ -194,6 +194,10 @@ export default function TaskDialog({
       toast.error("Choose a project before creating the task");
       return;
     }
+    if (formData.startDate && formData.dueDate && formData.startDate > formData.dueDate) {
+      toast.error("End date must be on or after the start date");
+      return;
+    }
     if (project?.status === "Completed" && !isWarranty) {
       toast.error("This project is closed. New tasks cannot be added or changed.");
       return;
@@ -248,7 +252,7 @@ export default function TaskDialog({
         const removed = currentAssigneeIds.map(String).filter((id) => !selectedAssigneeIds.includes(id));
         for (const memberId of added) await assignTaskMember(String(task.id), memberId);
         for (const memberId of removed) await unassignTaskMember(String(task.id), memberId);
-        toast.success("Task updated successfully");
+        toast.success("Task updated — phase and project status refreshed");
       } else {
         // A brand-new task needs an initial assignee_id to seed the column
         // (and addTask's "every task must have an assignee" default) --
@@ -657,7 +661,7 @@ export default function TaskDialog({
             <label className="flex items-center gap-3 rounded-[8px] border border-border px-3 py-3 mt-[18px] font-['Roboto_Mono'] text-[10px]"><input type="checkbox" checked={formData.photosNotRequired} onChange={(event) => setFormData({ ...formData, photosNotRequired: event.target.checked })} />Photos are not required for this task</label>
           </div>
 
-          {/* Assignees (multi-person) and Due Date */}
+          {/* Assignees and schedule */}
           <div className="grid grid-cols-2 gap-[16px]">
             <div>
               <Label className="text-[10px] flex items-center gap-[4px]">
@@ -702,18 +706,29 @@ export default function TaskDialog({
               )}
             </div>
 
-            <div>
-              <Label htmlFor="dueDate" className="text-[10px] flex items-center gap-[4px]">
+            <div className="space-y-[12px]">
+              <div>
+              <Label htmlFor="startDate" className="text-[10px] flex items-center gap-[4px]">
                 <CalendarIcon className="w-3 h-3" />
-                Due Date
+                Start Date
               </Label>
               <Input
-                id="dueDate"
+                id="startDate"
                 type="date"
-                value={formData.dueDate}
-                onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+                value={formData.startDate}
+                onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
                 className="mt-[8px] text-[10px]"
               />
+              </div>
+              <div>
+                <Label htmlFor="dueDate" className="text-[10px] flex items-center gap-[4px]"><CalendarIcon className="w-3 h-3" />Due / End Date</Label>
+                <Input id="dueDate" type="date" value={formData.dueDate} onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })} className="mt-[8px] text-[10px]" />
+              </div>
+              <div className="rounded-[6px] border border-border bg-secondary/30 px-[10px] py-[8px] font-['Roboto_Mono'] text-[9px] text-muted-foreground">
+                Duration: {formData.startDate && formData.dueDate && formData.startDate <= formData.dueDate
+                  ? `${Math.floor((new Date(`${formData.dueDate}T00:00:00Z`).getTime() - new Date(`${formData.startDate}T00:00:00Z`).getTime()) / 86400000) + 1} calendar day(s)`
+                  : "Set both dates"}
+              </div>
 
               <Label htmlFor="estimatedHours" className="text-[10px] flex items-center gap-[4px] mt-[16px]">
                 Estimated Hours

@@ -3,6 +3,7 @@ import {
   AlertCircle, Clock, CheckCircle2, Package, ClipboardCheck,
   TrendingUp, Users, Calendar,
 } from "lucide-react";
+import { deriveProjectPhaseSequence } from "../src/lib/phaseState";
 
 interface Task {
   id: number;
@@ -12,6 +13,7 @@ interface Task {
   assignee?: string;
   phase?: string;
   phase_id?: string;
+  is_required?: boolean;
   blocked_by?: string;
 }
 
@@ -20,6 +22,9 @@ interface Phase {
   name: string;
   status: string;
   qc_status: string;
+  qc_required?: boolean;
+  position?: number;
+  last_recalculated_at?: string;
 }
 
 interface ProjectHealthSummaryProps {
@@ -56,15 +61,11 @@ export default function ProjectHealthSummary({ tasks, phases, projectEndDate }: 
     const unassigned = tasks.filter(t =>
       t.status !== "Completed" && (!t.assignee || t.assignee === "")
     );
-    const pendingQC = phases.filter(p =>
-      p.qc_status === "Ready for Review" || p.qc_status === "Under Review"
-    );
+    const sequence = deriveProjectPhaseSequence(phases, tasks);
+    const pendingQC = sequence.states.filter(({ state }) => state.status === "Pending QC").map(({ phase }) => phase);
     const rejectedQC = phases.filter(p => p.qc_status === "Rejected");
-    const currentPhase = phases.find(p => p.status === "In Progress") ??
-      phases.find(p => p.status !== "Completed");
-    const nextPhase = currentPhase
-      ? phases.find((p, i) => i > phases.indexOf(currentPhase!) && p.status !== "Completed")
-      : null;
+    const currentPhase = sequence.current?.phase ?? null;
+    const nextPhase = sequence.next?.phase ?? null;
 
     return { overdue, dueToday, dueThisWeek, blocked, unassigned, pendingQC, rejectedQC, currentPhase, nextPhase };
   }, [tasks, phases, today, endOfWeek]);
@@ -82,6 +83,11 @@ export default function ProjectHealthSummary({ tasks, phases, projectEndDate }: 
         {hasIssues && (
           <span className="ml-auto px-[8px] py-[2px] bg-destructive/10 text-destructive rounded-full font-['Roboto_Mono'] text-[9px] font-bold">
             Action Required
+          </span>
+        )}
+        {phases.some((phase) => phase.last_recalculated_at) && (
+          <span className="ml-auto font-['Roboto_Mono'] text-[9px] text-muted-foreground">
+            Current as of {new Date(Math.max(...phases.filter((phase) => phase.last_recalculated_at).map((phase) => new Date(phase.last_recalculated_at!).getTime()))).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
           </span>
         )}
       </div>

@@ -21,6 +21,7 @@ export interface ProjectPhaseInput {
   end_date?: string;
   phase_template_id?: string;
   phase_lead_id?: string;
+  qc_required?: boolean;
 }
 
 export interface ProjectPhaseUpdate {
@@ -33,6 +34,8 @@ export interface ProjectPhaseUpdate {
   progress?: number;
   qc_status?: string;
   phase_lead_id?: string | null;
+  qc_required?: boolean;
+  last_recalculated_at?: string;
 }
 
 export async function listProjectPhases(projectId: string) {
@@ -88,6 +91,11 @@ export async function updateProjectPhase(id: string, updates: ProjectPhaseUpdate
     .select()
     .single();
   failIf(error, 'Failed to update project phase');
+  if (updates.qc_required !== undefined) {
+    const { data: recalculated, error: recalcError } = await supabase.rpc('recalculate_phase_state', { p_phase_id: id });
+    failIf(recalcError, 'Failed to refresh phase state');
+    return recalculated;
+  }
   return data;
 }
 
@@ -107,19 +115,9 @@ export async function reorderProjectPhases(projectId: string, orderedIds: string
 
 /** Recalculate phase progress from its tasks and persist */
 export async function recalculatePhaseProgress(phaseId: string) {
-  const { data: tasks } = await supabase
-    .from('tasks')
-    .select('progress, status')
-    .eq('phase_id', phaseId);
-
-  if (!tasks || tasks.length === 0) {
-    await supabase.from('project_phases').update({ progress: 0, updated_at: now() }).eq('id', phaseId);
-    return 0;
-  }
-  const total = tasks.reduce((s: number, t: any) => s + (t.progress ?? 0), 0);
-  const progress = Math.round(total / tasks.length);
-  await supabase.from('project_phases').update({ progress, updated_at: now() }).eq('id', phaseId);
-  return progress;
+  const { data, error } = await supabase.rpc('recalculate_phase_state', { p_phase_id: phaseId });
+  failIf(error, 'Failed to recalculate phase');
+  return data?.progress ?? 0;
 }
 
 /** Clone a phase template into a real project phase */

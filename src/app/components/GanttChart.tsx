@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import { Edit2, Trash2, Plus, GripHorizontal, ChevronLeft, ChevronRight, Maximize2, Minimize2 } from "lucide-react";
 import {
   DndContext,
@@ -23,6 +23,8 @@ import { formatDate as formatCalendarDate } from "../src/lib/dates";
 import { isWorkingDay } from "../src/lib/workDays";
 import { useProjectPhases } from "../src/features/projectPhases/useProjectPhases";
 import { buildPhasePositionMap } from "../src/lib/taskOrder";
+import { derivePhaseState } from "../src/lib/phaseState";
+import { listParallelRelationships } from "../src/features/taskPlanning/api";
 
 interface GanttChartProps {
   projectId: number | string;
@@ -121,6 +123,7 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks", onEditP
   const [newTaskDate, setNewTaskDate] = useState<string | null>(null);
   const [labelWidth, setLabelWidth] = useState(240);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [parallelRelationships, setParallelRelationships] = useState<any[]>([]);
   const timelineRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const labelResizeRef = useRef<{ startX: number; startWidth: number } | null>(null);
@@ -170,6 +173,12 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks", onEditP
     teamMembers,
     projectSupervisorId: (project as any)?.supervisorId,
   });
+
+  useEffect(() => {
+    listParallelRelationships(String(projectId)).then(setParallelRelationships).catch(() => setParallelRelationships([]));
+  }, [projectId]);
+
+  const parallelForTask = (taskId: string | number) => parallelRelationships.filter((row) => String(row.task_id) === String(taskId) || String(row.related_task_id) === String(taskId));
 
   // A task's "start" is its own start_date when the template/schedule set one;
   // fall back to its due date (a single-day bar) rather than createdAt.
@@ -437,7 +446,10 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks", onEditP
     }
   };
 
-  const getStatusColor = (status: Task["status"]) => {
+  const getStatusColor = (task: TaskWithDates) => {
+    const overdue = task.status !== "Completed" && task.dueDate && task.dueDate < todayStr;
+    if ((task as any).blocked_by || overdue) return "bg-destructive";
+    const status = task.status;
     switch (status) {
       case "Completed":
         return "bg-success";
@@ -448,7 +460,7 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks", onEditP
       case "Pending QC":
         return "bg-accent";
       default:
-        return "bg-muted";
+        return "bg-slate-600";
     }
   };
 
@@ -458,8 +470,10 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks", onEditP
         return "bg-success";
       case "In Progress":
         return "bg-primary";
+      case "Pending QC":
+        return "bg-warning";
       default:
-        return "bg-muted";
+        return "bg-slate-600";
     }
   };
 
@@ -664,6 +678,7 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks", onEditP
             {groupBy === "phases" ? (
               <div className="divide-y divide-border/50">
                 {(phases ?? []).map((phase: any) => {
+                  const livePhaseState = derivePhaseState(phase, tasks.filter((task) => String(task.phase_id) === String(phase.id)));
                   const start = phaseStart(phase);
                   const end = phase.end_date || phase.start_date;
                   const position = getBarPosition(start, end);
@@ -693,11 +708,11 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks", onEditP
                             disabled={!canReschedule}
                             onClick={onEditPhase ? () => onEditPhase(phase) : undefined}
                             className={`absolute inset-0 rounded flex items-center px-[8px] gap-[4px] shadow-sm ${getPhaseStatusColor(
-                              phase.status
+                              livePhaseState.status
                             )} border-2 border-muted-foreground ${canReschedule ? "cursor-move" : "cursor-not-allowed"} ${onEditPhase ? "hover:opacity-90" : ""}`}
                           >
                             <GripHorizontal className="w-3 h-3 text-white/70 shrink-0" />
-                            <span className="text-white small-text truncate flex-1">{phase.name}</span>
+                            <span className="text-white small-text truncate flex-1">{phase.name}</span><span className="rounded bg-black/20 px-1 text-[8px] text-white">{livePhaseState.status}</span>
                           </DraggableHandle>
                           {canReschedule && (
                             <DraggableHandle
@@ -747,6 +762,7 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks", onEditP
                         const position = getBarPosition(taskStart(task), task.dueDate);
                         const canEdit = canEditThisTask(task);
                         const canDrag = canReschedule;
+                        const parallel = parallelForTask(task.id);
 
                         return (
                           <div key={task.id} className="flex hover:bg-secondary/20 transition-colors group">
@@ -756,6 +772,7 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks", onEditP
                                 {assignee && (
                                   <div className="text-muted-foreground small-text truncate">{assignee.name}</div>
                                 )}
+                                {parallel.length > 0 && <div className="truncate text-[8px] text-accent">Parallel: {parallel[0].group_label || parallel[0].relationship_type}</div>}
                               </div>
                               <div className="flex gap-[4px] opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                                 <button onClick={() => handleEditTask(task)} className="p-[4px] hover:bg-secondary rounded" title="Edit task">
@@ -798,12 +815,10 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks", onEditP
                                       data={{ kind: "move", rowId: String(task.id), rowType: "task" }}
                                       disabled={!canDrag}
                                       onClick={() => handleEditTask(task)}
-                                      className={`absolute inset-0 rounded flex items-center px-[8px] gap-[4px] hover:opacity-90 transition-opacity shadow-sm ${getStatusColor(
-                                        task.status
-                                      )} ${getPriorityColor(task.priority)} border-2 ${canDrag ? "cursor-move" : "cursor-not-allowed"}`}
+                                      className={`absolute inset-0 rounded flex items-center px-[8px] gap-[4px] hover:opacity-90 transition-opacity shadow-sm ${getStatusColor(task)} ${getPriorityColor(task.priority)} border-2 ${parallel.length ? "ring-2 ring-cyan-300 ring-offset-1" : ""} ${canDrag ? "cursor-move" : "cursor-not-allowed"}`}
                                     >
                                       <GripHorizontal className="w-3 h-3 text-white/70 shrink-0" />
-                                      <span className="text-white small-text truncate flex-1">{task.title}</span>
+                                      <span className="text-white small-text truncate flex-1">{task.title}</span><span className="rounded bg-black/20 px-1 text-[8px] text-white">{task.status}</span>
                                     </DraggableHandle>
                                     {canDrag && (
                                       <DraggableHandle

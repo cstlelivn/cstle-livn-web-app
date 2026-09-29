@@ -3748,3 +3748,11 @@ for the push itself.
 - Backing defaults are explicitly planning references measured AFF, never code claims: towel bar 42–48 in; toilet-paper holder about 26 in high and 8–12 in forward of the bowl; handrail backing sized for a 34–38 in rail height above the nosing line; TV centred on the approved bracket/screen location (typical 42–48 in screen centre); vanity backing at the actual cleat/mounting location (typical 34–36 in finished top). Drawings, adopted code, accessibility requirements and manufacturer details always override.
 - Additional backing checks cover grab bars, shower doors, mirrors/medicine cabinets, wall-hung fixtures, closet shelving, laundry accessories and other wall-mounted equipment. Kitchen cabinet backing is drawing/system-specific rather than automatic.
 - TV backing uses a 54–60 in AFF screen-centre company default for the common 55–75 in television range. The confirmed client layout, furniture, television dimensions and actual VESA bracket still determine the final backing location.
+# Phase status, scheduling, and Gantt source of truth (2026-09-29)
+
+- Phase progress, status, QC readiness counts, Project Health, Current Phase, and Next Phase must all use required tasks only (`is_required IS DISTINCT FROM false`). The shared UI rules live in `src/app/src/lib/phaseState.ts`; the matching persisted rules live in `public.recalculate_phase_state()` from migration `20240075_phase_state_and_parallel_work.sql`.
+- Task writes and phase-QC writes trigger immediate phase/project recalculation. Do not restore manual phase-status writes or calculate phase progress from the task `progress` column.
+- Phase states are: Not Started, In Progress, Pending QC, Completed. Completed requires all required tasks complete plus phase QC approval, unless `project_phases.qc_required=false`.
+- Task and phase schedule dates are editable in their List-view dialogs. Gantt dragging updates those same `start_date`/`due_date` or `start_date`/`end_date` fields.
+- True blocking predecessors remain in `task_dependencies`. Non-blocking timing relationships use `task_parallel_relationships` with Starts with, Runs concurrently with, or Parallel work group. Never treat these relationships as blockers.
+- Phase rows expose `last_recalculated_at` so Project Health can visibly confirm that the display is current.

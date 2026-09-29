@@ -56,3 +56,18 @@ export async function addTaskDependency(taskId:string,dependsOnTaskId:string) {
 export async function removeTaskDependency(taskId:string,dependsOnTaskId:string) {
   const {error}=await supabase.from('task_dependencies').delete().eq('task_id',taskId).eq('depends_on_task_id',dependsOnTaskId); failIf(error,'Failed to remove dependency');
 }
+
+export async function listParallelRelationships(projectId:string) {
+  const {data,error}=await supabase.from('task_parallel_relationships').select('*').eq('project_id',projectId).order('created_at');
+  failIf(error,'Failed to load related work'); return data??[];
+}
+
+export async function addParallelRelationship(input:{project_id:string;task_id:string;related_task_id:string;relationship_type:'Starts with'|'Runs concurrently with'|'Parallel work group';group_label?:string|null}) {
+  const {data,error}=await supabase.from('task_parallel_relationships').insert(input).select().single();
+  failIf(error,'Failed to add related work'); return data;
+}
+
+export async function removeParallelRelationship(id:string) {
+  const {error}=await supabase.from('task_parallel_relationships').delete().eq('id',id);
+  failIf(error,'Failed to remove related work');
+}

@@ -30,7 +30,7 @@ import {
   List,
   Grid3x3,
   Kanban,
-  BarChart2
+  ChartNoAxesGantt
   ,FolderOpen
   ,ScrollText
   ,Loader2
@@ -1197,7 +1197,7 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              <BarChart2 className="w-4 h-4" />
+              <ChartNoAxesGantt className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -1311,7 +1311,7 @@ export default function ProjectDetails({ projectId, onBack }: ProjectDetailsProp
                 }`}
                 title="Gantt view"
               >
-                <BarChart2 className="w-4 h-4" />
+                <ChartNoAxesGantt className="w-4 h-4" />
               </button>
             </div>
             <button
