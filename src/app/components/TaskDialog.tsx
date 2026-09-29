@@ -717,18 +717,24 @@ export default function TaskDialog({
                 type="date"
                 value={formData.startDate}
                 onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                disabled={!canManageAssignments}
                 className="mt-[8px] text-[10px]"
               />
               </div>
               <div>
                 <Label htmlFor="dueDate" className="text-[10px] flex items-center gap-[4px]"><CalendarIcon className="w-3 h-3" />Due / End Date</Label>
-                <Input id="dueDate" type="date" value={formData.dueDate} onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })} className="mt-[8px] text-[10px]" />
+                <Input id="dueDate" type="date" value={formData.dueDate} onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })} disabled={!canManageAssignments} className="mt-[8px] text-[10px]" />
               </div>
               <div className="rounded-[6px] border border-border bg-secondary/30 px-[10px] py-[8px] font-['Roboto_Mono'] text-[9px] text-muted-foreground">
                 Duration: {formData.startDate && formData.dueDate && formData.startDate <= formData.dueDate
                   ? `${Math.floor((new Date(`${formData.dueDate}T00:00:00Z`).getTime() - new Date(`${formData.startDate}T00:00:00Z`).getTime()) / 86400000) + 1} calendar day(s)`
                   : "Set both dates"}
               </div>
+              {mode === "edit" && task?.dueDate && formData.dueDate && String(task.dueDate).slice(0, 10) !== formData.dueDate && (
+                <div className="rounded-[6px] border border-warning/30 bg-warning/10 px-[10px] py-[8px] font-['Roboto_Mono'] text-[9px] text-warning">
+                  Remaining project schedule will shift by {Math.round((new Date(`${formData.dueDate}T00:00:00Z`).getTime() - new Date(`${String(task.dueDate).slice(0, 10)}T00:00:00Z`).getTime()) / 86400000)} day(s), including later tasks, phases, and the project end date.
+                </div>
+              )}
 
               <Label htmlFor="estimatedHours" className="text-[10px] flex items-center gap-[4px] mt-[16px]">
                 Estimated Hours

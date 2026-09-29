@@ -385,7 +385,7 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks", onEditP
           const shift = daysBetween(due, newDue);
           const newStart = addDays(start, shift);
           await updateTask(t.id, { start_date: newStart, dueDate: newDue } as Partial<Task>);
-          toast.success(`Task rescheduled to ${formatCalendarDate(newStart)}`);
+          toast.success(`Task rescheduled; remaining project shifted by ${shift} day(s)`);
         } else if (data.kind === "resize-left") {
           // due is inclusive now, so start === due (a 1-day task) is valid;
           // only start landing AFTER due needs clamping.
@@ -399,7 +399,7 @@ export default function GanttChart({ projectId, groupBy = "phase-tasks", onEditP
           if (daysBetween(start, newDue) < 0) newDue = start;
           newDue = resolveEndDate(newDue);
           await updateTask(t.id, { dueDate: newDue });
-          toast.success(`Task now due ${formatCalendarDate(newDue)}`);
+          toast.success(`Task now due ${formatCalendarDate(newDue)}; remaining project shifted by ${daysBetween(due, newDue)} day(s)`);
           offerSaveDurationToTemplate(t as any, daysBetween(start, newDue) + 1);
         }
       } catch {
