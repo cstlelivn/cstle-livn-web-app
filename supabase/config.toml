@@ -2,3 +2,6 @@ project_id = "cstle-livn-web-app"
 
 [functions.make-server-bcab437c]
 verify_jwt = true
+
+[functions.quote-public]
+verify_jwt = false

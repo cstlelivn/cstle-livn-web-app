@@ -134,6 +134,43 @@ export async function savePaintingCalculation(estimateId:string,painting:any,fin
   if(financials){ const {error:financialError}=await supabase.from('painting_estimate_financials').upsert({estimate_id:estimateId,...financials},{onConflict:'estimate_id'}); failIf(financialError,'Failed to save internal profitability'); }
 }
 
+// ---------------------------------------------------------------------------
+// Master quote builder. Customer-safe line items and private costs live in
+// separate tables; quoteBuilderState returns costs only to Super Admins.
+// ---------------------------------------------------------------------------
+export async function getQuoteBuilderState(estimateId:string):Promise<any>{
+  const {data,error}=await supabase.rpc('quote_builder_state',{p_estimate_id:estimateId});
+  failIf(error,'Failed to load quote builder'); return data||{profiles:[],sections:[],costs:{}};
+}
+export async function saveQuoteSettings(estimateId:string,settings:any):Promise<void>{
+  const {error}=await supabase.from('estimate_quote_settings').upsert({estimate_id:estimateId,...settings},{onConflict:'estimate_id'});
+  failIf(error,'Failed to save quote settings');
+}
+export async function createEstimateSection(estimateId:string,input:any):Promise<any>{
+  const {data,error}=await supabase.from('estimate_sections').insert({estimate_id:estimateId,...input}).select().single();
+  failIf(error,'Failed to add estimate section'); return data;
+}
+export async function updateEstimateSection(id:string,input:any):Promise<void>{const {error}=await supabase.from('estimate_sections').update(input).eq('id',id);failIf(error,'Failed to update estimate section');}
+export async function deleteEstimateSection(id:string):Promise<void>{const {error}=await supabase.from('estimate_sections').delete().eq('id',id);failIf(error,'Failed to delete estimate section');}
+export async function createEstimateLineItem(estimateId:string,sectionId:string,input:any,costs?:any):Promise<any>{
+  const {data,error}=await supabase.from('estimate_line_items').insert({estimate_id:estimateId,section_id:sectionId,...input}).select().single();
+  failIf(error,'Failed to add line item'); if(costs){const {error:costError}=await supabase.from('estimate_line_item_costs').insert({line_item_id:data.id,...costs});failIf(costError,'Failed to save line-item costs');} return data;
+}
+export async function updateEstimateLineItem(id:string,input:any,costs?:any):Promise<void>{
+  const {error}=await supabase.from('estimate_line_items').update(input).eq('id',id);failIf(error,'Failed to update line item');
+  if(costs){const {error:costError}=await supabase.from('estimate_line_item_costs').upsert({line_item_id:id,...costs},{onConflict:'line_item_id'});failIf(costError,'Failed to update line-item costs');}
+}
+export async function deleteEstimateLineItem(id:string):Promise<void>{const {error}=await supabase.from('estimate_line_items').delete().eq('id',id);failIf(error,'Failed to delete line item');}
+export async function seedPaintingQuote(estimateId:string):Promise<void>{
+  const {error}=await supabase.rpc('seed_painting_quote',{p_estimate_id:estimateId});failIf(error,'Failed to add painting to quote');
+}
+export async function createQuoteRevision(estimateId:string,changeReason?:string):Promise<any>{
+  const {data,error}=await supabase.rpc('create_quote_revision',{p_estimate_id:estimateId,p_change_reason:changeReason||null});failIf(error,'Quote is not ready to send');return data;
+}
+export async function sendQuoteRevision(revisionId:string):Promise<any>{
+  return apiCall('/estimating/send-quote',{method:'POST',requiresAuth:true,body:{revisionId}});
+}
+
 /**
  * Permanently remove an estimate. The UI exposes this only to Super Admins and
  * requires typed confirmation. R2 objects are removed before the database row
@@ -424,7 +461,8 @@ export async function recordApproval(input: { estimate_id: string; selected_tier
 }
 
 export async function convertEstimateToProject(estimateId: string): Promise<string> {
-  const { data, error } = await supabase.rpc('convert_estimate_to_project', { p_estimate_id: estimateId });
+  const { data: accepted } = await supabase.from('estimate_revisions').select('id').eq('estimate_id', estimateId).eq('status', 'accepted').limit(1).maybeSingle();
+  const { data, error } = await supabase.rpc(accepted ? 'convert_accepted_quote_to_project' : 'convert_estimate_to_project', { p_estimate_id: estimateId });
   failIf(error, 'Failed to convert estimate to a project');
   return data as string;
 }
