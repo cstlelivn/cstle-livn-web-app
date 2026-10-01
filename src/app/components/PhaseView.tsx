@@ -285,8 +285,11 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
 
   const handleReviewQC = async (phaseId: string) => {
     if (!currentUser) return;
-    const qcRecord = phaseQC[phaseId];
-    if (!qcRecord) return;
+    const qcRecord = phaseQC[phaseId] ?? await getPhaseQCRecord(phaseId).catch(() => null);
+    if (!qcRecord) {
+      toast.error("This phase has no QC review record yet. Refresh the phase and try again.");
+      return;
+    }
     setSaving(true);
     try {
       await reviewPhaseQC(qcRecord.id, phaseId, {
@@ -816,7 +819,7 @@ export default function PhaseView({ projectId }: PhaseViewProps) {
                         onClick={() => openNotifyModal(phase.id)}
                         className="px-[10px] py-[4px] border border-border rounded-[6px] font-['Roboto_Mono'] text-[10px] hover:bg-accent/10"
                       >
-                        Notify Owner/Client
+                        Send Customer Report
                       </button>
                     )}
 
