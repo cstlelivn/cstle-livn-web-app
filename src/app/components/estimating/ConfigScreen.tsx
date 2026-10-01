@@ -7,12 +7,13 @@ import {
   listAssembliesFull, createAssembly, updateAssembly, deleteAssembly,
 } from "../../src/features/estimating/api";
 import type { MarginTier } from "../../src/features/estimating/pricingEngine";
+import { PaintingRateCardEditor } from "./screens/PaintingEstimatorScreen";
 
 const dollars = (cents: number) => (cents / 100).toFixed(2);
 const toCents = (dollarStr: string) => Math.round((parseFloat(dollarStr) || 0) * 100);
 
 export default function ConfigScreen() {
-  const [tab, setTab] = useState<"tiers" | "ratecard">("tiers");
+  const [tab, setTab] = useState<"tiers" | "ratecard" | "painting">("tiers");
   const [tiers, setTiers] = useState<MarginTier[]>([]);
   const [rateCard, setRateCard] = useState<any>(null);
   const [assemblies, setAssemblies] = useState<any[]>([]);
@@ -89,9 +90,10 @@ export default function ConfigScreen() {
       <div className="flex gap-[6px]">
         <button onClick={() => setTab("tiers")} className={`px-[12px] py-[6px] rounded-[6px] border font-['Roboto_Mono'] text-[11px] ${tab === "tiers" ? "border-accent text-accent bg-accent/10" : "border-border text-muted-foreground"}`}>Margin Tiers</button>
         <button onClick={() => setTab("ratecard")} className={`px-[12px] py-[6px] rounded-[6px] border font-['Roboto_Mono'] text-[11px] ${tab === "ratecard" ? "border-accent text-accent bg-accent/10" : "border-border text-muted-foreground"}`}>Rate Card & Assemblies</button>
+        <button onClick={() => setTab("painting")} className={`px-[12px] py-[6px] rounded-[6px] border font-['Roboto_Mono'] text-[11px] ${tab === "painting" ? "border-accent text-accent bg-accent/10" : "border-border text-muted-foreground"}`}>Painting Rate Card</button>
       </div>
 
-      {tab === "tiers" ? (
+      {tab === "painting" ? <PaintingRateCardEditor /> : tab === "tiers" ? (
         <div className="bg-card border border-border rounded-[12px] p-[16px]">
           <h2 className="font-['Roboto_Mono'] font-bold text-[13px] mb-[4px]">Margin tiers</h2>
           <p className="font-['Roboto_Mono'] text-[10px] text-muted-foreground mb-[12px]">

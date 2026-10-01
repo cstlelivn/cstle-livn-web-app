@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Mic, Plus, X, Sparkles, Camera, FileUp } from "lucide-react";
+import { Mic, Plus, X, Sparkles, Camera, FileUp, PaintRoller } from "lucide-react";
 import { toast } from "sonner";
 import {
   type Estimate, updateEstimate,
@@ -14,9 +14,10 @@ interface ScreenProps {
   estimate: Estimate;
   onRefresh: () => void;
   onAdvance: () => void;
+  onPainting: () => void;
 }
 
-export default function CaptureScreen({ estimate, onRefresh, onAdvance }: ScreenProps) {
+export default function CaptureScreen({ estimate, onRefresh, onAdvance, onPainting }: ScreenProps) {
   const [photos, setPhotos] = useState<EstimateMedia[]>([]);
   const [plans, setPlans] = useState<EstimateMedia[]>([]);
   const [measurements, setMeasurements] = useState<EstimateMeasurement[]>([]);
@@ -250,7 +251,7 @@ export default function CaptureScreen({ estimate, onRefresh, onAdvance }: Screen
         </div>
       </div>
 
-      <div className="sticky bottom-4 grid gap-2 sm:static sm:flex sm:items-center"><button onClick={handleConfirm} disabled={uploading} className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-[#65733d] px-5 text-[12px] font-semibold text-white shadow-[0_14px_30px_rgba(66,77,36,.28)] transition hover:-translate-y-0.5 hover:bg-[#596637] disabled:opacity-50 sm:w-auto sm:min-w-[260px]"><Sparkles className="size-4" /> Refine with AI</button><button onClick={continueWithoutAI} disabled={uploading} className="min-h-11 rounded-xl border border-black/10 bg-white px-4 text-[10px] font-medium text-black/55 shadow-sm hover:bg-[#f6f6f1]">Continue without AI · free</button></div>
+      <div className="sticky bottom-4 grid gap-2 sm:static sm:flex sm:items-center"><button onClick={onPainting} disabled={uploading} className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-[#1e291e] px-5 text-[12px] font-semibold text-white shadow-[0_14px_30px_rgba(30,41,30,.25)] sm:w-auto sm:min-w-[240px]"><PaintRoller className="size-4" /> Build painting estimate</button><button onClick={handleConfirm} disabled={uploading} className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-[#65733d] px-5 text-[12px] font-semibold text-white shadow-[0_14px_30px_rgba(66,77,36,.28)] transition hover:-translate-y-0.5 hover:bg-[#596637] disabled:opacity-50 sm:w-auto sm:min-w-[220px]"><Sparkles className="size-4" /> Refine with AI</button><button onClick={continueWithoutAI} disabled={uploading} className="min-h-11 rounded-xl border border-black/10 bg-white px-4 text-[10px] font-medium text-black/55 shadow-sm hover:bg-[#f6f6f1]">Continue without AI · free</button></div>
     </div>
   );
 }

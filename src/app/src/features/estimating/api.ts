@@ -3,6 +3,7 @@ import { failIf } from '../../lib/errors';
 import { now } from '../../lib/dates';
 import { optimizeMediaFile } from '../media/api';
 import type { MarginTier, RateCard, Assembly } from './pricingEngine';
+import type { PaintingAreaInput, PaintingRateCard } from './paintingEngine';
 
 const supabase = createClient();
 
@@ -23,6 +24,7 @@ export interface Estimate {
   name: string;
   site_address: string | null;
   status: string;
+  estimate_type?: 'general' | 'painting';
   capture_confirmed: boolean;
   analysis_confirmed: boolean;
   scope_confirmed: boolean;
@@ -85,6 +87,51 @@ export async function updateEstimate(id: string, updates: Partial<Estimate>): Pr
   const { data, error } = await supabase.from('estimates').update(updates).eq('id', id).select().single();
   failIf(error, 'Failed to update estimate');
   return data;
+}
+
+export interface PaintingEstimateRecord {
+  estimate_id:string; rate_card_version_id:string; discount_cents:number; discount_percent:number;
+  customer_subtotal_cents:number; customer_tax_cents:number; customer_total_cents:number;
+  customer_scope:any; owner_margin_override:boolean; owner_override_reason:string|null;
+}
+
+export async function initializePaintingEstimate(estimateId:string):Promise<void>{
+  const {error}=await supabase.rpc('initialize_painting_estimate',{p_estimate_id:estimateId});
+  failIf(error,'Failed to start painting estimate');
+}
+export async function getActivePaintingRateCard(includeInternal=false):Promise<PaintingRateCard|null>{
+  if(includeInternal){
+    const {data,error}=await supabase.from('painting_rate_card_versions').select('*').eq('active',true).maybeSingle();
+    failIf(error,'Failed to load painting rate card'); return data;
+  }
+  const {data,error}=await supabase.rpc('get_active_painting_rate_card'); failIf(error,'Failed to load painting rate card'); return data;
+}
+export async function createPaintingRateCardVersion(config:any,changeNote:string):Promise<string>{
+  const {data,error}=await supabase.rpc('create_painting_rate_card_version',{p_config:config,p_change_note:changeNote||null});
+  failIf(error,'Failed to save painting rate card'); return data;
+}
+export async function getPaintingEstimate(estimateId:string):Promise<PaintingEstimateRecord|null>{
+  const {data,error}=await supabase.from('painting_estimates').select('*').eq('estimate_id',estimateId).maybeSingle();
+  if(error&&isMissingTableError(error))return null; failIf(error,'Failed to load painting estimate'); return data;
+}
+export async function listPaintingAreas(estimateId:string):Promise<PaintingAreaInput[]>{
+  const {data,error}=await supabase.from('painting_areas').select('*, painting_repairs(*)').eq('estimate_id',estimateId).order('position');
+  if(error&&isMissingTableError(error))return []; failIf(error,'Failed to load painting areas');
+  return (data||[]).map((row:any)=>({...row,repairs:row.painting_repairs||[]}));
+}
+export async function savePaintingArea(estimateId:string,area:any,position:number):Promise<any>{
+  const repairs=area.repairs||[]; const {repairs:_ignored,painting_repairs:_ignored2,...values}=area;
+  const payload={...values,estimate_id:estimateId,position};
+  const query=area.id?supabase.from('painting_areas').update(payload).eq('id',area.id):supabase.from('painting_areas').insert(payload);
+  const {data,error}=await query.select().single(); failIf(error,'Failed to save area');
+  if(area.id){ const {error:delError}=await supabase.from('painting_repairs').delete().eq('area_id',data.id); failIf(delError,'Failed to update repairs'); }
+  if(repairs.length){ const {error:repairError}=await supabase.from('painting_repairs').insert(repairs.map((r:any)=>({area_id:data.id,category:r.category,quantity:r.quantity,unit_price_cents:r.unit_price_cents??null,notes:r.notes||null}))); failIf(repairError,'Failed to save repairs'); }
+  return data;
+}
+export async function deletePaintingArea(id:string):Promise<void>{ const {error}=await supabase.from('painting_areas').delete().eq('id',id); failIf(error,'Failed to delete area'); }
+export async function savePaintingCalculation(estimateId:string,painting:any,financials:any|null):Promise<void>{
+  const {error}=await supabase.from('painting_estimates').update(painting).eq('estimate_id',estimateId); failIf(error,'Failed to save painting totals');
+  if(financials){ const {error:financialError}=await supabase.from('painting_estimate_financials').upsert({estimate_id:estimateId,...financials},{onConflict:'estimate_id'}); failIf(financialError,'Failed to save internal profitability'); }
 }
 
 /**
