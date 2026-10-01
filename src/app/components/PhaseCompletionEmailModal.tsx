@@ -97,23 +97,17 @@ export default function PhaseCompletionEmailModal({
     const completedDate = new Date().toLocaleDateString("en-US", {
       month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit",
     });
-    const completedWorkLines = completedTaskTitles && completedTaskTitles.length > 0
-      ? completedTaskTitles.map((t) => `  - ${t}`).join("\n")
-      : "  - All required work for this phase";
     const nextUpLine = nextPhaseName ? `Next up: ${nextPhaseName}` : "This was the final phase of the project.";
     const issuesLine = outstandingIssues && outstandingIssues.trim() ? outstandingIssues : "None at this time.";
-    const phaseHeader = `${previousPhase ? `• Previous Phase: ${previousPhase}\n` : ''}• Completed Phase: ${phaseName}\n• Completed on: ${completedDate}`;
+    const phaseHeader = `• Completed Phase: ${phaseName}\n• Completed on: ${completedDate}`;
 
     switch (key) {
       case "ahead_of_schedule":
         return `Hello,
 
-Good news -- we're ahead of schedule on your ${projectReference} project.
+Great News! We're ahead of schedule on your ${projectReference} project.
 
 ${phaseHeader}
-
-Completed work:
-${completedWorkLines}
 
 ${nextUpLine}
 
@@ -131,9 +125,6 @@ We wanted to give you an update on your ${projectReference} project.
 
 ${phaseHeader}
 
-Completed work:
-${completedWorkLines}
-
 ${nextUpLine}
 
 Outstanding issues: ${issuesLine}
@@ -150,9 +141,6 @@ We're excited to let you know we've completed the final phase of your ${projectR
 
 ${phaseHeader}
 
-Completed work:
-${completedWorkLines}
-
 Outstanding issues: ${issuesLine}
 
 We'll be in touch shortly to schedule a final walkthrough and handover. Thank you for the opportunity to work on this project.
@@ -164,12 +152,9 @@ Cstle Livn`;
       default:
         return `Hello,
 
-Great news! We've completed another phase of your ${projectReference} project.
+Good News! We've completed another phase of your ${projectReference} project.
 
 ${phaseHeader}
-
-Completed work:
-${completedWorkLines}
 
 ${nextUpLine}
 
