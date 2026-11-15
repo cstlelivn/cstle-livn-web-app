@@ -6,7 +6,7 @@ import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Textarea } from "./ui/textarea";
 import { toast } from "sonner";
-import { projectId, publicAnonKey } from "../utils/supabase/info";
+import { transactionAPI } from "../utils/supabase/client";
 
 interface AddTransactionDialogProps {
   open: boolean;
@@ -123,23 +123,9 @@ export default function AddTransactionDialog({
         notes: notes || null,
       };
 
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-bcab437c/transactions`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${publicAnonKey}`,
-          },
-          body: JSON.stringify(transactionData),
-        }
-      );
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to create transaction");
-      }
+      // Use the shared authenticated API so the current user's JWT is refreshed
+      // when necessary. The public anon key is not a user access token.
+      await transactionAPI.create(transactionData);
 
       toast.success(`Transaction created successfully`);
       onOpenChange(false);

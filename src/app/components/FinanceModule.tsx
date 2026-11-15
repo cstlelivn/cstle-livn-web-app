@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { projectId as supabaseProjectId, publicAnonKey } from '../utils/supabase/info';
-import { createClient } from '../utils/supabase/client.tsx';
+import { transactionAPI } from '../utils/supabase/client.tsx';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -14,9 +13,9 @@ import AddTransactionDialog from './AddTransactionDialog';
 import { useAuth } from './AuthContext';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import FinanceTransactionList from './FinanceTransactionList';
-
-// Use singleton Supabase client
-const supabase = createClient();
+import { listProjects } from '../src/features/projects/api';
+import { listClients } from '../src/features/clients/api';
+import { listVendors } from '../src/features/vendors/api';
 
 interface Transaction {
   id: string;
@@ -99,53 +98,16 @@ export default function FinanceModule({ onOpenProject }: { onOpenProject?: (proj
   // Fetch projects, clients, vendors for dialog dropdowns
   const fetchDropdownData = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session?.access_token) {
-        return;
-      }
-
-      // Fetch projects
-      const projectsResponse = await fetch(
-        `https://${supabaseProjectId}.supabase.co/functions/v1/make-server-bcab437c/projects`,
-        {
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
-        }
-      );
-      if (projectsResponse.ok) {
-        const projectsData = await projectsResponse.json();
-        setProjects(projectsData.projects || []);
-      }
-
-      // Fetch clients
-      const clientsResponse = await fetch(
-        `https://${supabaseProjectId}.supabase.co/functions/v1/make-server-bcab437c/clients`,
-        {
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
-        }
-      );
-      if (clientsResponse.ok) {
-        const clientsData = await clientsResponse.json();
-        setClients(clientsData.clients || []);
-      }
-
-      // Fetch vendors
-      const vendorsResponse = await fetch(
-        `https://${supabaseProjectId}.supabase.co/functions/v1/make-server-bcab437c/vendors`,
-        {
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
-        }
-      );
-      if (vendorsResponse.ok) {
-        const vendorsData = await vendorsResponse.json();
-        setVendors(vendorsData.vendors || []);
-      }
+      // Load the same current database records used by Projects, CRM and
+      // Vendors. The former Edge/KV project collection is not the live source.
+      const [projectsData, clientsData, vendorsData] = await Promise.all([
+        listProjects(),
+        listClients(),
+        listVendors(),
+      ]);
+      setProjects(projectsData || []);
+      setClients(clientsData || []);
+      setVendors(vendorsData || []);
     } catch (error: any) {
       console.error('Error fetching dropdown data:', error);
     }
@@ -154,31 +116,7 @@ export default function FinanceModule({ onOpenProject }: { onOpenProject?: (proj
   // Fetch all transactions
   const fetchTransactions = async () => {
     try {
-      // Get the current session for auth token
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session?.access_token) {
-        console.warn('No active session - user may need to log in');
-        setTransactions([]);
-        setLoading(false);
-        return;
-      }
-
-      const response = await fetch(
-        `https://${supabaseProjectId}.supabase.co/functions/v1/make-server-bcab437c/transactions`,
-        {
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
-        }
-      );
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to fetch transactions: ${errorText}`);
-      }
-
-      const data = await response.json();
+      const data = await transactionAPI.getAll();
       setTransactions(data.transactions || []);
     } catch (error: any) {
       console.error('Error fetching transactions:', error);
@@ -194,28 +132,7 @@ export default function FinanceModule({ onOpenProject }: { onOpenProject?: (proj
     if (!confirm('Are you sure you want to delete this transaction?')) return;
 
     try {
-      // Get the current session for auth token
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session?.access_token) {
-        toast.error('Please log in to continue');
-        return;
-      }
-
-      const response = await fetch(
-        `https://${supabaseProjectId}.supabase.co/functions/v1/make-server-bcab437c/transactions/${id}`,
-        {
-          method: 'DELETE',
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
-        }
-      );
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to delete: ${errorText}`);
-      }
+      await transactionAPI.delete(Number(id));
 
       toast.success('Transaction deleted');
       fetchTransactions();

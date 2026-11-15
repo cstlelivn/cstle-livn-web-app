@@ -1,5 +1,16 @@
 # Cstle Livn Web App — Project Handoff
 
+## Finance authentication and linked-record source rule — November 14, 2026
+
+- Finance transaction writes, reads, updates, and deletes must use the shared
+  authenticated `transactionAPI`; never send `publicAnonKey` as a user's Bearer
+  token. The shared client refreshes the signed-in user's JWT before protected
+  Edge Function requests.
+- Finance project/client/vendor selectors must load from the same normalized
+  database feature APIs used by Projects, CRM, and Vendors. Do not use the
+  legacy Edge/KV project collection for these selectors, because it is not the
+  source of truth for current projects.
+
 ## Basement/Secondary Suite finishing phases now follow the old "FCC Projects" sequence — September 13, 2026 (migration not yet run)
 
 - **User's request**: "the FCC template I had before" is a real, legacy
