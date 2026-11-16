@@ -16,7 +16,7 @@
   idle Edge traffic. The email lists every non-Completed/non-Archived project
   and the next three open tasks by due date/sequence. Resend idempotency plus
   the weekly database guard prevents duplicate weekly sends.
-- `make-server-bcab437c` was manually deployed with the new weekly-digest
+- `make-server-bcab437c` **version 83 is ACTIVE in production** with the new weekly-digest
   adapter. It rechecks the dashboard preference immediately before sending, so
   switching the email off also cancels an already-queued-but-unprocessed send.
 - Global Finance no longer reads/writes the legacy Edge KV transaction store.
@@ -26,6 +26,14 @@
   comments); create/update/list/realtime now consistently use `type`. Project,
   client, vendor, phase, payment method, recipient and notes are stored on that
   same canonical record.
+- Production browser QA caught and fixed one post-refactor runtime regression:
+  `FinanceModule` still owns a realtime subscription and therefore still needs
+  its singleton Supabase client. Commit `b0530b5` restored it. Live QA then
+  confirmed Finance opens normally, Add Transaction opens, and its Project
+  selector lists the real normalized projects (including 2992 Trombley and
+  Scarth Street) instead of only “No Project.” A transaction INSERT was tested
+  against the live schema and Super Admin RLS inside a database transaction,
+  then rolled back; a follow-up count confirmed zero test rows survived.
 
 ## Finance authentication and linked-record source rule — November 14, 2026
 
