@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { deleteTransaction, listTransactions } from '../src/features/transactions/api';
+import { createClient } from '../utils/supabase/client.tsx';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -16,6 +17,8 @@ import FinanceTransactionList from './FinanceTransactionList';
 import { listProjects } from '../src/features/projects/api';
 import { listClients } from '../src/features/clients/api';
 import { listVendors } from '../src/features/vendors/api';
+
+const supabase = createClient();
 
 interface Transaction {
   id: string;
