@@ -1,7 +1,7 @@
 import { useApp } from "./AppContext";
 import { useAuth } from "./AuthContext";
 import { formatDate } from "../src/lib/dates";
-import { FolderKanban, ExternalLink, Clock, RefreshCw } from "lucide-react";
+import { FolderKanban, ExternalLink, Clock, RefreshCw, Bell, Mail } from "lucide-react";
 import { triggerGallerySyncWorkflow } from "../src/features/gallery/api";
 import { calculateCompletion } from "../src/lib/progress";
 import { toast } from "sonner";
@@ -10,9 +10,15 @@ import RecentTasksWidget from "./RecentTasksWidget";
 import AIInsightsWidget from "./AIInsightsWidget";
 import MobileTaskDashboard from "./MobileTaskDashboard";
 import ErrorBoundary from "./ErrorBoundary";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { operationalTasks } from "../src/features/projects/lifecycle";
 import { isWorkPortalHost } from "../src/lib/workPortal";
+import { Switch } from "./ui/switch";
+import {
+  getWeeklyProjectDigestPreference,
+  setWeeklyProjectDigestEnabled,
+  type WeeklyProjectDigestPreference,
+} from "../src/features/notifications/api";
 
 interface DashboardProps {
   onNavigate: (view: string, id?: number) => void;
@@ -32,11 +38,40 @@ export default function Dashboard({ onNavigate, onNewProject }: DashboardProps) 
 
   const { hasPermission, currentUser } = useAuth();
   const [syncingGallery, setSyncingGallery] = useState(false);
+  const [digestPreference, setDigestPreference] = useState<WeeklyProjectDigestPreference | null>(null);
+  const [savingDigestPreference, setSavingDigestPreference] = useState(false);
 
   // Check permissions
   const canViewFinance = hasPermission("canViewFinance");
   const canViewTeam = hasPermission("canViewTeam");
   const canManageGallery = hasPermission("canManageGallery");
+  const canEditSettings = hasPermission("canEditSettings");
+
+  useEffect(() => {
+    if (!canEditSettings) return;
+    let active = true;
+    getWeeklyProjectDigestPreference()
+      .then((preference) => { if (active) setDigestPreference(preference); })
+      .catch((error) => console.error("Failed to load weekly project digest preference:", error));
+    return () => { active = false; };
+  }, [canEditSettings]);
+
+  const handleDigestToggle = async (enabled: boolean) => {
+    const previous = digestPreference;
+    if (!previous || savingDigestPreference) return;
+    setDigestPreference({ ...previous, weeklyProjectDigestEnabled: enabled });
+    setSavingDigestPreference(true);
+    try {
+      const saved = await setWeeklyProjectDigestEnabled(enabled);
+      setDigestPreference(saved);
+      toast.success(enabled ? "Weekly project email turned on" : "Weekly project email turned off");
+    } catch (error: any) {
+      setDigestPreference(previous);
+      toast.error(error?.message || "Could not update weekly project email");
+    } finally {
+      setSavingDigestPreference(false);
+    }
+  };
 
   // Without canViewAllProjects, only count/list projects the current person
   // actually has a task in -- otherwise the dashboard showed the whole
@@ -338,6 +373,38 @@ export default function Dashboard({ onNavigate, onNewProject }: DashboardProps) 
           );
         })}
       </div>
+
+      {canEditSettings && digestPreference && (
+        <div className="flex flex-col gap-4 rounded-[20px] border border-border bg-card p-[20px] sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-[11px] bg-accent/10 text-accent">
+              <Bell className="size-5" />
+            </div>
+            <div className="min-w-0">
+              <h2 style={{ fontVariationSettings: "'wdth' 137", fontWeight: 700 }}>Weekly project email</h2>
+              <p className="mt-1 font-['Roboto_Mono'] text-[10px] leading-[1.5] text-muted-foreground">
+                Every Monday at 8:00 AM, send all active projects and each project’s next three open tasks to {digestPreference.recipientEmail}.
+              </p>
+              {digestPreference.lastDigestSentAt && (
+                <p className="mt-1 flex items-center gap-1 font-['Roboto_Mono'] text-[9px] text-muted-foreground">
+                  <Mail className="size-3" /> Last sent {new Date(digestPreference.lastDigestSentAt).toLocaleString()}
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-3">
+            <span className="font-['Roboto_Mono'] text-[10px] font-medium text-foreground">
+              {digestPreference.weeklyProjectDigestEnabled ? "On" : "Off"}
+            </span>
+            <Switch
+              checked={digestPreference.weeklyProjectDigestEnabled}
+              disabled={savingDigestPreference}
+              onCheckedChange={handleDigestToggle}
+              aria-label="Weekly project email"
+            />
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-[24px]">
         {/* Active Projects */}

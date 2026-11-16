@@ -1,5 +1,32 @@
 # Cstle Livn Web App — Project Handoff
 
+## Weekly project digest + canonical Finance activation — November 16, 2026
+
+- Migration `20240081_weekly_project_digest_and_finance.sql` is applied in
+  production. It keeps the existing `transactions.type` schema authoritative,
+  ensures the global Finance form's optional link/detail columns exist, adds
+  one company notification-preference row, and installs the active pg_cron job
+  `cstle-weekly-project-digest` for **8:00 AM every Monday Regina time**
+  (`0 14 * * 1` UTC). The preference defaults OFF; the dashboard switch is the
+  source of truth and sends to `info@cstlelivn.ca` when enabled.
+- The weekly scheduler calls only `enqueue_weekly_project_digest()`. That
+  function inserts at most one `projects.weekly_digest` outbox event per Regina
+  business week and inserts nothing while disabled. The existing outbox
+  Database Webhook invokes the existing Edge worker, so there is no polling or
+  idle Edge traffic. The email lists every non-Completed/non-Archived project
+  and the next three open tasks by due date/sequence. Resend idempotency plus
+  the weekly database guard prevents duplicate weekly sends.
+- `make-server-bcab437c` was manually deployed with the new weekly-digest
+  adapter. It rechecks the dashboard preference immediately before sending, so
+  switching the email off also cancels an already-queued-but-unprocessed send.
+- Global Finance no longer reads/writes the legacy Edge KV transaction store.
+  `FinanceModule`, `AddTransactionDialog`, AppContext realtime and project
+  finance all use `public.transactions`. The real production column is `type`
+  (not the stale `transaction_type` name that remained in the old API/schema
+  comments); create/update/list/realtime now consistently use `type`. Project,
+  client, vendor, phase, payment method, recipient and notes are stored on that
+  same canonical record.
+
 ## Finance authentication and linked-record source rule — November 14, 2026
 
 - Finance transaction writes, reads, updates, and deletes must use the shared

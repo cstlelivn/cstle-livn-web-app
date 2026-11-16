@@ -2252,6 +2252,37 @@ async function deliverLeadStageChangedAutomation(event: AutomationOutboxRow) {
   return delivered;
 }
 
+async function deliverWeeklyProjectDigestAutomation(event: AutomationOutboxRow) {
+  const { data: preference, error: preferenceError } = await supabase
+    .from("company_notification_preferences")
+    .select("weekly_project_digest_enabled,recipient_email")
+    .eq("id", event.aggregate_id)
+    .maybeSingle();
+  if (preferenceError) throw preferenceError;
+  if (!preference?.weekly_project_digest_enabled) return ["disabled-no-email"];
+
+  const { data: projectRows, error: projectsError } = await supabase.from("projects").select("id,title,status,client,location,end_date").neq("status", "Completed").order("end_date", { ascending: true, nullsFirst: false }).limit(300);
+  if (projectsError) throw projectsError;
+  const projects = (projectRows || []).filter((project: any) => project.status !== "Archived");
+  const projectIds = projects.map((project: any) => project.id);
+  let tasks: any[] = [];
+  if (projectIds.length > 0) {
+    const { data: taskRows, error: tasksError } = await supabase.from("tasks").select("id,project_id,title,status,due_date,priority,phase,sequence").in("project_id", projectIds).neq("status", "Completed").order("due_date", { ascending: true, nullsFirst: false }).order("sequence", { ascending: true, nullsFirst: false }).limit(1000);
+    if (tasksError) throw tasksError;
+    tasks = taskRows || [];
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  const formatDigestDate = (value: unknown) => { const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})/); if (!match) return "Not scheduled"; return new Intl.DateTimeFormat("en-CA", { month: "short", day: "numeric", year: "numeric", timeZone: "America/Regina" }).format(new Date(`${match[1]}-${match[2]}-${match[3]}T12:00:00-06:00`)); };
+  const taskHtml = (task: any) => { const due = String(task.due_date || "").slice(0, 10); const overdue = Boolean(due && due < today); return `<li style="margin:8px 0;line-height:1.45"><strong>${escapeAutomationHtml(task.title)}</strong>${task.phase ? ` <span style="color:#777">· ${escapeAutomationHtml(task.phase)}</span>` : ""}<br><span style="font-size:12px;color:${overdue ? "#b42318" : "#666"}">${overdue ? "Overdue · " : "Due "}${escapeAutomationHtml(formatDigestDate(task.due_date))} · ${escapeAutomationHtml(task.status || "To Do")}</span></li>`; };
+  const sections = projects.length > 0 ? projects.map((project: any) => { const nextTasks = tasks.filter((task: any) => task.project_id === project.id).slice(0, 3); return `<section style="border:1px solid #dde2d7;border-radius:12px;padding:18px;margin:14px 0"><h2 style="font-size:18px;margin:0 0 4px">${escapeAutomationHtml(project.title)}</h2><p style="font-size:12px;color:#666;margin:0 0 12px">${escapeAutomationHtml(project.status || "In Progress")}${project.location ? ` · ${escapeAutomationHtml(project.location)}` : ""}${project.end_date ? ` · Project due ${escapeAutomationHtml(formatDigestDate(project.end_date))}` : ""}</p>${nextTasks.length ? `<p style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#65733d;margin:0">Due next</p><ul style="padding-left:20px;margin:6px 0 0">${nextTasks.map(taskHtml).join("")}</ul>` : `<p style="font-size:13px;color:#666;margin:0">No open scheduled tasks.</p>`}</section>`; }).join("") : `<div style="border:1px solid #dde2d7;border-radius:12px;padding:22px"><strong>No active projects</strong><p style="color:#666;margin:6px 0 0">There are no projects currently marked in progress.</p></div>`;
+  const resendApiKey = Deno.env.get("RESEND_API_KEY"); if (!resendApiKey) throw new Error("RESEND_API_KEY is not configured");
+  const recipient = preference.recipient_email || Deno.env.get("LEAD_NOTIFICATION_EMAIL") || "info@cstlelivn.ca"; const fromEmail = Deno.env.get("AUTOMATION_FROM_EMAIL") || "Cstle Livn Admin <info@cstlelivn.ca>";
+  const response = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${resendApiKey}`, "Content-Type": "application/json", "Idempotency-Key": `cstle-${event.id}-weekly-project-digest` }, body: JSON.stringify({ from: fromEmail, to: [recipient], subject: `Weekly project focus — ${projects.length} active project${projects.length === 1 ? "" : "s"}`, html: `<div style="background:#eef1e9;padding:28px;font-family:Arial,sans-serif;color:#191919"><div style="max-width:680px;margin:auto;background:#fff;border-radius:16px;padding:30px"><img src="https://admin.cstle.ca/logo-bimi.svg" alt="Cstle Livn" width="52"><p style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:#65733d;margin-top:18px">Weekly portfolio digest</p><h1 style="font-size:26px;line-height:1.15;margin:8px 0">Keep every active project in view.</h1><p style="color:#555;line-height:1.55">Here are all projects still in progress and the immediate tasks due next under each one.</p>${sections}<p style="margin-top:24px"><a href="https://admin.cstle.ca" style="display:inline-block;background:#1d231a;color:white;padding:13px 18px;text-decoration:none;border-radius:8px;font-weight:bold">Open Cstle Admin</a></p><p style="font-size:11px;color:#777;margin-top:24px">This weekly email is controlled by the Project digest switch on the Cstle Admin dashboard.</p></div></div>` }) });
+  const result = await response.json().catch(() => ({})); if (!response.ok) throw new Error(`Weekly digest email failed (${response.status}): ${result?.message || "Resend error"}`);
+  await supabase.from("company_notification_preferences").update({ last_digest_sent_at: new Date().toISOString() }).eq("id", event.aggregate_id);
+  return ["weekly-project-email"];
+}
+
 
 // Intended for Supabase Cron, Make, or a trusted scheduler. The worker secret
 // is separate from user auth because this is machine-to-machine automation.
@@ -2299,6 +2330,8 @@ async function processAutomationQueue(limit: number, aggregateId?: string) {
         ? await deliverLeadCapturedAutomation(candidate)
         : candidate.event_type === "lead.stage_changed"
           ? await deliverLeadStageChangedAutomation(candidate)
+          : candidate.event_type === "projects.weekly_digest"
+            ? await deliverWeeklyProjectDigestAutomation(candidate)
           : (() => { throw new Error(`Unsupported event type: ${candidate.event_type}`); })();
       await supabase.from("automation_outbox").update({ status: "delivered", destination: destinations.join(","), delivered_at: new Date().toISOString(), last_error: null }).eq("id", candidate.id);
       if (candidate.event_type === "lead.captured") await supabase.from("lead_activities").insert({ lead_id: candidate.aggregate_id, activity_type: "automation_delivered", summary: `Lead automation delivered via ${destinations.join(" and ")}`, metadata: { outbox_id: candidate.id, destinations } });

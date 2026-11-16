@@ -16,7 +16,7 @@ export function useTransactions(enabled = true) {
           // Transform snake_case to camelCase for realtime inserts
           const transformed = {
             ...p.new,
-            type: p.new.transaction_type, // Map transaction_type to type
+            type: p.new.type,
             projectId: p.new.project_id,
             phaseName: p.new.phase_name,
           };
@@ -26,7 +26,7 @@ export function useTransactions(enabled = true) {
           // Transform snake_case to camelCase for realtime updates
           const transformed = {
             ...p.new,
-            type: p.new.transaction_type, // Map transaction_type to type
+            type: p.new.type,
             projectId: p.new.project_id,
             phaseName: p.new.phase_name,
           };

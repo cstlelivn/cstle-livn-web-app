@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { transactionAPI } from '../utils/supabase/client.tsx';
+import { deleteTransaction, listTransactions } from '../src/features/transactions/api';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -116,8 +116,8 @@ export default function FinanceModule({ onOpenProject }: { onOpenProject?: (proj
   // Fetch all transactions
   const fetchTransactions = async () => {
     try {
-      const data = await transactionAPI.getAll();
-      setTransactions(data.transactions || []);
+      const data = await listTransactions();
+      setTransactions(data || []);
     } catch (error: any) {
       console.error('Error fetching transactions:', error);
       toast.error(`Failed to load transactions: ${error.message}`);
@@ -132,7 +132,7 @@ export default function FinanceModule({ onOpenProject }: { onOpenProject?: (proj
     if (!confirm('Are you sure you want to delete this transaction?')) return;
 
     try {
-      await transactionAPI.delete(Number(id));
+      await deleteTransaction(id);
 
       toast.success('Transaction deleted');
       fetchTransactions();

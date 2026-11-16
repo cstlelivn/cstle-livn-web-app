@@ -6,7 +6,7 @@ import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Textarea } from "./ui/textarea";
 import { toast } from "sonner";
-import { transactionAPI } from "../utils/supabase/client";
+import { createTransaction } from "../src/features/transactions/api";
 
 interface AddTransactionDialogProps {
   open: boolean;
@@ -114,18 +114,18 @@ export default function AddTransactionDialog({
         description,
         date: new Date(date).toISOString(),
         status,
-        project_id: selectedProjectId || null,
-        phase_name: selectedPhaseName || null,
-        client_id: selectedClientId || null,
-        vendor_id: selectedVendorId || null,
-        recipient_or_vendor: recipientOrVendor || null,
-        payment_method: paymentMethod || null,
+        projectId: selectedProjectId || null,
+        phaseName: selectedPhaseName || undefined,
+        clientId: selectedClientId || null,
+        vendor: selectedVendorId || null,
+        recipientOrVendor: recipientOrVendor || null,
+        paymentMethod: paymentMethod || null,
         notes: notes || null,
       };
 
-      // Use the shared authenticated API so the current user's JWT is refreshed
-      // when necessary. The public anon key is not a user access token.
-      await transactionAPI.create(transactionData);
+      // Finance, project totals and realtime now share the same PostgreSQL
+      // transaction record. Do not write global Finance rows to legacy KV.
+      await createTransaction(transactionData);
 
       toast.success(`Transaction created successfully`);
       onOpenChange(false);

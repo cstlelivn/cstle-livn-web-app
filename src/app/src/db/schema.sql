@@ -201,7 +201,7 @@ CREATE TABLE IF NOT EXISTS public.inventory (
 CREATE TABLE IF NOT EXISTS public.transactions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id uuid REFERENCES public.projects(id) ON DELETE SET NULL,
-  transaction_type text NOT NULL, -- 'expense', 'payment', etc. (database uses transaction_type, not type)
+  type text NOT NULL, -- 'income', 'expense', etc.
   category text,
   amount numeric NOT NULL,
   description text,
